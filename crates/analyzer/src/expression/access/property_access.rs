@@ -127,6 +127,7 @@ where
         false, // `for_assignment`
     )?;
 
+    let object_has_nullsafe_null = artifacts.get_expression_type(object).is_some_and(|t| t.has_nullsafe_null());
     let mut resulting_expression_type = None;
     if !resolution_result.has_error_path {
         for resolved_property in resolution_result.properties {
@@ -146,8 +147,10 @@ where
         }
 
         if resolution_result.has_invalid_path || resolution_result.encountered_null {
+            let mut null = get_null();
+            null.set_error_path_null(!is_null_safe && !object_has_nullsafe_null);
             resulting_expression_type =
-                Some(add_optional_union_type(get_null(), resulting_expression_type.as_ref(), context.codebase));
+                Some(add_optional_union_type(null, resulting_expression_type.as_ref(), context.codebase));
         }
     }
 
@@ -188,7 +191,6 @@ where
     }
 
     let mut resulting_type = resulting_expression_type.unwrap_or_else(get_never);
-    let object_has_nullsafe_null = artifacts.get_expression_type(object).is_some_and(|t| t.has_nullsafe_null());
     if resolution_result.all_properties_non_nullable
         && ((is_null_safe && resolution_result.encountered_null) || object_has_nullsafe_null)
     {
@@ -353,11 +355,101 @@ where
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
-    use indoc::indoc;
+    use std::borrow::Cow;
+    use std::sync::Arc;
+    use std::sync::Mutex;
 
+    use foldhash::HashSet;
+    use indoc::indoc;
+    use mago_allocator::LocalArena;
+    use mago_codex::populator::populate_codebase;
+    use mago_codex::reference::SymbolReferences;
+    use mago_codex::scanner::scan_program;
+    use mago_database::file::File;
+    use mago_names::resolver::NameResolver;
+    use mago_span::HasSpan;
+    use mago_syntax::cst::Access;
+    use mago_syntax::cst::Expression;
+    use mago_syntax::parser::parse_file;
+    use mago_word::WordSet;
+
+    use crate::Analyzer;
+    use crate::analysis_result::AnalysisResult;
     use crate::code::IssueCode;
+    use crate::plugin::PluginRegistry;
+    use crate::plugin::context::HookContext;
+    use crate::plugin::hook::ExpressionHook;
+    use crate::plugin::hook::HookResult;
+    use crate::plugin::provider::Provider;
+    use crate::plugin::provider::ProviderMeta;
+    use crate::settings::Settings;
     use crate::test_analysis;
+
+    type PropertyReads = Arc<Mutex<Vec<((u32, u32), bool, bool)>>>;
+
+    struct PropertyReadTypes {
+        reads: PropertyReads,
+    }
+
+    impl Provider for PropertyReadTypes {
+        fn meta() -> &'static ProviderMeta {
+            static META: ProviderMeta =
+                ProviderMeta::new("property-read-types", "Property read types", "Records property read types");
+            &META
+        }
+    }
+
+    impl ExpressionHook for PropertyReadTypes {
+        fn after_expression(&self, expression: &Expression<'_>, context: &mut HookContext<'_, '_>) -> HookResult<()> {
+            if let Expression::Access(Access::Property(_) | Access::NullSafeProperty(_)) = expression
+                && let Some(read) = context.get_expression_type(expression)
+                && let Ok(mut reads) = self.reads.lock()
+            {
+                let span = expression.span();
+                reads.push(((span.start.offset, span.end.offset), read.is_nullable(), read.has_error_path_null()));
+            }
+
+            Ok(())
+        }
+    }
+
+    fn property_read_type(read: &str) -> (bool, bool) {
+        let code = format!(
+            "<?php final class B {{ public int $c = 1; }} final class A {{ public int $id = 1; public ?int $p = null; public B $b; public function __construct() {{ $this->b = new B(); }} }} function probe(?A $a): void {{ {read}; }}"
+        );
+        let start = u32::try_from(code.rfind(read).unwrap()).unwrap();
+        let end = start + u32::try_from(read.len()).unwrap();
+        let arena = LocalArena::new();
+        let file = File::ephemeral(Cow::Borrowed(b"read.php"), Cow::Owned(code.into_bytes()));
+        let program = parse_file(&arena, &file);
+        assert!(!program.has_errors());
+        let resolved_names = NameResolver::new(&arena).resolve(program);
+        let settings = Settings::default();
+        let mut codebase = scan_program(&arena, &file, program, &resolved_names, settings.version);
+        let mut references = SymbolReferences::new();
+        populate_codebase(&mut codebase, &mut references, WordSet::default(), HashSet::default());
+        let reads = PropertyReads::default();
+        let mut registry = PluginRegistry::with_library_providers();
+        registry.register_expression_hook(PropertyReadTypes { reads: Arc::clone(&reads) });
+        Analyzer::new(&arena, &file, &resolved_names, &codebase, &registry, settings)
+            .analyze(program, &mut AnalysisResult::new(references))
+            .unwrap();
+
+        let reads = reads.lock().unwrap();
+        let (_, nullable, marked) = reads.iter().find(|(span, _, _)| *span == (start, end)).unwrap();
+
+        (*nullable, *marked)
+    }
+
+    #[test]
+    fn only_the_null_of_a_reported_null_receiver_is_an_error_path_null() {
+        assert_eq!(property_read_type("$a->id"), (true, true));
+        assert_eq!(property_read_type("$a->p"), (true, false));
+        assert_eq!(property_read_type("$a?->id"), (true, false));
+        assert_eq!(property_read_type("$a?->b->c"), (true, false));
+    }
 
     test_analysis! {
         name = accessing_generic_property,

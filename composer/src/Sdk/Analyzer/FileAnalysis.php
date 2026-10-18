@@ -53,6 +53,7 @@ final class FileAnalysis
      * @param list<NodeKind> $nodeKinds
      * @param list<NodeAnalysisData> $nodeAnalysisData
      * @param non-empty-string $file
+     * @param list<SuppressedIssue> $suppressedIssues
      */
     public function __construct(
         private readonly HostClient $host,
@@ -73,6 +74,7 @@ final class FileAnalysis
         public readonly int $inferredYieldKeyCount,
         public readonly int $inferredYieldValueCount,
         public readonly ReferenceSummary $references,
+        public readonly array $suppressedIssues,
     ) {}
 
     public function getExpressionType(Node|Span $selection): ?Type

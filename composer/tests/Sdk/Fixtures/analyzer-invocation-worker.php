@@ -6,6 +6,8 @@ namespace Mago\Tests\Sdk\Fixtures;
 
 use Mago\Sdk\Analyzer\Assertion\TypeAssertion;
 use Mago\Sdk\Analyzer\Assertion\TypeAssertionKind;
+use Mago\Sdk\Analyzer\AfterFileAnalysisContext;
+use Mago\Sdk\Analyzer\AfterFileAnalysisHook;
 use Mago\Sdk\Analyzer\AssertionProviderContext;
 use Mago\Sdk\Analyzer\CallableSignatureOverride;
 use Mago\Sdk\Analyzer\CallableSignatureProviderContext;
@@ -26,6 +28,8 @@ use Mago\Sdk\Analyzer\Metadata\MethodFields;
 use Mago\Sdk\Analyzer\MethodAssertionProvider;
 use Mago\Sdk\Analyzer\MethodReturnTypeProvider;
 use Mago\Sdk\Analyzer\MethodTarget;
+use Mago\Sdk\Analyzer\NodeAnalysisContext;
+use Mago\Sdk\Analyzer\NodeAnalysisHook;
 use Mago\Sdk\Analyzer\Plugin;
 use Mago\Sdk\Analyzer\PluginDefinition;
 use Mago\Sdk\Analyzer\PluginRegistry;
@@ -45,6 +49,7 @@ use Mago\Sdk\Analyzer\Type\NamedObjectType;
 use Mago\Sdk\Analyzer\TypeComparison;
 use Mago\Sdk\Extension;
 use Mago\Sdk\Reporting\Level;
+use Mago\Sdk\Syntax\NodeKind;
 use Mago\Sdk\Worker;
 use RuntimeException;
 
@@ -56,6 +61,7 @@ use function is_string;
 use function sort;
 use function str_contains;
 use function strtolower;
+use function substr;
 
 use const FILE_APPEND;
 use const LOCK_EX;
@@ -78,6 +84,26 @@ final class InvocationAudit
 }
 
 /**
+ * @mago-expect lint:single-class-per-file
+ */
+final class AnalyzedFirstArgument
+{
+    public static function is(CallableSignatureProviderContext $context, string $literal): bool
+    {
+        $type = $context->invocation->arguments[0]->type ?? null;
+        if ($type === null) {
+            return false;
+        }
+
+        if (!$context->types->equals($type, Type::literalString($literal))) {
+            throw new RuntimeException('A repeated callable signature request lost its analyzed argument type.');
+        }
+
+        return true;
+    }
+}
+
+/**
  * @mago-expect lint:cyclomatic-complexity
  * @mago-expect lint:single-class-per-file
  */
@@ -89,12 +115,23 @@ final class InvocationFunctionProvider implements FunctionReturnTypeProvider, Ca
             FunctionTarget::exact('external_function'),
             FunctionTarget::exact('collect'),
             FunctionTarget::exact('roundtrip_effects'),
+            FunctionTarget::exact('fill_by_mode'),
         ];
     }
 
     public function getCallableSignature(CallableSignatureProviderContext $context): ?EffectiveCallableSignature
     {
+        if ($context->invocation->name === 'fill_by_mode') {
+            return self::getModeSignature($context);
+        }
+
         if ($context->invocation->name !== 'collect') {
+            return null;
+        }
+
+        if (AnalyzedFirstArgument::is($context, 'function')) {
+            InvocationAudit::record('function-signature-typed');
+
             return null;
         }
 
@@ -108,6 +145,24 @@ final class InvocationFunctionProvider implements FunctionReturnTypeProvider, Ca
         InvocationAudit::record('function-signature');
 
         return new EffectiveCallableSignature([new CallableParameter('$value', Type::string())]);
+    }
+
+    private static function getModeSignature(CallableSignatureProviderContext $context): ?EffectiveCallableSignature
+    {
+        if (!AnalyzedFirstArgument::is($context, 'string')) {
+            return null;
+        }
+
+        if ($context->invocation->arguments[0]->expression !== 'FILL_MODE') {
+            throw new RuntimeException('The typed constant signature proof received an incorrect argument.');
+        }
+
+        InvocationAudit::record('typed-constant-signature');
+
+        return new EffectiveCallableSignature([
+            new CallableParameter('$mode', Type::string()),
+            new CallableParameter('$out', Type::mixed(), byReference: true, outType: Type::string()),
+        ]);
     }
 
     public function getReturnType(ReturnTypeProviderContext $context): ?Type
@@ -148,6 +203,10 @@ final class InvocationFunctionProvider implements FunctionReturnTypeProvider, Ca
             || $invocation->receiverType !== null
         ) {
             throw new RuntimeException('A function provider received method invocation context.');
+        }
+
+        if ($invocation->name === 'fill_by_mode') {
+            return null;
         }
 
         if ($invocation->name === 'collect') {
@@ -294,6 +353,12 @@ final class InvocationMethodProvider implements MethodReturnTypeProvider, Callab
     {
         $invocation = $context->invocation;
         if ($invocation->declaringClass === 'Artisan' && $invocation->name === 'command') {
+            if (AnalyzedFirstArgument::is($context, 'inspire')) {
+                InvocationAudit::record('closure-this-signature-typed');
+
+                return null;
+            }
+
             InvocationAudit::record('closure-this-signature');
 
             return new EffectiveCallableSignature([
@@ -373,6 +438,12 @@ final class InvocationMethodProvider implements MethodReturnTypeProvider, Callab
             'The method signature proof received no argument.',
         );
         $dynamic = $invocation->declaringClass === 'DynamicProxy';
+        if (!$dynamic && AnalyzedFirstArgument::is($context, 'method')) {
+            InvocationAudit::record('method-signature-typed');
+
+            return null;
+        }
+
         if (
             $argument->type !== null
             || ($dynamic ? $argument->expression !== "'dynamic-signature'" : $argument->expression !== "'method'")
@@ -741,6 +812,28 @@ final class InvocationPropertyProvider implements PropertyTypeProvider
 /**
  * @mago-expect lint:single-class-per-file
  */
+final class InvocationPropertyBagProvider implements PropertyTypeProvider
+{
+    public function getTargets(): array
+    {
+        return [PropertyTarget::allProperties('PropertyBag')];
+    }
+
+    public function getPropertyType(PropertyTypeProviderContext $context): ?PropertyType
+    {
+        $operation = match ($context->access->kind) {
+            PropertyAccessKind::Read => 'read',
+            PropertyAccessKind::Write => 'write',
+        };
+        InvocationAudit::record("property-bag-{$context->access->property}-{$operation}");
+
+        return new PropertyType(Type::string(), Type::string());
+    }
+}
+
+/**
+ * @mago-expect lint:single-class-per-file
+ */
 final class InvocationPropertyInitializationProvider implements PropertyInitializationProvider
 {
     public function getTargets(): array
@@ -875,10 +968,14 @@ final class InvocationPlugin implements IssueFilterHook, Plugin
             $registry->registerMethodReturnTypeProvider(new InvocationMethodProvider());
         }
         $registry->registerPropertyTypeProvider(new InvocationPropertyProvider());
+        $registry->registerPropertyTypeProvider(new InvocationPropertyBagProvider());
         $registry->registerPropertyInitializationProvider(new InvocationPropertyInitializationProvider());
         $registry->registerClassInitializerProvider(new InvocationClassInitializerProvider());
         if ($this->registerIssueFilter) {
             $registry->registerIssueFilterHook($this);
+            $suppressedIssueAudit = new SuppressedIssueAudit();
+            $registry->registerAfterFileAnalysisHook($suppressedIssueAudit);
+            $registry->registerNodeAnalysisHook($suppressedIssueAudit);
         }
     }
 
@@ -909,6 +1006,36 @@ final class InvocationPlugin implements IssueFilterHook, Plugin
         }
 
         return IssueFilterDecision::Keep;
+    }
+}
+
+/**
+ * @mago-expect lint:single-class-per-file
+ */
+final class SuppressedIssueAudit implements AfterFileAnalysisHook, NodeAnalysisHook
+{
+    public function getRequirements(): array
+    {
+        return [];
+    }
+
+    public function getTargets(): array
+    {
+        return [NodeKind::FunctionCall];
+    }
+
+    public function analyze(NodeAnalysisContext $context): void
+    {
+        InvocationAudit::record('targeted-hook');
+    }
+
+    public function afterFileAnalysis(AfterFileAnalysisContext $context): void
+    {
+        $contents = $context->analysis->getSourceFile()->contents;
+        foreach ($context->analysis->suppressedIssues as $issue) {
+            $text = substr($contents, $issue->span->start, $issue->span->length());
+            InvocationAudit::record("after-file-suppressed-{$issue->code}-{$text}");
+        }
     }
 }
 

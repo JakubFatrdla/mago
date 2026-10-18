@@ -1322,8 +1322,6 @@ fn encode_return_type_request<'type_info>(
     trace_enabled: bool,
 ) -> Result<ReturnTypeRequest<'type_info>, ExternalAnalyzerError> {
     let mut writer = message_writer(message_kind);
-    let include_argument_types =
-        message_kind == RETURN_TYPE_REQUEST || message_kind == ASSERTION_REQUEST || message_kind == THROW_TYPE_REQUEST;
     let mut type_snapshot_duration = Duration::ZERO;
     writer.write_u64(generation);
     writer.write_u8(invocation_kind);
@@ -1360,7 +1358,6 @@ fn encode_return_type_request<'type_info>(
                 type_snapshot_duration,
                 memoize,
                 trace_enabled,
-                include_argument_types,
             );
         }
         _ => return Err(protocol("analyzer invocation kind, declaring class, and receiver type are inconsistent")),
@@ -1380,7 +1377,6 @@ fn encode_return_type_request<'type_info>(
         type_snapshot_duration,
         memoize,
         trace_enabled,
-        include_argument_types,
     )
 }
 
@@ -1395,7 +1391,6 @@ fn encode_return_type_arguments<'type_info>(
     mut type_snapshot_duration: Duration,
     memoize: bool,
     trace_enabled: bool,
-    include_argument_types: bool,
 ) -> Result<ReturnTypeRequest<'type_info>, ExternalAnalyzerError> {
     let receiver_type_count = receiver_types.len();
     let mut argument_types = Vec::new();
@@ -1416,8 +1411,7 @@ fn encode_return_type_arguments<'type_info>(
             .unwrap_or_default();
 
         writer.write_bytes(expression)?;
-        let argument_type =
-            include_argument_types.then(|| value.and_then(|value| artifacts.get_expression_type(value))).flatten();
+        let argument_type = value.and_then(|value| artifacts.get_expression_type(value));
         writer.write_bool(argument_type.is_some());
         if let Some(argument_type) = argument_type {
             typed_arguments += 1;
@@ -1517,12 +1511,19 @@ fn encode_union_snapshot_inner<'type_info>(
     flags |= u16::from(union.has_nullsafe_null()) << 9;
     flags |= u16::from(union.from_unspecified_template()) << 10;
     writer.write_u16(flags);
-    write_snapshot_count(writer, union.types.len(), "union atomic types")?;
-    for atomic in union.types.as_ref() {
+    let atomics = atomics_without_error_path_null(union);
+    write_snapshot_count(writer, atomics.len(), "union atomic types")?;
+    for atomic in atomics {
         encode_atomic_snapshot(writer, atomic, types, depth + 1)?;
     }
 
     Ok(())
+}
+
+fn atomics_without_error_path_null(union: &TUnion) -> Vec<&TAtomic> {
+    let hides_null = union.has_error_path_null() && union.types.len() > 1;
+
+    union.types.iter().filter(|atomic| !(hides_null && atomic.is_null())).collect()
 }
 
 #[allow(clippy::too_many_lines)]
@@ -3364,6 +3365,20 @@ pub(super) mod testing {
         };
 
         assert_eq!(encode(partial), encode(signature));
+    }
+
+    #[test]
+    fn snapshots_hide_only_the_null_an_undefined_index_read_added() {
+        let encode = |ty: &TUnion| {
+            let mut writer = PayloadWriter::new();
+            encode_union_snapshot(&mut writer, ty, &mut Vec::new(), 0).unwrap();
+            writer.finish()
+        };
+        let read = get_string().as_error_path_nullable();
+
+        assert_eq!(encode(&read), encode(&get_string()));
+        assert_eq!(encode(&get_list(read)), encode(&get_list(get_string())));
+        assert_ne!(encode(&get_string().as_nullable()), encode(&get_string()));
     }
 
     #[test]

@@ -879,7 +879,7 @@ pub fn add_optional_union_type_rc(
     codebase: &CodebaseMetadata,
 ) -> Rc<TUnion> {
     match maybe_type {
-        Some(type_2) if base_type.as_ref() == type_2 => Rc::clone(base_type),
+        Some(type_2) if base_type.as_ref() == type_2 => merge_equal_union_types_rc(base_type, type_2),
         Some(type_2) => Rc::new(add_unequal_union_type_inner(
             (**base_type).clone(),
             type_2,
@@ -918,7 +918,7 @@ pub fn combine_union_types_rc(
     options: combiner::CombinerOptions,
 ) -> Rc<TUnion> {
     if type_1 == type_2 {
-        return Rc::clone(type_1);
+        return merge_equal_union_types_rc(type_1, type_2);
     }
 
     Rc::new(combine_unequal_union_types_inner(type_1, type_2, codebase, options, false))
@@ -934,7 +934,7 @@ pub fn combine_owned_union_types_rc(
     options: combiner::CombinerOptions,
 ) -> Rc<TUnion> {
     if type_1 == *type_2 {
-        return type_1;
+        return merge_equal_union_types_rc(&type_1, type_2);
     }
 
     let combined = match Rc::try_unwrap(type_1) {
@@ -967,6 +967,32 @@ pub fn combine_union_types_preserving_array_shapes(
     combine_union_types_inner(type_1, type_2, codebase, options, true)
 }
 
+fn has_only_error_path_null(union: &TUnion) -> bool {
+    union.has_error_path_null() || !union.types.iter().any(TAtomic::is_null)
+}
+
+fn merged_error_path_null(merged: &TUnion, inputs_have_only_error_path_null: bool) -> bool {
+    inputs_have_only_error_path_null && merged.types.iter().any(TAtomic::is_null)
+}
+
+fn merge_equal_union_types(mut type_1: TUnion, type_2: &TUnion) -> TUnion {
+    let inputs_have_only_error_path_null = has_only_error_path_null(&type_1) && has_only_error_path_null(type_2);
+    let marked = merged_error_path_null(&type_1, inputs_have_only_error_path_null);
+    type_1.set_error_path_null(marked);
+
+    type_1
+}
+
+fn merge_equal_union_types_rc(type_1: &Rc<TUnion>, type_2: &TUnion) -> Rc<TUnion> {
+    let inputs_have_only_error_path_null = has_only_error_path_null(type_1) && has_only_error_path_null(type_2);
+    let marked = merged_error_path_null(type_1, inputs_have_only_error_path_null);
+    if type_1.has_error_path_null() == marked {
+        return Rc::clone(type_1);
+    }
+
+    Rc::new(merge_equal_union_types((**type_1).clone(), type_2))
+}
+
 fn combine_union_types_inner(
     type_1: &TUnion,
     type_2: &TUnion,
@@ -975,7 +1001,7 @@ fn combine_union_types_inner(
     preserve_array_shapes: bool,
 ) -> TUnion {
     if type_1 == type_2 {
-        return type_1.clone();
+        return merge_equal_union_types(type_1.clone(), type_2);
     }
 
     combine_unequal_union_types_inner(type_1, type_2, codebase, options, preserve_array_shapes)
@@ -999,6 +1025,7 @@ fn combine_unequal_union_types_cow(
     preserve_array_shapes: bool,
 ) -> TUnion {
     let flags_1 = type_1.flags;
+    let type_1_has_only_error_path_null = has_only_error_path_null(&type_1);
     let mut combined_type = if type_1.is_never() || type_1.is_never_template() {
         type_2.clone()
     } else if type_2.is_never() || type_2.is_never_template() {
@@ -1044,6 +1071,10 @@ fn combine_unequal_union_types_cow(
         combined_type.set_ignore_falsable_issues(true);
     }
 
+    let marked =
+        merged_error_path_null(&combined_type, type_1_has_only_error_path_null && has_only_error_path_null(type_2));
+    combined_type.set_error_path_null(marked);
+
     combined_type
 }
 
@@ -1077,7 +1108,7 @@ fn add_union_type_inner(
     preserve_array_shapes: bool,
 ) -> TUnion {
     if &base_type == other_type {
-        return base_type;
+        return merge_equal_union_types(base_type, other_type);
     }
 
     add_unequal_union_type_inner(base_type, other_type, codebase, options, preserve_array_shapes)
@@ -1091,6 +1122,7 @@ fn add_unequal_union_type_inner(
     preserve_array_shapes: bool,
 ) -> TUnion {
     let original_flags = base_type.flags;
+    let base_has_only_error_path_null = has_only_error_path_null(&base_type);
     let mut base_type = if base_type.is_vanilla_mixed() && other_type.is_vanilla_mixed() {
         base_type
     } else {
@@ -1105,6 +1137,10 @@ fn add_unequal_union_type_inner(
     if !other_type.reference_free() {
         base_type.set_reference_free(false);
     }
+
+    let marked =
+        merged_error_path_null(&base_type, base_has_only_error_path_null && has_only_error_path_null(other_type));
+    base_type.set_error_path_null(marked);
 
     if other_type.possibly_undefined() {
         base_type.set_possibly_undefined(true, None);
@@ -1881,6 +1917,7 @@ mod tests {
 
     use super::add_optional_union_type;
     use super::add_optional_union_type_rc;
+    use super::add_union_type;
     use super::combine_owned_union_types_rc;
     use super::combine_union_types;
     use super::combine_union_types_rc;
@@ -1934,6 +1971,43 @@ mod tests {
                 let actual = add_optional_union_type_rc(&first, Some(&second), &codebase);
                 assert_exact(&actual, &expected);
                 assert!(Rc::ptr_eq(&actual, &first));
+            }
+        }
+    }
+
+    #[test]
+    fn merges_keep_the_error_path_null_marker_only_while_no_input_declares_a_null() {
+        let codebase = CodebaseMetadata::new();
+        let marked = get_string().as_error_path_nullable();
+        let declared = get_string().as_nullable();
+        let marked_int = get_int().as_error_path_nullable();
+        assert!(marked.has_error_path_null());
+        assert!(!declared.has_error_path_null());
+        assert_eq!(marked, declared);
+
+        for (first, second, keeps_marker) in [
+            (&marked, &declared, false),
+            (&declared, &marked, false),
+            (&marked, &marked, true),
+            (&marked, &marked_int, true),
+            (&marked, &get_int(), true),
+            (&get_int(), &marked, true),
+            (&marked, &get_int().as_nullable(), false),
+            (&get_int().as_nullable(), &marked, false),
+        ] {
+            let options = CombinerOptions::default();
+            let first_rc = Rc::new(first.clone());
+            let second_rc = Rc::new(second.clone());
+            let merged = [
+                combine_union_types(first, second, &codebase, options),
+                add_union_type(first.clone(), second, &codebase, options),
+                add_optional_union_type(first.clone(), Some(second), &codebase),
+                (*combine_union_types_rc(&first_rc, &second_rc, &codebase, options)).clone(),
+                (*combine_owned_union_types_rc(Rc::new(first.clone()), &second_rc, &codebase, options)).clone(),
+                (*add_optional_union_type_rc(&first_rc, Some(second), &codebase)).clone(),
+            ];
+            for union in merged {
+                assert_eq!(union.has_error_path_null(), keeps_marker, "{first:?} + {second:?}");
             }
         }
     }

@@ -347,7 +347,7 @@ where
                 continue;
             }
 
-            let resolved_property = match resolve_external_property(
+            let external_resolution = resolve_external_property(
                 context,
                 classname,
                 *prop_name,
@@ -355,7 +355,9 @@ where
                 object,
                 for_assignment,
                 &mut result,
-            )? {
+            )?;
+            let resolved_by_provider = external_resolution.is_some();
+            let resolved_property = match external_resolution {
                 Some(ExternalPropertyResolution::Resolved(property)) => Some(property),
                 Some(ExternalPropertyResolution::Invalid) => None,
                 None => find_property_in_class(
@@ -382,7 +384,7 @@ where
             resolved_property.lookup_class = Some(classname);
 
             if resolved_property.is_magic {
-                if magic_method.is_none() {
+                if magic_method.is_none() && !resolved_by_provider {
                     report_magic_property_without_get_set_method(
                         context,
                         object_expression.span(),

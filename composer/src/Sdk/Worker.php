@@ -1334,11 +1334,11 @@ final class Worker
                     }
 
                     if ($context instanceof AfterFileAnalysisContext) {
+                        $this->runNodeAnalysisHooks($registered, $context, $pluginIndex, $reportedIssues);
+
                         foreach ($registered->afterFileAnalysisHooks as $hook) {
                             $hook->afterFileAnalysis($context);
                         }
-
-                        $this->runNodeAnalysisHooks($registered, $context, $pluginIndex, $reportedIssues);
                     }
 
                     if ($context instanceof AfterAnalysisContext) {

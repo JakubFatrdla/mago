@@ -27,6 +27,7 @@ use Mago\Sdk\Analyzer\PropertyType;
 use Mago\Sdk\Analyzer\ReferenceKind;
 use Mago\Sdk\Analyzer\ReferenceOrigin;
 use Mago\Sdk\Analyzer\ReferenceSummary;
+use Mago\Sdk\Analyzer\SuppressedIssue;
 use Mago\Sdk\Analyzer\SymbolReference;
 use Mago\Sdk\Analyzer\SymbolReferences;
 use Mago\Sdk\Analyzer\TargetedAnalysisHook;
@@ -984,6 +985,17 @@ final class Protocol
             }
         }
 
+        $suppressedIssues = [];
+        $suppressedCount = $reader->readCount(self::MAXIMUM_ISSUES);
+        for ($index = 0; $index < $suppressedCount; ++$index) {
+            $code = $reader->readString();
+            if ($code === '') {
+                throw new ProtocolException('A suppressed issue has an empty issue code.');
+            }
+
+            $suppressedIssues[] = new SuppressedIssue($code, new Span($reader->readU32(), $reader->readU32()));
+        }
+
         return new FileAnalysis(
             $host,
             $requestId,
@@ -1003,6 +1015,7 @@ final class Protocol
             $inferredYieldKeyCount,
             $inferredYieldValueCount,
             $references,
+            $suppressedIssues,
         );
     }
 

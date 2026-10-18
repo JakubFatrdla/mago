@@ -145,6 +145,14 @@ pub struct FileAnalysisSnapshot {
     inferred_yield_value_types: Vec<Range<usize>>,
     references: ReferenceSummary,
     node_analysis_targets: usize,
+    suppressed_issues: Box<[SuppressedIssue]>,
+}
+
+#[derive(Debug)]
+struct SuppressedIssue {
+    code: Box<str>,
+    start: u32,
+    end: u32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -427,6 +435,7 @@ impl FileAnalysisSnapshot {
             inferred_yield_value_types,
             references: ReferenceSummary::from(&artifacts.symbol_references),
             node_analysis_targets,
+            suppressed_issues: suppressed_issues(file.id, &artifacts.suppressed_issues).into_boxed_slice(),
         })
     }
 
@@ -457,6 +466,34 @@ impl ReferenceSummary {
         writer.write_u64(self.signature);
         writer.write_u64(self.maps);
     }
+}
+
+fn suppressed_issues(file_id: FileId, issues: &[Issue]) -> Vec<SuppressedIssue> {
+    issues
+        .iter()
+        .filter_map(|issue| {
+            let span = issue.primary_span().filter(|span| span.file_id == file_id)?;
+            Some(SuppressedIssue {
+                code: issue.code.as_deref()?.into(),
+                start: span.start.offset,
+                end: span.end.offset,
+            })
+        })
+        .collect()
+}
+
+fn write_suppressed_issues(
+    writer: &mut PayloadWriter,
+    issues: &[SuppressedIssue],
+) -> Result<(), ExternalAnalyzerError> {
+    writer.write_u32(u32::try_from(issues.len()).map_err(|_| protocol("too many suppressed issues"))?);
+    for issue in issues {
+        writer.write_string(&issue.code)?;
+        writer.write_u32(issue.start);
+        writer.write_u32(issue.end);
+    }
+
+    Ok(())
 }
 
 fn encode_snapshot_types<'type_info>(
@@ -819,6 +856,15 @@ impl FileView<'_> {
         }
     }
 
+    fn write_suppressed_issues(&self, writer: &mut PayloadWriter) -> Result<(), ExternalAnalyzerError> {
+        match self {
+            Self::Artifacts(file, _, _, artifacts, _) => {
+                write_suppressed_issues(writer, &suppressed_issues(file.id, &artifacts.suppressed_issues))
+            }
+            Self::Snapshot(file) => write_suppressed_issues(writer, &file.suppressed_issues),
+        }
+    }
+
     fn file_id(&self) -> mago_database::file::FileId {
         match self {
             Self::Artifacts(file, ..) => file.id,
@@ -1058,7 +1104,7 @@ fn write_file_summary(
             node_analysis_requirements.is_some_and(NodeAnalysisRequirements::includes_source_text),
         )?;
     }
-    Ok(())
+    file.write_suppressed_issues(writer)
 }
 
 fn write_reference_summary(writer: &mut PayloadWriter, references: &SymbolReferences) {
@@ -1659,10 +1705,50 @@ mod tests {
     use mago_word::empty_word;
     use mago_word::word;
 
+    use mago_database::file::FileId;
+    use mago_extension::PayloadReader;
+    use mago_reporting::Annotation;
+    use mago_reporting::Issue;
+
     use super::class_like_matches_hook;
+    use super::suppressed_issues;
     use super::write_reference_origin;
+    use super::write_suppressed_issues;
     use super::write_symbol_identifier;
     use crate::external::ClassLikeAnalysisHookRegistration;
+
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn suppressed_issues_carry_the_code_and_primary_span_of_issues_in_the_file() {
+        let file = FileId::new(b"src/file.php");
+        let other = FileId::new(b"src/other.php");
+        let issues =
+            [
+                Issue::error("In the file.")
+                    .with_code("unused-variable")
+                    .with_annotation(Annotation::primary(Span::new(file, 3u32.into(), 7u32.into()))),
+                Issue::error("In another file.")
+                    .with_code("unused-variable")
+                    .with_annotation(Annotation::primary(Span::new(other, 3u32.into(), 7u32.into()))),
+                Issue::error("Without a code.").with_annotation(Annotation::primary(Span::new(
+                    file,
+                    1u32.into(),
+                    2u32.into(),
+                ))),
+                Issue::error("Without a location.").with_code("mixed-assignment"),
+            ];
+
+        let mut writer = PayloadWriter::new();
+        write_suppressed_issues(&mut writer, &suppressed_issues(file, &issues)).expect("the issues should encode");
+        let payload = writer.finish();
+        let mut reader = PayloadReader::new(&payload);
+
+        assert_eq!(reader.read_count("count", 10).expect("count"), 1);
+        assert_eq!(reader.read_string("code").expect("code"), "unused-variable");
+        assert_eq!(reader.read_u32("start").expect("start"), 3);
+        assert_eq!(reader.read_u32("end").expect("end"), 7);
+        reader.finish().expect("the payload should hold nothing else");
+    }
 
     #[test]
     fn descendant_target_excludes_the_ancestor_declaration() {

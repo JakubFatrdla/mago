@@ -113,6 +113,26 @@ where
     target.get_parameter(argument_offset).map(|parameter| (argument_offset, parameter))
 }
 
+fn bind_argument_parameters<'target, 'ctx>(
+    target: &'target InvocationTarget<'ctx>,
+    arguments_source: &InvocationArgumentsSource<'_, '_>,
+    offsets: &[usize],
+) -> Vec<(usize, Option<(usize, InvocationTargetParameter<'target>)>)>
+where
+    'ctx: 'target,
+{
+    offsets
+        .iter()
+        .map(|offset| {
+            let parameter = arguments_source
+                .get_argument(*offset)
+                .and_then(|argument| get_parameter_of_argument(target, &argument, *offset));
+
+            (*offset, parameter)
+        })
+        .collect()
+}
+
 /// Finds the offset of a named parameter in the parameter list.
 fn find_named_parameter_offset<'target, 'ctx>(
     target: &'target InvocationTarget<'ctx>,
@@ -158,12 +178,14 @@ pub fn analyze_invocation<'ctx, 'arena, A>(
 where
     A: Arena,
 {
-    if context.external_analysis_session.is_some()
-        && !invocation.target.has_effective_signature()
-        && let Some(identifier) = invocation.target.get_function_like_identifier().copied()
-        && context.plugin_registry.may_have_callable_signature_provider(&identifier)
-    {
-        apply_callable_signature(context, artifacts, &identifier, invocation);
+    let signature_provider_target = invocation.target.get_function_like_identifier().copied().filter(|identifier| {
+        context.external_analysis_session.is_some()
+            && !invocation.target.has_effective_signature()
+            && context.plugin_registry.may_have_callable_signature_provider(identifier)
+    });
+
+    if let Some(identifier) = &signature_provider_target {
+        apply_callable_signature(context, artifacts, identifier, invocation);
     }
 
     if !context.settings.allow_side_effects_in_conditions
@@ -334,6 +356,30 @@ where
 
         parameter_types.insert(parameter_name.0, argument_type);
     }
+
+    if let Some(identifier) = &signature_provider_target
+        && !non_closure_arguments.is_empty()
+        && let Some(signature) = context.plugin_registry.get_function_like_callable_signature(
+            context.codebase,
+            context.source_file,
+            artifacts,
+            identifier,
+            invocation,
+            context.external_analysis_session,
+        )
+    {
+        let non_closure_offsets: Vec<usize> = non_closure_arguments.iter().map(|(offset, _)| *offset).collect();
+        let closure_offsets: Vec<usize> = closure_arguments.iter().map(|(offset, _)| *offset).collect();
+        invocation.target.set_effective_signature(signature);
+        non_closure_arguments =
+            bind_argument_parameters(&invocation.target, &invocation.arguments_source, &non_closure_offsets);
+        closure_arguments =
+            bind_argument_parameters(&invocation.target, &invocation.arguments_source, &closure_offsets);
+    }
+
+    let method_call_context = invocation.target.get_method_context();
+    let base_class_metadata = method_call_context.map(|ctx| ctx.class_like_metadata).or(calling_class_like_metadata);
+    let method_class_type = method_call_context.map(|ctx| &ctx.class_type);
 
     let global_closure_bind_scope = detect_closure_bind_scope(context, invocation, &analyzed_argument_types);
     let previous_bind_scope = artifacts.closure_bind_scope.take();

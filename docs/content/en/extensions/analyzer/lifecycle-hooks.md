@@ -151,6 +151,8 @@ final class FileMetrics implements AfterFileAnalysisHook
 
 The context contains the file's `FileAnalysis` and a file-scoped `ReferenceRegistry`. When a file is reanalyzed, Mago replaces that file's previous extension-contributed references rather than accumulating duplicates.
 
+`FileAnalysis::$suppressedIssues` lists the issues that issue-filter hooks removed from the file, each as a `SuppressedIssue` with its code and the span of its primary annotation. Within one plugin, the targeted hooks of the file run before its after-file hooks, so an after-file hook sees what those hooks did, for example to report a suppression comment that matched no issue.
+
 For a plain after-file hook, `getRequirements()` currently recognizes one value:
 
 | Requirement | Embedded data |

@@ -29,6 +29,8 @@ impl UnionFlags {
     pub const NULLSAFE_NULL: UnionFlags = UnionFlags(1 << 9);
     /// Indicates this union fills an omitted template argument that has no declared default.
     pub const FROM_UNSPECIFIED_TEMPLATE: UnionFlags = UnionFlags(1 << 10);
+    /// Indicates the null in this union exists only because an access already reported as an error fell through.
+    pub const ERROR_PATH_NULL: UnionFlags = UnionFlags(1 << 11);
 }
 
 impl UnionFlags {

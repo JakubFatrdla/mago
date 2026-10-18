@@ -45,3 +45,26 @@ fn union_hash_ignores_bookkeeping_flags_at_each_depth() {
     assert_equal_hash(&original, &marked);
     assert_equal_hash(&get_list(original), &get_list(marked));
 }
+
+#[test]
+fn undefined_index_reads_mark_only_the_null_they_add() {
+    let read = get_string().as_error_path_nullable();
+    assert!(read.is_nullable());
+    assert!(read.has_error_path_null());
+
+    assert!(!get_nullable_int().as_error_path_nullable().has_error_path_null());
+    assert!(!get_mixed().as_error_path_nullable().has_error_path_null());
+}
+
+#[test]
+fn a_null_added_later_clears_the_error_path_marker() {
+    let read = get_string().as_error_path_nullable();
+    assert!(!read.to_non_nullable().has_error_path_null());
+    assert!(!read.clone().as_nullable().has_error_path_null());
+    assert!(read.clone().as_error_path_nullable().has_error_path_null());
+
+    let mut narrowed = read.clone_with_types(vec![get_string().get_single().clone()]);
+    assert!(narrowed.has_error_path_null());
+    narrowed = narrowed.as_nullable();
+    assert!(!narrowed.has_error_path_null());
+}

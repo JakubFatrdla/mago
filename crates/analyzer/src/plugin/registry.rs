@@ -13,6 +13,7 @@ use mago_codex::metadata::property::PropertyMetadata;
 use mago_codex::ttype::union::TUnion;
 use mago_database::file::File;
 use mago_names::ResolvedNames;
+use mago_reporting::Issue;
 use mago_reporting::IssueCollection;
 use mago_span::Span;
 use mago_syntax::cst::Class;
@@ -2045,7 +2046,7 @@ impl PluginRegistry {
 
     /// Filter issues through all registered issue filter hooks.
     ///
-    /// Returns a new `IssueCollection` with filtered issues.
+    /// Returns the issues the hooks keep and the issues they remove.
     ///
     /// # Errors
     ///
@@ -2056,8 +2057,9 @@ impl PluginRegistry {
         issues: IssueCollection,
         codebase: &CodebaseMetadata,
         session: Option<&ExternalAnalysisSession>,
-    ) -> PluginResult<IssueCollection> {
+    ) -> PluginResult<(IssueCollection, Vec<Issue>)> {
         let mut filtered = IssueCollection::default();
+        let mut removed = Vec::new();
         if self.issue_filter_hooks.is_empty() {
             filtered = issues;
         } else {
@@ -2073,19 +2075,26 @@ impl PluginRegistry {
 
                 if keep {
                     filtered.push(issue);
+                } else {
+                    removed.push(issue);
                 }
             }
         }
 
         if filtered.is_empty() || !self.has_external_capability(|capabilities| capabilities.issue_filters) {
-            return Ok(filtered);
+            return Ok((filtered, removed));
         }
 
         let Some((analyzer, session)) = self.external_analyzer.as_deref().zip(session) else {
-            return Ok(filtered);
+            return Ok((filtered, removed));
         };
 
-        analyzer.with(|analyzer| analyzer.filter_issues(file, filtered, codebase, session)).map_err(PluginError::from)
+        let (filtered, externally_removed) = analyzer
+            .with(|analyzer| analyzer.filter_issues(file, filtered, codebase, session))
+            .map_err(PluginError::from)?;
+        removed.extend(externally_removed);
+
+        Ok((filtered, removed))
     }
 }
 
@@ -2118,6 +2127,43 @@ mod tests {
         ) -> Option<TUnion> {
             None
         }
+    }
+
+    struct RemovesUnusedVariables;
+
+    impl Provider for RemovesUnusedVariables {
+        fn meta() -> &'static ProviderMeta {
+            &TEST_META
+        }
+    }
+
+    impl IssueFilterHook for RemovesUnusedVariables {
+        fn filter_issue(&self, _file: &File, issue: &Issue) -> crate::plugin::hook::HookResult<IssueFilterDecision> {
+            Ok(if issue.code.as_deref() == Some("unused-variable") {
+                IssueFilterDecision::Remove
+            } else {
+                IssueFilterDecision::Keep
+            })
+        }
+    }
+
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn filter_issues_returns_the_issues_the_hooks_remove() {
+        let mut registry = PluginRegistry::new();
+        registry.register_issue_filter_hook(RemovesUnusedVariables);
+        let file = File::ephemeral(std::borrow::Cow::Borrowed(b"filter.php"), std::borrow::Cow::Borrowed(b"<?php"));
+        let issues = IssueCollection::from(vec![
+            Issue::error("Unused variable.").with_code("unused-variable"),
+            Issue::error("Mixed assignment.").with_code("mixed-assignment"),
+        ]);
+
+        let (kept, removed) = registry
+            .filter_issues(&file, issues, &CodebaseMetadata::new(), None)
+            .expect("a native filter hook should not fail");
+
+        assert_eq!(kept.iter().map(|issue| issue.code.as_deref()).collect::<Vec<_>>(), [Some("mixed-assignment")]);
+        assert_eq!(removed.iter().map(|issue| issue.code.as_deref()).collect::<Vec<_>>(), [Some("unused-variable")]);
     }
 
     #[test]

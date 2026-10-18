@@ -169,6 +169,7 @@ All receive `NodeAnalysisContext`. See [Targeted analysis hooks](/extensions/ana
 | Type | Purpose |
 | :--- | :--- |
 | `FileAnalysis` | Completed per-file summary and lazy artifacts |
+| `SuppressedIssue` | Code and primary span of an issue an issue filter removed from the file |
 | `ExpressionType` | Expression span plus inferred type |
 | `ProjectAnalysis` | Final files, issue count, and merged references |
 | `ReferenceRegistry` | Contributes framework-known edges |

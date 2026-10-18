@@ -57,7 +57,7 @@
 //! 2. Each layer reachable through `extends`, applied in declared order; transitively
 //!    each parent's own `extends` is fully resolved before the parent's keys apply.
 //! 3. The owning file's own keys.
-//! 4. Environment variables (top-level scalars only — see below).
+//! 4. Environment variables (top-level scalars and the extension worker count — see below).
 //! 5. CLI overrides (e.g. `--php-version`, `--threads`).
 //!
 //! # Environment variables
@@ -71,6 +71,7 @@
 //! - `MAGO_ALLOW_UNSUPPORTED_PHP_VERSION` → `allow-unsupported-php-version`
 //! - `MAGO_NO_VERSION_CHECK` → `no-version-check`
 //! - `MAGO_EDITOR_URL` → `editor-url`
+//! - `MAGO_EXTENSION_WORKERS` → `workers` of every extension host
 //!
 //! For anything deeper, edit the config file.
 //!
@@ -147,6 +148,7 @@ const ENV_STACK_SIZE: &str = "MAGO_STACK_SIZE";
 const ENV_ALLOW_UNSUPPORTED_PHP_VERSION: &str = "MAGO_ALLOW_UNSUPPORTED_PHP_VERSION";
 const ENV_NO_VERSION_CHECK: &str = "MAGO_NO_VERSION_CHECK";
 const ENV_EDITOR_URL: &str = "MAGO_EDITOR_URL";
+const ENV_EXTENSION_WORKERS: &str = "MAGO_EXTENSION_WORKERS";
 
 const _: () = {
     // Compile-time guard: if anyone changes `ENVIRONMENT_PREFIX`, this file must be updated
@@ -558,6 +560,7 @@ impl Configuration {
     /// - `MAGO_ALLOW_UNSUPPORTED_PHP_VERSION` — overrides `allow-unsupported-php-version`
     /// - `MAGO_NO_VERSION_CHECK` — overrides `no-version-check`
     /// - `MAGO_EDITOR_URL` — overrides `editor-url`
+    /// - `MAGO_EXTENSION_WORKERS` — overrides `workers` of every extension host
     fn apply_env_overrides(&mut self) -> Result<(), Error> {
         // Env-var names are static — no per-call allocation.
         if let Ok(v) = std::env::var(ENV_PHP_VERSION) {
@@ -581,6 +584,13 @@ impl Configuration {
         }
         if let Ok(v) = std::env::var(ENV_EDITOR_URL) {
             self.editor_url = Some(v);
+        }
+        if let Ok(v) = std::env::var(ENV_EXTENSION_WORKERS) {
+            let workers =
+                v.parse().map_err(|e| Error::EnvVarParse { name: ENV_EXTENSION_WORKERS, source: Box::new(e) })?;
+            for host in self.extension_hosts.values_mut() {
+                host.workers = workers;
+            }
         }
         Ok(())
     }
@@ -852,6 +862,50 @@ environment = { APP_ENV = "test" }
 
         assert_eq!(host.workers, 0);
         assert_eq!(host.worker_count(configuration.threads).get(), configuration.threads);
+    }
+
+    #[test]
+    fn extension_workers_env_overrides_every_host() {
+        let directory = temp_dir().join("extension-workers-env");
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(&directory).unwrap();
+        let configuration_file = directory.join("mago.toml");
+        write_file(
+            &configuration_file,
+            "[extension-hosts.php]\ncommand = [\"php\", \"worker.php\"]\n\n[extension-hosts.other]\ncommand = [\"php\", \"other.php\"]\nworkers = 4\n",
+        );
+
+        let configuration = temp_env::with_vars(
+            [
+                ("HOME", None::<&str>),
+                ("XDG_CONFIG_HOME", None),
+                ("MAGO_THREADS", Some("8")),
+                ("MAGO_EXTENSION_WORKERS", Some("2")),
+            ],
+            || Configuration::load(None, Some(&configuration_file), None, None, false, false).unwrap(),
+        );
+
+        assert_eq!(configuration.threads, 8);
+        assert_eq!(configuration.extension_hosts["php"].workers, 2);
+        assert_eq!(configuration.extension_hosts["other"].workers, 2);
+        assert_eq!(configuration.extension_hosts["php"].worker_count(configuration.threads).get(), 2);
+    }
+
+    #[test]
+    fn extension_workers_env_must_be_a_count() {
+        let directory = temp_dir().join("extension-workers-env-invalid");
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(&directory).unwrap();
+        let configuration_file = directory.join("mago.toml");
+        write_file(&configuration_file, "[extension-hosts.php]\ncommand = [\"php\", \"worker.php\"]\n");
+
+        let error = temp_env::with_vars(
+            [("HOME", None::<&str>), ("XDG_CONFIG_HOME", None), ("MAGO_EXTENSION_WORKERS", Some("two"))],
+            || Configuration::load(None, Some(&configuration_file), None, None, false, false),
+        )
+        .expect_err("a non-numeric worker count should fail");
+
+        assert!(matches!(error, Error::EnvVarParse { name: "MAGO_EXTENSION_WORKERS", .. }));
     }
 
     #[test]
@@ -1139,6 +1193,7 @@ level = "error"
                 ("MAGO_THREADS", None),
                 ("MAGO_PHP_VERSION", None),
                 ("MAGO_ALLOW_UNSUPPORTED_PHP_VERSION", None),
+                ("MAGO_EXTENSION_WORKERS", None),
             ],
             || Configuration::load(None, Some(file), None, None, false, false).unwrap(),
         )

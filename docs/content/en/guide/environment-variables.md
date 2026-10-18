@@ -58,7 +58,7 @@ Mago reserves the `MAGO_` prefix for itself. Only the variables documented on th
 
 ## Configuration overrides
 
-These variables override the matching key in `mago.toml`. They cover top-level scalars only; there is no env-var support for nested settings like individual rule levels. Use the config file (or an `extends` layer) for those.
+These variables override the matching key in `mago.toml`. They cover top-level scalars and the extension worker count; there is no env-var support for other nested settings like individual rule levels. Use the config file (or an `extends` layer) for those.
 
 ### `MAGO_PHP_VERSION`
 
@@ -74,6 +74,14 @@ Overrides `threads`.
 
 ```sh
 MAGO_THREADS=4 mago lint
+```
+
+### `MAGO_EXTENSION_WORKERS`
+
+Overrides `workers` of every [extension host](/extensions/getting-started/). `0` keeps the adaptive pool, a positive count starts exactly that many worker processes per host. Useful to size the worker pool to a CI runner without editing the config.
+
+```sh
+MAGO_EXTENSION_WORKERS=2 mago analyze
 ```
 
 ### `MAGO_STACK_SIZE`

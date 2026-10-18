@@ -131,6 +131,8 @@ public function getCallableSignature(
 
 At this stage argument expression types are intentionally `null`: template inference, closure typing, argument counting, and validation have not happened yet. Argument source text, names, flags, and spans are available.
 
+Once the arguments that are not closures are analyzed, Mago asks the provider again with their types, before it types the closure arguments and assigns by-reference results. A signature from that second request replaces the first, so a closure parameter type or an out type can depend on a literal argument such as a regular expression. Returning `null` keeps the first answer.
+
 `EffectiveCallableSignature` accepts an ordered list of `CallableParameter` values, an `allowsNamedArguments` flag, and an optional `displayName`. The display name identifies the logical callable in diagnostics for dynamic APIs backed by magic methods. A parameter can define:
 
 - an optional `$name`;

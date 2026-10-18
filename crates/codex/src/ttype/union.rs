@@ -252,6 +252,12 @@ impl TUnion {
     }
 
     #[inline]
+    #[must_use]
+    pub const fn has_error_path_null(&self) -> bool {
+        self.flags.contains(UnionFlags::ERROR_PATH_NULL)
+    }
+
+    #[inline]
     pub fn set_had_template(&mut self, value: bool) {
         self.flags.set(UnionFlags::HAD_TEMPLATE, value);
     }
@@ -301,6 +307,11 @@ impl TUnion {
         self.flags.set(UnionFlags::NULLSAFE_NULL, value);
     }
 
+    #[inline]
+    pub fn set_error_path_null(&mut self, value: bool) {
+        self.flags.set(UnionFlags::ERROR_PATH_NULL, value);
+    }
+
     /// Creates a new `TUnion` with the same properties as the original, but with a new set of types.
     #[must_use]
     pub fn clone_with_types(&self, types: Vec<TAtomic>) -> TUnion {
@@ -311,7 +322,7 @@ impl TUnion {
     pub fn to_non_nullable(&self) -> TUnion {
         TUnion {
             types: Cow::Owned(ensure_non_empty_types(self.get_non_nullable_types())),
-            flags: self.flags & !UnionFlags::NULLSAFE_NULL,
+            flags: self.flags & !UnionFlags::NULLSAFE_NULL & !UnionFlags::ERROR_PATH_NULL,
         }
     }
 
@@ -405,7 +416,18 @@ impl TUnion {
             types.push(TAtomic::Null);
         }
 
+        self.set_error_path_null(false);
         self
+    }
+
+    #[must_use]
+    pub fn as_error_path_nullable(self) -> TUnion {
+        let marked =
+            self.has_error_path_null() || !self.types.iter().any(|atomic| atomic.is_null() || atomic.is_mixed());
+        let mut nullable = self.as_nullable();
+        nullable.set_error_path_null(marked);
+
+        nullable
     }
 
     /// Removes a specific atomic type from the union.

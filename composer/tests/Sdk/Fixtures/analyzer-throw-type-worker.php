@@ -41,6 +41,7 @@ final class ThrowTypePlugin implements Plugin
                     FunctionTarget::exact('external_empty'),
                     FunctionTarget::exact('external_fallback'),
                     FunctionTarget::exact('external_caught'),
+                    FunctionTarget::exact('external_typed'),
                 ];
             }
 
@@ -50,6 +51,7 @@ final class ThrowTypePlugin implements Plugin
                     'external_throw' => ['\\RuntimeException'],
                     'external_empty' => [],
                     'external_caught' => ['\\Throwable'],
+                    'external_typed' => $context->invocation->arguments[0]->type === null ? null : ['\\RuntimeException'],
                     default => null,
                 };
             }

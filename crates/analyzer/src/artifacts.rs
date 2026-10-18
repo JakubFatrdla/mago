@@ -13,6 +13,7 @@ use mago_codex::reference::SymbolReferences;
 use mago_codex::ttype::combine_owned_union_types_rc;
 use mago_codex::ttype::combiner::CombinerOptions;
 use mago_codex::ttype::union::TUnion;
+use mago_reporting::Issue;
 use mago_span::HasSpan;
 use mago_span::Span;
 use mago_syntax::cst::Node;
@@ -82,6 +83,7 @@ pub struct AnalysisArtifacts {
     pub method_calls_parent_initializer: HashMap<(Word, Word), Word>,
     pub closure_bind_scope: Option<ClosureBindScope>,
     pub resolved_method_calls: Vec<ResolvedMethodCall>,
+    pub suppressed_issues: Vec<Issue>,
     pub(crate) editor: Option<EditorArtifacts>,
     pub(crate) variable_definedness: HashMap<(u32, u32), WordMap<VariableDefinedness>>,
     variable_definedness_targets: Option<Arc<[bool; u8::MAX as usize + 1]>>,
@@ -120,6 +122,7 @@ impl AnalysisArtifacts {
             method_calls_parent_initializer: HashMap::default(),
             closure_bind_scope: None,
             resolved_method_calls: Vec::new(),
+            suppressed_issues: Vec::new(),
             editor: None,
             variable_definedness: HashMap::default(),
             variable_definedness_targets: None,

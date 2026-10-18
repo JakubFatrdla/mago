@@ -222,7 +222,9 @@ where
 #[allow(clippy::unwrap_used)]
 mod tests {
     use std::borrow::Cow;
+    use std::sync::Arc;
     use std::sync::LazyLock;
+    use std::sync::Mutex;
 
     use foldhash::HashSet;
     use indoc::indoc;
@@ -235,6 +237,8 @@ mod tests {
     use mago_database::file::File;
     use mago_names::resolver::NameResolver;
     use mago_prelude::Prelude;
+    use mago_span::HasSpan;
+    use mago_syntax::cst::Expression;
     use mago_syntax::parser::parse_file;
     use mago_word::WordSet;
 
@@ -242,14 +246,45 @@ mod tests {
     use crate::analysis_result::AnalysisResult;
     use crate::code::IssueCode;
     use crate::plugin::PluginRegistry;
+    use crate::plugin::context::HookContext;
     use crate::plugin::context::InvocationInfo;
     use crate::plugin::context::ProviderContext;
+    use crate::plugin::hook::ExpressionHook;
+    use crate::plugin::hook::HookResult;
     use crate::plugin::provider::Provider;
     use crate::plugin::provider::ProviderMeta;
     use crate::plugin::provider::method::MethodReturnTypeProvider;
     use crate::plugin::provider::method::MethodTarget;
     use crate::settings::Settings;
     use crate::test_analysis;
+
+    type IndexReads = Arc<Mutex<Vec<((u32, u32), bool, bool)>>>;
+
+    struct IndexReadTypes {
+        reads: IndexReads,
+    }
+
+    impl Provider for IndexReadTypes {
+        fn meta() -> &'static ProviderMeta {
+            static META: ProviderMeta =
+                ProviderMeta::new("index-read-types", "Index read types", "Records array index read types");
+            &META
+        }
+    }
+
+    impl ExpressionHook for IndexReadTypes {
+        fn after_expression(&self, expression: &Expression<'_>, context: &mut HookContext<'_, '_>) -> HookResult<()> {
+            if let Expression::ArrayAccess(_) = expression
+                && let Some(read) = context.get_expression_type(expression)
+                && let Ok(mut reads) = self.reads.lock()
+            {
+                let span = expression.span();
+                reads.push(((span.start.offset, span.end.offset), read.is_nullable(), read.has_error_path_null()));
+            }
+
+            Ok(())
+        }
+    }
 
     struct OffsetGetReturnsInt;
 
@@ -312,6 +347,32 @@ mod tests {
         registry.register_method_provider(OffsetGetReturnsInt);
         let with_provider = analyze(code.to_string(), &registry, Settings::default());
         assert!(with_provider.issues.is_empty(), "{:?}", with_provider.issues);
+    }
+
+    fn index_read_type(array_type: &str, read: &str) -> (bool, bool) {
+        let code =
+            format!("<?php /** @param {array_type} $a */ function probe(array $a, string $k): void {{ {read}; }}");
+        let start = u32::try_from(code.rfind(read).unwrap()).unwrap();
+        let end = start + u32::try_from(read.len()).unwrap();
+        let reads = IndexReads::default();
+        let mut registry = PluginRegistry::with_library_providers();
+        registry.register_expression_hook(IndexReadTypes { reads: Arc::clone(&reads) });
+        analyze(code, &registry, Settings { strict_array_index_existence: true, ..Settings::default() });
+
+        let reads = reads.lock().unwrap();
+        let (_, nullable, marked) = reads.iter().find(|(span, _, _)| *span == (start, end)).unwrap();
+
+        (*nullable, *marked)
+    }
+
+    #[test]
+    fn possibly_undefined_index_reads_mark_only_the_null_they_add() {
+        assert_eq!(index_read_type("list<int>", "$a[1]"), (true, true));
+        assert_eq!(index_read_type("array{k?: int}", "$a['k']"), (true, true));
+        assert_eq!(index_read_type("array{k?: array{j: int}}", "$a['k']['j']"), (true, true));
+        assert_eq!(index_read_type("array<string, int>", "$a['k']"), (true, true));
+        assert_eq!(index_read_type("array{k: int, ...<string, int>}", "$a[$k]"), (true, true));
+        assert_eq!(index_read_type("array{k: ?int}", "$a['k']"), (true, false));
     }
 
     test_analysis! {

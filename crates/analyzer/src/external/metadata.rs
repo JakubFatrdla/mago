@@ -464,7 +464,13 @@ fn get_class_like_relations(
                     .and_then(|metadata| codebase.direct_classlike_descendants.get(&metadata.name));
                 write_words(writer, descendants.into_iter().flatten().copied())?;
             }
-            ALL_DESCENDANTS => write_words(writer, codebase.get_class_descendants(name))?,
+            ALL_DESCENDANTS => match codebase.get_class_like(name).filter(|metadata| metadata.kind.is_trait()) {
+                Some(trait_metadata) => write_words(
+                    writer,
+                    codebase.all_class_like_descendants.get(&trait_metadata.name).into_iter().flatten().copied(),
+                )?,
+                None => write_words(writer, codebase.get_class_descendants(name))?,
+            },
             ALL_ANCESTORS => write_words(writer, codebase.get_class_ancestors(name))?,
             _ => unreachable!(),
         }
@@ -1346,5 +1352,53 @@ mod tests {
         let error = protocol::handle_nested_request(&writer.finish(), &codebase, &session, |_| None)
             .expect_err("unknown method projection fields must fail");
         assert!(error.to_string().contains("unknown fields"));
+    }
+
+    #[test]
+    fn class_descendants_of_a_trait_are_the_classes_using_it() {
+        let file = mago_database::file::File::ephemeral(
+            std::borrow::Cow::Borrowed(b"relations.php"),
+            std::borrow::Cow::Borrowed(
+                b"<?php class Base {} final class A extends Base { use T; } final class B { use T; } trait T {}",
+            ),
+        );
+        let arena = mago_allocator::LocalArena::new();
+        let program = mago_syntax::parser::parse_file(&arena, &file);
+        let names = mago_names::resolver::NameResolver::new(&arena).resolve(program);
+        let mut codebase =
+            mago_codex::scanner::scan_program(&arena, &file, program, &names, mago_php_version::PHPVersion::LATEST);
+        mago_codex::populator::populate_codebase(
+            &mut codebase,
+            &mut mago_codex::reference::SymbolReferences::new(),
+            mago_word::WordSet::default(),
+            foldhash::HashSet::default(),
+        );
+
+        let session = session(31);
+        let mut writer = protocol::message_writer(CODEBASE_QUERY_REQUEST);
+        writer.write_u64(31);
+        writer.write_u8(GET_CLASS_LIKE_RELATIONS);
+        writer.write_u8(ALL_DESCENDANTS);
+        writer.write_u32(2);
+        writer.write_bytes(b"T").expect("name should fit in a frame");
+        writer.write_bytes(b"Base").expect("name should fit in a frame");
+
+        let (_, response) = protocol::handle_nested_request(&writer.finish(), &codebase, &session, |_| None)
+            .expect("relation query should succeed");
+        let mut reader = protocol::message_reader(&response, CODEBASE_QUERY_RESPONSE)
+            .expect("metadata response should have a valid header");
+        assert_eq!(reader.read_u64("generation").expect("generation should decode"), 31);
+        assert_eq!(reader.read_u8("operation").expect("operation should decode"), GET_CLASS_LIKE_RELATIONS);
+        assert_eq!(reader.read_u8("relation").expect("relation should decode"), ALL_DESCENDANTS);
+        assert_eq!(reader.read_u32("count").expect("count should decode"), 2);
+        let mut words = |label| {
+            let count = reader.read_u32(label).expect("word count should decode");
+            std::iter::repeat_with(|| reader.read_bytes(label).expect("word should decode").to_vec())
+                .take(count as usize)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(words("trait users"), [b"a".to_vec(), b"b".to_vec()]);
+        assert_eq!(words("class descendants"), [b"a".to_vec()]);
+        reader.finish().expect("metadata response should contain no trailing bytes");
     }
 }

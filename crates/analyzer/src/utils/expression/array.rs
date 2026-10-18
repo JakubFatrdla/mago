@@ -288,7 +288,9 @@ where
             }
             TAtomic::Null | TAtomic::Void => {
                 if !array_like_type.ignore_nullable_issues() && !in_assignment {
-                    value_type = Some(add_optional_union_type(get_null(), value_type.as_ref(), context.codebase));
+                    let mut null = get_null();
+                    null.set_error_path_null(array_like_type.has_error_path_null());
+                    value_type = Some(add_optional_union_type(null, value_type.as_ref(), context.codebase));
                 }
 
                 if !in_assignment
@@ -714,7 +716,7 @@ where
                             ),
                         );
 
-                        resulting_type = resulting_type.as_nullable();
+                        resulting_type = resulting_type.as_error_path_nullable();
                     }
                 }
 
@@ -790,7 +792,7 @@ where
                             "Ensure the index is always present before accessing it, or use `isset()` or the null coalesce operator (`??`) to handle potential missing indices.",
                         ),
                 );
-                result = result.as_nullable();
+                result = result.as_error_path_nullable();
             } else {
                 result.set_possibly_undefined(true, None);
             }
@@ -854,7 +856,7 @@ where
 
                     // PHP turns missing list indices into `null` at runtime; surface that
                     // explicitly so `=== null`, `??`, and `??=` checks behave correctly.
-                    elem_type = elem_type.as_nullable();
+                    elem_type = elem_type.as_error_path_nullable();
                 } else {
                     elem_type.set_possibly_undefined(true, None);
                 }
@@ -928,7 +930,7 @@ where
                     )),
                 );
 
-                expression_type = expression_type.as_nullable();
+                expression_type = expression_type.as_error_path_nullable();
             }
         } else if array_like_type.types.len() > 1 {
             let sibling_list_may_lack_key = array_like_type.types.iter().any(|atomic_type| {
@@ -1251,7 +1253,7 @@ where
                 )),
             );
 
-            return value_parameter.into_owned().as_nullable();
+            return value_parameter.into_owned().as_error_path_nullable();
         }
 
         value_parameter.into_owned()
@@ -1323,7 +1325,7 @@ where
                 }
 
                 if strict && !inside_isset_or_unset {
-                    return value_parameter.into_owned().as_nullable();
+                    return value_parameter.into_owned().as_error_path_nullable();
                 }
             }
 

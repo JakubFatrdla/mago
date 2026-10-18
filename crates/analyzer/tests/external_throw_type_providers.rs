@@ -49,10 +49,14 @@ function external_disabled(): void {}
 
 function external_caught(): void {}
 
+/** @throws FallbackException */
+function external_typed(int $_value): void {}
+
 function function_override(): void { external_throw(); }
 function function_empty(): void { external_empty(); }
 function function_fallback(): void { external_fallback(); }
 function disabled_function_fallback(): void { external_disabled(); }
+function typed_argument(): void { external_typed(1); }
 function function_caught(): void
 {
     try {
@@ -131,7 +135,8 @@ fn external_throw_type_providers_override_and_fall_back_to_native_contracts() {
         .filter(|issue| issue.code.as_deref() == Some("unhandled-thrown-type"))
         .map(|issue| issue.message.to_string())
         .collect::<Vec<_>>();
-    assert_eq!(messages.len(), 6, "unexpected unhandled-throw findings: {messages:#?}");
+    assert_eq!(messages.len(), 7, "unexpected unhandled-throw findings: {messages:#?}");
+    assert!(messages.iter().any(|message| message.contains("RuntimeException") && message.contains("typed_argument")));
     assert!(
         messages.iter().any(|message| message.contains("RuntimeException") && message.contains("function_override"))
     );

@@ -260,6 +260,10 @@ function take_string_map(array $_values): void {}
 /** @param list<Builder<string>> $_builders */
 function take_string_builders(array $_builders): void {}
 
+const FILL_MODE = 'string';
+
+function fill_by_mode(string $mode, mixed &$out): void {}
+
 take_string(external_function());
 /** @var mixed $asserted */
 $asserted = 'asserted';
@@ -275,6 +279,9 @@ $receiver->willImplement(ReceiverMarker::class);
 take_widened_receiver($receiver);
 take_string($receiver->marked());
 take_string(collect('function'));
+$filled = null;
+fill_by_mode(FILL_MODE, $filled);
+take_string($filled);
 Artisan::command('inspire', function (): void {
     $this->comment('Be inspired!');
 });
@@ -411,6 +418,23 @@ final class ManagedTestCase extends FrameworkTestCase
 (new ManagedTestCase())->getApplication();
 ";
 
+const PROPERTY_BAG_SOURCE: &str = r"<?php
+
+declare(strict_types=1);
+
+interface PropertyBag {}
+
+function relabel(PropertyBag $bag): void
+{
+    $bag->title = 'renamed';
+}
+
+function title(PropertyBag $bag): string
+{
+    return $bag->title;
+}
+";
+
 const ISSUE_FILTER_SOURCE: &str = r"<?php
 
 declare(strict_types=1);
@@ -483,6 +507,7 @@ fn external_providers_receive_complete_invocation_context() -> Result<(), Box<dy
             "class-initializer-managedtestcase",
             "closure-this-return",
             "closure-this-signature",
+            "closure-this-signature-typed",
             "complete-composite",
             "dynamic-instance",
             "dynamic-signature",
@@ -492,6 +517,7 @@ fn external_providers_receive_complete_invocation_context() -> Result<(), Box<dy
             "function-assertion",
             "function-signature",
             "function-signature-return",
+            "function-signature-typed",
             "generic",
             "instance",
             "intersection",
@@ -499,6 +525,7 @@ fn external_providers_receive_complete_invocation_context() -> Result<(), Box<dy
             "method-assertion",
             "method-signature",
             "method-signature-return",
+            "method-signature-typed",
             "missing-class-return",
             "missing-class-signature",
             "missing-interface-return",
@@ -517,7 +544,8 @@ fn external_providers_receive_complete_invocation_context() -> Result<(), Box<dy
             "property-self-read",
             "receiver-assertion",
             "relation-subclass",
-            "static"
+            "static",
+            "typed-constant-signature"
         ]
     );
 
@@ -596,6 +624,23 @@ fn declined_property_initialization_preserves_uninitialized_diagnostic() -> Resu
 }
 
 #[test]
+fn provider_typed_properties_need_no_magic_methods() -> Result<(), Box<dyn std::error::Error>> {
+    if !php_sdk_is_available() {
+        return Ok(());
+    }
+
+    let observation = analyze_with_fixture(PROPERTY_BAG_SOURCE, true, false, false)?;
+    assert!(
+        observation.issues.is_empty(),
+        "a provider-typed property must not ask for __get or __set: {:#?}",
+        observation.issues
+    );
+    assert_eq!(observation.invocations, ["property-bag-title-write", "property-bag-title-read"]);
+
+    Ok(())
+}
+
+#[test]
 fn external_issue_filters_batch_and_remove_selected_native_diagnostics() -> Result<(), Box<dyn std::error::Error>> {
     if !php_sdk_is_available() {
         return Ok(());
@@ -605,8 +650,15 @@ fn external_issue_filters_batch_and_remove_selected_native_diagnostics() -> Resu
     assert_eq!(observation.issues.len(), 1, "only the explicitly filtered native issue should be suppressed");
     assert_eq!(observation.issues[0].0.as_deref(), Some("non-existent-function"));
     assert!(observation.issues[0].1.contains("`retained_missing`"));
-    assert_eq!(observation.invocations.len(), 2, "both issues from the file should reach the worker batch");
-    assert!(observation.invocations.iter().all(|entry| entry.starts_with("issue-filter-")));
+    let (filtered, hooks) = observation.invocations.split_at(2);
+    assert!(
+        filtered.iter().all(|entry| entry.starts_with("issue-filter-")),
+        "both issues should reach the worker batch"
+    );
+    assert_eq!(
+        hooks,
+        ["targeted-hook", "targeted-hook", "after-file-suppressed-non-existent-function-filtered_missing"]
+    );
 
     Ok(())
 }

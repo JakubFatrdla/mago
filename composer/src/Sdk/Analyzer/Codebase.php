@@ -217,7 +217,7 @@ final class Codebase
         return $this->getRelations(Protocol::DIRECT_DESCENDANTS, $names);
     }
 
-    /** @return list<string> */
+    /** @return list<string> the descendants of a class or interface, the classes using a trait */
     public function getClassDescendants(string $name): array
     {
         return $this->getMultipleClassDescendants([$name])[0] ?? [];

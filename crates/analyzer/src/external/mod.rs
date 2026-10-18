@@ -26,7 +26,9 @@ use mago_extension::WorkerPool;
 use mago_extension::WorkerRequestHandler;
 use mago_names::ResolvedNames;
 use mago_php_version::PHPVersion;
+use mago_reporting::Issue;
 use mago_reporting::IssueCollection;
+use mago_span::Position;
 use mago_span::Span;
 use mago_syntax::cst::NodeKind;
 use mago_syntax::cst::Program;
@@ -139,6 +141,24 @@ impl ExternalAnalysisSession {
 
     fn source_file(&self, file_id: FileId) -> Option<&File> {
         self.sources.get(&file_id).map(AsRef::as_ref)
+    }
+
+    /// Moves a primary annotation in another file to that line number of `file`, where PHPStan files a trait's class finding.
+    fn on_line_of_file(&self, file: &File, mut issue: Issue) -> Issue {
+        let primary = issue
+            .annotations
+            .iter_mut()
+            .filter(|annotation| annotation.is_primary())
+            .min_by_key(|annotation| annotation.span);
+        if let Some(annotation) = primary
+            && annotation.span.file_id != file.id
+            && let Some(source) = self.source_file(annotation.span.file_id)
+            && let Some(offset) = file.get_line_start_offset(source.line_number(annotation.span.start.offset))
+        {
+            annotation.span = Span::new(file.id, Position::new(offset), Position::new(offset));
+        }
+
+        issue
     }
 }
 
@@ -1718,7 +1738,8 @@ where
         mut issues: IssueCollection,
         codebase: &CodebaseMetadata,
         session: &ExternalAnalysisSession,
-    ) -> Result<IssueCollection, ExternalAnalyzerError> {
+    ) -> Result<(IssueCollection, Vec<Issue>), ExternalAnalyzerError> {
+        let mut removed_issues = Vec::new();
         for backend in &self.backends {
             let hooks = &backend.issue_filter_indices;
             if hooks.is_empty() || issues.is_empty() {
@@ -1790,6 +1811,7 @@ where
                 issues = IssueCollection::from(issues.into_iter().enumerate().filter_map(|(index, issue)| {
                     if next_removed == Some(index) {
                         next_removed = removed.next();
+                        removed_issues.push(issue);
                         None
                     } else {
                         Some(issue)
@@ -1815,7 +1837,9 @@ where
             }
         }
 
-        Ok(issues)
+        let removed_issues = removed_issues.into_iter().map(|issue| session.on_line_of_file(file, issue)).collect();
+
+        Ok((issues, removed_issues))
     }
 
     fn dispatch_lifecycle_request<H>(
@@ -3946,5 +3970,33 @@ mod tests {
 
         assert!(list.non_empty);
         assert!(list.element_type.is_string());
+    }
+
+    #[test]
+    fn a_removed_issue_in_another_file_moves_to_that_line_of_the_analyzed_file() {
+        let trait_contents: &'static [u8] = b"<?php\n\ntrait T\n{\n    private int $count;\n}\n";
+        let trait_file = Arc::new(File::ephemeral(Cow::Borrowed(b"T.php"), Cow::Borrowed(trait_contents)));
+        let class_file = Arc::new(File::ephemeral(
+            Cow::Borrowed(b"C.php"),
+            Cow::Borrowed(b"<?php\n\nfinal class C\n{\n    use T;\n}\n"),
+        ));
+        let session = ExternalAnalysisSession::from_files([Arc::clone(&trait_file), Arc::clone(&class_file)]);
+        let offset = u32::try_from(trait_contents.windows(6).position(|window| window == b"$count").unwrap()).unwrap();
+        let property = Span::new(trait_file.id, Position::new(offset), Position::new(offset + 6));
+
+        let moved = session.on_line_of_file(
+            &class_file,
+            Issue::error("uninitialized").with_annotation(mago_reporting::Annotation::primary(property)),
+        );
+        let span = moved.primary_span().unwrap();
+        assert_eq!(span.file_id, class_file.id);
+        assert_eq!(class_file.line_number(span.start.offset), trait_file.line_number(offset));
+
+        let own = Span::new(class_file.id, Position::new(10), Position::new(12));
+        let kept = session.on_line_of_file(
+            &class_file,
+            Issue::error("own").with_annotation(mago_reporting::Annotation::primary(own)),
+        );
+        assert_eq!(kept.primary_span(), Some(own));
     }
 }
