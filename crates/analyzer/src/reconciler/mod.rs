@@ -48,7 +48,9 @@ use crate::code::IssueCode;
 use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::context::scope::var_has_root;
+use crate::external::PropertyAccessKind;
 use crate::resolver::class_name::get_class_name_from_atomic;
+use crate::resolver::property::is_declared_untyped_property;
 use crate::resolver::property::resolve_declared_property;
 use crate::utils::expression::is_dynamic_index_id;
 
@@ -210,6 +212,7 @@ pub fn reconcile_keyed_types<'ctx, A>(
                 false,
                 inside_loop,
                 &mut has_object_array_access,
+                *span,
             )
             .map(Rc::new)
         });
@@ -222,7 +225,8 @@ pub fn reconcile_keyed_types<'ctx, A>(
                 let mut report_this_assertion = can_report_issues
                     && new_type_part_parts.len() == 1
                     && referenced_var_ids.contains(key)
-                    && active_new_types.get(key).is_some_and(|active_new_type| active_new_type.contains(&i));
+                    && active_new_types.get(key).is_some_and(|active_new_type| active_new_type.contains(&i))
+                    && !(is_null_assertion(assertion) && is_untyped_property_id(context, block_context, key_str));
 
                 if report_this_assertion
                     && let Some(original) = original_types
@@ -1006,6 +1010,10 @@ fn add_nested_assertions(
         }
 
         let base_key_atom = word(&base_key);
+        let mut base_key_type = context.locals.get(&base_key_atom).cloned().or_else(|| {
+            (base_key.starts_with(b"$") && base_key != b"$this" && !base_key.contains(&b':'))
+                .then(|| Rc::new(get_mixed()))
+        });
         let base_key_set = if let Some(base_key_type) = context.locals.get(&base_key_atom) {
             !base_key_type.is_nullable()
                 && !base_key_type.possibly_undefined()
@@ -1050,13 +1058,21 @@ fn add_nested_assertions(
                     continue 'outer;
                 };
 
+                let parent_is_mixed = base_key_type.as_ref().is_some_and(|parent_type| parent_type.is_mixed());
+                if key_parts.is_empty()
+                    && parent_is_mixed
+                    && let Some(active_assertions) = active_new_types.get_mut(&nk)
+                {
+                    active_assertions.remove(&0);
+                }
+
                 if let Some(new_key) = new_key {
                     entry.push(vec![Assertion::HasNonnullEntryForKey(new_key)]);
 
                     if key_parts.is_empty() {
                         // Only remove the nested key if it contains ONLY isset-related assertions
                         // If it has other assertions (e.g., IsType from is_string()), keep them
-                        if only_isset_assertions {
+                        if only_isset_assertions && !parent_is_mixed {
                             keys_to_remove.push(nk);
 
                             if nesting == 0 && base_key_set && active_new_types.swap_remove(&nk).is_some() {
@@ -1070,6 +1086,9 @@ fn add_nested_assertions(
                     entry.push(vec![Assertion::HasIntOrStringArrayAccess]);
                 }
 
+                base_key_type = context.locals.get(&word(&new_base_key)).cloned().or_else(|| {
+                    base_key_type.as_ref().and_then(|parent_type| offset_value_type(parent_type, new_key.as_ref()))
+                });
                 base_key = new_base_key;
                 nesting += 1;
                 continue;
@@ -1090,6 +1109,21 @@ fn add_nested_assertions(
                     new_types.insert(base_key_atom, vec![vec![Assertion::IsIsset]]);
                 }
 
+                let parent_is_mixed = base_key_type.as_ref().is_some_and(|parent_type| parent_type.is_mixed());
+                if parent_is_mixed
+                    && is_literal_property_name(property_name)
+                    && memchr::memmem::find(nk_str, b"?->").is_none()
+                    && let Some(entry) = new_types.get_mut(&base_key_atom)
+                {
+                    entry
+                        .push(vec![Assertion::IsType(TAtomic::Object(TObject::new_has_property(word(property_name))))]);
+                }
+
+                base_key_type = context
+                    .locals
+                    .get(&word(&new_base_key))
+                    .cloned()
+                    .or_else(|| parent_is_mixed.then(|| Rc::new(get_mixed())));
                 base_key = new_base_key;
             } else {
                 break;
@@ -1102,6 +1136,42 @@ fn add_nested_assertions(
     }
 
     new_types.retain(|k, _| !keys_to_remove.contains(k));
+}
+
+fn is_literal_property_name(property_name: &[u8]) -> bool {
+    property_name.iter().all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_' || *byte >= 0x80)
+}
+
+fn offset_value_type(parent_type: &TUnion, key: Option<&ArrayKey>) -> Option<Rc<TUnion>> {
+    if parent_type.is_mixed() {
+        return Some(Rc::new(get_mixed()));
+    }
+
+    let mut value_types = parent_type.types.iter().filter(|atomic| !atomic.is_null()).map(|atomic| match atomic {
+        TAtomic::Array(TArray::Keyed(TKeyedArray { known_items, parameters, .. })) => key
+            .and_then(|key| known_items.as_ref().and_then(|items| items.get(key)))
+            .map(|(_, item_type)| item_type)
+            .or(parameters.as_ref().map(|(_, value_type)| value_type.as_ref())),
+        TAtomic::Array(TArray::List(TList { known_elements, element_type, .. })) => key
+            .and_then(|key| match key {
+                ArrayKey::Integer(index) => {
+                    known_elements.as_ref().and_then(|elements| elements.get(&(*index as usize)))
+                }
+                _ => None,
+            })
+            .map(|(_, element)| element)
+            .or(Some(element_type.as_ref())),
+        _ => None,
+    });
+
+    let first = value_types.next()??;
+    for value_type in value_types {
+        if value_type? != first {
+            return None;
+        }
+    }
+
+    Some(Rc::new(first.clone()))
 }
 
 #[cfg(test)]
@@ -1198,6 +1268,7 @@ fn get_value_for_key<A>(
     has_empty: bool,
     inside_loop: bool,
     has_object_array_access: &mut bool,
+    span: Span,
 ) -> Option<TUnion>
 where
     A: Arena,
@@ -1458,14 +1529,19 @@ where
                             || !context.codebase.class_or_interface_exists(fq_class_name.as_bytes())
                         {
                             class_property_type = get_mixed();
+                        } else if let Some(declared_property_type) = get_property_type(
+                            context,
+                            fq_class_name,
+                            property_name,
+                            divider == b"->",
+                            block_context.scope.get_class_like_name(),
+                        ) {
+                            class_property_type = declared_property_type;
+                        } else if divider == b"->" {
+                            class_property_type =
+                                get_provided_property_type(context, existing_key_type_part, property_name, span)?;
                         } else {
-                            class_property_type = get_property_type(
-                                context,
-                                fq_class_name,
-                                property_name,
-                                divider == b"->",
-                                block_context.scope.get_class_like_name(),
-                            )?;
+                            return None;
                         }
                     } else {
                         class_property_type = get_mixed();
@@ -1490,6 +1566,33 @@ where
     }
 
     block_context.locals.get(&base_key_atom).map(|t| (**t).clone())
+}
+
+fn get_provided_property_type<A>(
+    context: &Context<'_, '_, A>,
+    object: &TAtomic,
+    property_name: &[u8],
+    span: Span,
+) -> Option<TUnion>
+where
+    A: Arena,
+{
+    let TAtomic::Object(TObject::Named(named_object)) = object else {
+        return None;
+    };
+
+    context
+        .plugin_registry
+        .get_property_type(
+            context.codebase,
+            named_object.get_name().as_bytes(),
+            property_name,
+            PropertyAccessKind::Read,
+            &TUnion::from_atomic(object.clone()),
+            span,
+            context.external_analysis_session,
+        )?
+        .read_type
 }
 
 fn get_property_type<A>(
@@ -1522,6 +1625,34 @@ where
     );
 
     Some(property_type)
+}
+
+fn is_null_assertion(assertion: &Assertion) -> bool {
+    matches!(
+        assertion,
+        Assertion::IsType(TAtomic::Null)
+            | Assertion::IsNotType(TAtomic::Null)
+            | Assertion::IsIdentical(TAtomic::Null)
+            | Assertion::IsNotIdentical(TAtomic::Null)
+    )
+}
+
+fn is_untyped_property_id<A>(context: &Context<'_, '_, A>, block_context: &BlockContext<'_>, id: &[u8]) -> bool
+where
+    A: Arena,
+{
+    let Some(arrow) = memchr::memmem::rfind(id, b"->") else {
+        return false;
+    };
+    let (object_id, property_name) = (&id[..arrow], &id[arrow + 2..]);
+    if object_id.ends_with(b"?") || !property_name.iter().all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_') {
+        return false;
+    }
+
+    block_context
+        .locals
+        .get(&Word::new(object_id))
+        .is_some_and(|object_type| is_declared_untyped_property(context.codebase, object_type, property_name))
 }
 
 pub(crate) fn trigger_issue_for_impossible<A>(
