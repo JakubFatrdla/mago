@@ -49,7 +49,6 @@ use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::context::scope::var_has_root;
 use crate::external::PropertyAccessKind;
-use crate::resolver::class_name::get_class_name_from_atomic;
 use crate::resolver::property::is_declared_untyped_property;
 use crate::resolver::property::resolve_declared_property;
 use crate::utils::expression::is_dynamic_index_id;
@@ -374,6 +373,7 @@ pub fn reconcile_keyed_types<'ctx, A>(
                 );
             }
 
+            let narrows_mixed = before_adjustment.as_deref().is_some_and(TUnion::is_mixed);
             if is_real && key_str != b"$this" {
                 let mut removable_keys: Vec<Word> = Vec::new();
                 let local_keys = block_context.locals.keys().copied().collect::<Vec<_>>();
@@ -382,7 +382,10 @@ pub fn reconcile_keyed_types<'ctx, A>(
                         continue;
                     }
 
-                    if !new_types.contains_key(&new_key) && var_has_root(new_key, *key) {
+                    if !new_types.contains_key(&new_key)
+                        && var_has_root(new_key, *key)
+                        && !(narrows_mixed && block_context.outlives_narrowing(new_key))
+                    {
                         if let Some(references_map) = reference_graph.get(&new_key) {
                             let ref_count = references_map.len();
                             match ref_count {
@@ -442,37 +445,9 @@ pub fn reconcile_keyed_types<'ctx, A>(
             changed_var_ids.insert(*key);
         }
 
-        if !has_object_array_access {
-            if let Some(source_id) = block_context.class_string_sources.get(key).copied() {
-                let mut object_types = Vec::new();
-                let mut all_resolved = true;
-                for atomic in result_type.types.iter() {
-                    if let Some(resolved) = get_class_name_from_atomic(context.codebase, atomic)
-                        .filter(|resolved| !resolved.is_invalid() && !resolved.is_possibly_invalid())
-                    {
-                        object_types.push(resolved.get_object_type(context.codebase));
-                    } else {
-                        all_resolved = false;
-                        break;
-                    }
-                }
-
-                if all_resolved && !object_types.is_empty() {
-                    let object_union = TUnion::from_vec(object_types);
-                    let narrowed = block_context
-                        .locals
-                        .get(&source_id)
-                        .and_then(|current| intersect_union_types(current, &object_union, context.codebase));
-                    if let Some(narrowed) = narrowed.filter(|t| !t.is_never()) {
-                        let changed = block_context.locals.get(&source_id).is_none_or(|current| **current != narrowed);
-                        if changed {
-                            block_context.locals.insert(source_id, Rc::new(narrowed));
-                            changed_var_ids.insert(source_id);
-                        }
-                    }
-                }
-            }
-
+        if has_inverted_isset && is_offset_of_mixed_or_call(block_context, key_str) {
+            block_context.locals.remove(key);
+        } else if !has_object_array_access {
             block_context.locals.insert(*key, Rc::new(result_type));
         }
 
@@ -1136,6 +1111,31 @@ fn add_nested_assertions(
     }
 
     new_types.retain(|k, _| !keys_to_remove.contains(k));
+}
+
+fn is_offset_of_mixed_or_call(block_context: &BlockContext<'_>, key: &[u8]) -> bool {
+    if !key.ends_with(b"]") {
+        return false;
+    }
+
+    let mut depth = 0usize;
+    let Some(open) = key.iter().rposition(|byte| {
+        match byte {
+            b']' => depth += 1,
+            b'[' => depth -= 1,
+            _ => {}
+        }
+
+        depth == 0
+    }) else {
+        return false;
+    };
+
+    let parent = &key[..open];
+    match block_context.locals.get(&word(parent)) {
+        Some(parent_type) => parent_type.is_mixed(),
+        None => parent.ends_with(b"()"),
+    }
 }
 
 fn is_literal_property_name(property_name: &[u8]) -> bool {
