@@ -140,7 +140,7 @@ where
 /// silently drops that entry rather than crashing the run.
 #[derive(Debug, Default)]
 pub struct CompiledIgnoreSet {
-    entries: Vec<CompiledIgnoreEntry>,
+    entries: Vec<(IgnoreEntry, CompiledIgnoreEntry)>,
 }
 
 #[derive(Debug)]
@@ -261,6 +261,13 @@ impl CompiledIgnoreSet {
     where
         F: Fn(FileId) -> Option<String>,
     {
+        self.matching_entry(issue, resolve_file_name).is_some()
+    }
+
+    fn matching_entry<F>(&self, issue: &Issue, resolve_file_name: F) -> Option<usize>
+    where
+        F: Fn(FileId) -> Option<String>,
+    {
         let mut cached_path: Option<Option<String>> = None;
         let mut resolve_path = |issue: &Issue| -> Option<String> {
             cached_path
@@ -268,58 +275,7 @@ impl CompiledIgnoreSet {
                 .clone()
         };
 
-        for entry in &self.entries {
-            match entry {
-                CompiledIgnoreEntry::Code(ignored_code) => {
-                    if let Some(code) = &issue.code
-                        && ignored_code == code
-                    {
-                        return true;
-                    }
-                }
-                CompiledIgnoreEntry::Scoped { code: ignored_code, matcher } => {
-                    let Some(code) = &issue.code else {
-                        continue;
-                    };
-
-                    if ignored_code != code {
-                        continue;
-                    }
-
-                    if let Some(name) = resolve_path(issue)
-                        && matcher.is_match(&name)
-                    {
-                        return true;
-                    }
-                }
-                CompiledIgnoreEntry::Pattern { regex, code: ignored_code, matcher } => {
-                    if let Some(ignored_code) = ignored_code {
-                        let Some(code) = &issue.code else {
-                            continue;
-                        };
-
-                        if ignored_code != code {
-                            continue;
-                        }
-                    }
-
-                    if let Some(matcher) = matcher {
-                        let Some(name) = resolve_path(issue) else {
-                            continue;
-                        };
-
-                        if !matcher.is_match(&name) {
-                            continue;
-                        }
-                    }
-
-                    if issue_text_matches(issue, regex) {
-                        return true;
-                    }
-                }
-            }
-        }
-        false
+        self.entries.iter().position(|(_, entry)| entry.matches(issue, &mut resolve_path))
     }
 
     /// Compiles the given ignore entries into a reusable matcher set.
@@ -331,9 +287,11 @@ impl CompiledIgnoreSet {
         let mut compiled = Vec::with_capacity(entries.len());
         for entry in entries {
             match entry {
-                IgnoreEntry::Code(code) => compiled.push(CompiledIgnoreEntry::Code(code.clone())),
+                IgnoreEntry::Code(code) => compiled.push((entry.clone(), CompiledIgnoreEntry::Code(code.clone()))),
                 IgnoreEntry::Scoped { code, paths } => match ExclusionMatcher::compile(paths.iter().cloned(), glob) {
-                    Ok(matcher) => compiled.push(CompiledIgnoreEntry::Scoped { code: code.clone(), matcher }),
+                    Ok(matcher) => {
+                        compiled.push((entry.clone(), CompiledIgnoreEntry::Scoped { code: code.clone(), matcher }))
+                    }
                     Err(err) => {
                         tracing::error!("Failed to compile ignore patterns for `{code}`: {err}. Entry will be skipped.")
                     }
@@ -364,7 +322,7 @@ impl CompiledIgnoreSet {
                         None => None,
                     };
 
-                    compiled.push(CompiledIgnoreEntry::Pattern { regex, code: code.clone(), matcher });
+                    compiled.push((entry.clone(), CompiledIgnoreEntry::Pattern { regex, code: code.clone(), matcher }));
                 }
             }
         }
@@ -380,6 +338,67 @@ impl CompiledIgnoreSet {
     #[must_use]
     pub fn len(&self) -> usize {
         self.entries.len()
+    }
+}
+
+impl CompiledIgnoreEntry {
+    fn matches<R>(&self, issue: &Issue, resolve_path: &mut R) -> bool
+    where
+        R: FnMut(&Issue) -> Option<String>,
+    {
+        match self {
+            CompiledIgnoreEntry::Code(ignored_code) => issue.code.as_ref() == Some(ignored_code),
+            CompiledIgnoreEntry::Scoped { code: ignored_code, matcher } => {
+                issue.code.as_ref() == Some(ignored_code)
+                    && resolve_path(issue).is_some_and(|name| matcher.is_match(&name))
+            }
+            CompiledIgnoreEntry::Pattern { regex, code: ignored_code, matcher } => {
+                if ignored_code.is_some() && issue.code.as_ref() != ignored_code.as_ref() {
+                    return false;
+                }
+
+                if let Some(matcher) = matcher
+                    && !resolve_path(issue).is_some_and(|name| matcher.is_match(&name))
+                {
+                    return false;
+                }
+
+                issue_text_matches(issue, regex)
+            }
+        }
+    }
+}
+
+impl IgnoreEntry {
+    /// The issue reporting that this entry ignored nothing.
+    #[must_use]
+    pub fn unmatched_issue(&self) -> Issue {
+        Issue::error(format!("Ignore entry {self} matched no issue."))
+            .with_code("unmatched-ignore")
+            .with_help("Remove the entry from `analyzer.ignore`, or correct its code, pattern or paths.")
+    }
+}
+
+impl std::fmt::Display for IgnoreEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (code, pattern, paths) = match self {
+            IgnoreEntry::Code(code) => (Some(code), None, None),
+            IgnoreEntry::Scoped { code, paths } => (Some(code), None, Some(paths)),
+            IgnoreEntry::Pattern { pattern, code, paths } => (code.as_ref(), Some(pattern), paths.as_ref()),
+        };
+
+        let mut parts = Vec::new();
+        if let Some(code) = code {
+            parts.push(format!("`{code}`"));
+        }
+        if let Some(pattern) = pattern {
+            parts.push(format!("pattern `{pattern}`"));
+        }
+        if let Some(paths) = paths {
+            parts.push(format!("in `{}`", paths.join("`, `")));
+        }
+
+        f.write_str(&parts.join(" "))
     }
 }
 
@@ -842,9 +861,29 @@ impl IssueCollection {
     where
         F: Fn(FileId) -> Option<String>,
     {
-        if !set.is_empty() {
-            self.issues.retain(|issue| !set.is_ignored(issue, &resolve_file_name));
-        }
+        self.remove_ignored(set, resolve_file_name);
+    }
+
+    /// Removes the issues an ignore entry matches, each by its first matching entry, and returns
+    /// the entries that matched none.
+    pub fn remove_ignored<'set, F>(
+        &mut self,
+        set: &'set CompiledIgnoreSet,
+        resolve_file_name: F,
+    ) -> Vec<&'set IgnoreEntry>
+    where
+        F: Fn(FileId) -> Option<String>,
+    {
+        let mut matched = vec![false; set.entries.len()];
+        self.issues.retain(|issue| match set.matching_entry(issue, &resolve_file_name) {
+            Some(index) => {
+                matched[index] = true;
+                false
+            }
+            None => true,
+        });
+
+        set.entries.iter().zip(matched).filter(|(_, matched)| !matched).map(|((entry, _), _)| entry).collect()
     }
 
     pub fn filter_retain_codes(&mut self, retain_codes: &[String]) {
@@ -1372,5 +1411,58 @@ mod tests {
         collection.filter_out_ignored(&set, resolve(&mapping));
 
         assert!(collection.is_empty());
+    }
+
+    #[test]
+    pub fn test_remove_ignored_returns_entries_that_matched_nothing() {
+        let (mut collection, mapping) = pattern_fixture();
+        let entries = vec![
+            IgnoreEntry::Pattern {
+                pattern: "Symfony".to_string(),
+                code: Some("mixed-assignment".to_string()),
+                paths: None,
+            },
+            IgnoreEntry::Scoped { code: "unused-variable".to_string(), paths: vec!["src/".to_string()] },
+            IgnoreEntry::Code("mixed-assignment".to_string()),
+        ];
+        let set = CompiledIgnoreSet::compile(&entries, GlobSettings::default());
+
+        let unmatched = collection.remove_ignored(&set, resolve(&mapping));
+
+        assert_eq!(unmatched, vec![&entries[1], &entries[2]]);
+        assert_eq!(remaining_paths(&collection, &mapping), vec!["tests/Unit/FooTest.php".to_string()]);
+    }
+
+    #[test]
+    pub fn test_unmatched_ignore_issue_names_the_entry() {
+        let entries = [
+            IgnoreEntry::Code("mixed-assignment".to_string()),
+            IgnoreEntry::Scoped {
+                code: "unused-variable".to_string(),
+                paths: vec!["src/".to_string(), "tests/".to_string()],
+            },
+            IgnoreEntry::Pattern {
+                pattern: "of class `[^`]*Controller`".to_string(),
+                code: Some("uninitialized-property".to_string()),
+                paths: None,
+            },
+        ];
+
+        let messages = entries.iter().map(|entry| entry.unmatched_issue().message.into_owned()).collect::<Vec<_>>();
+
+        assert_eq!(
+            messages,
+            vec![
+                "Ignore entry `mixed-assignment` matched no issue.",
+                "Ignore entry `unused-variable` in `src/`, `tests/` matched no issue.",
+                "Ignore entry `uninitialized-property` pattern `of class `[^`]*Controller`` matched no issue.",
+            ]
+        );
+        assert!(entries.iter().all(|entry| {
+            let issue = entry.unmatched_issue();
+            issue.level == Level::Error
+                && issue.code.as_deref() == Some("unmatched-ignore")
+                && issue.annotations.is_empty()
+        }));
     }
 }

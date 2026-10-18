@@ -24,6 +24,7 @@ baseline = "analyzer-baseline.toml"
 | `baseline` | `string` | unset | Path to a baseline file. Equivalent to passing `--baseline` on every run. The CLI flag overrides this. |
 | `baseline-variant` | `string` | `"loose"` | Format for newly generated baselines. `"loose"` (count-based) or `"strict"` (exact line matching). See [baseline](/fundamentals/baseline/). |
 | `minimum-fail-level` | `string` | `"error"` | Minimum severity that causes a non-zero exit. One of `"note"`, `"help"`, `"warning"`, `"error"`. Overridden by `--minimum-fail-level`. |
+| `report-unmatched-ignores` | `bool` | `false` | Report each `ignore` entry that matched no issue, like PHPStan's `reportUnmatchedIgnoredErrors`. Only a run over the whole project reports them: with paths, `--staged` or stdin input an entry may match an issue outside the analysed set. |
 
 `excludes` here is added to whatever you set in `[source].excludes`; it never narrows the global list.
 

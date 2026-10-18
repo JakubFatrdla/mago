@@ -33,6 +33,14 @@ pub struct AnalyzerConfiguration {
     /// Ignore specific issues based on their code, optionally scoped to paths.
     pub ignore: Vec<IgnoreEntry>,
 
+    /// Report each `ignore` entry that matched no issue, like PHPStan `reportUnmatchedIgnoredErrors`.
+    ///
+    /// Only an unscoped run reports them: with paths, `--staged` or stdin input the entry
+    /// may match an issue outside the analyzed set.
+    ///
+    /// Defaults to `false`.
+    pub report_unmatched_ignores: bool,
+
     /// Path to a baseline file to ignore listed issues.
     pub baseline: Option<PathBuf>,
 
@@ -533,6 +541,7 @@ impl Default for AnalyzerConfiguration {
             plugins: vec![],
             excludes: vec![],
             ignore: vec![],
+            report_unmatched_ignores: false,
             baseline: None,
             baseline_variant: BaselineVariant::default(),
             minimum_fail_level: Level::Error,

@@ -59,6 +59,7 @@ use mago_database::watcher::WatchOptions;
 use mago_orchestrator::Orchestrator;
 use mago_prelude::Prelude;
 use mago_reporting::CompiledIgnoreSet;
+use mago_reporting::IgnoreEntry;
 
 use crate::commands::args::baseline_reporting::BaselineReportingArgs;
 use crate::commands::args::substitution::SubstitutionArgs;
@@ -347,10 +348,14 @@ impl AnalyzeCommand {
         let service_run_duration = service_run_start.map(|s| s.elapsed());
         let report_start = trace_enabled.then(Instant::now);
         let ignore_set = self.compile_ignore_set(&configuration);
+        let scoped_analysis = self.staged || !self.path.is_empty() || self.stdin_input;
 
-        issues.filter_out_ignored(&ignore_set, |file_id| {
+        let unmatched_ignores = issues.remove_ignored(&ignore_set, |file_id| {
             database.get_ref(&file_id).ok().map(|f| String::from_utf8_lossy(&f.name).into_owned())
         });
+        if configuration.analyzer.report_unmatched_ignores && !scoped_analysis {
+            issues.extend(unmatched_ignores.into_iter().map(IgnoreEntry::unmatched_issue));
+        }
 
         let baseline = configuration.analyzer.baseline.as_deref();
         let baseline_variant = configuration.analyzer.baseline_variant;
@@ -360,7 +365,7 @@ impl AnalyzeCommand {
             baseline_variant,
             configuration.editor_url.clone(),
             configuration.analyzer.minimum_fail_level,
-            self.staged || !self.path.is_empty() || self.stdin_input,
+            scoped_analysis,
         );
 
         let (exit_code, changed_file_ids) = processor.process_issues(&orchestrator, &mut database, issues)?;
