@@ -17,6 +17,7 @@ use mago_span::HasSpan;
 use mago_span::Span;
 use mago_syntax::cst::Argument;
 use mago_syntax::cst::ArgumentList;
+use mago_syntax::cst::ArrayAccess;
 use mago_syntax::cst::Expression;
 use mago_syntax::cst::NamedArgument;
 use mago_syntax::cst::NamedPlaceholderArgument;
@@ -166,6 +167,9 @@ pub enum InvocationArgumentsSource<'ast, 'arena> {
     PartialArgumentList(&'ast PartialArgumentList<'arena>),
     /// Constructor arguments supplied to an attribute.
     AttributeArgumentList(&'ast PartialArgumentList<'arena>),
+    /// The single argument is the index of an array access on an `ArrayAccess` object,
+    /// like `$offset` in `$object[$offset]` calling `offsetGet($offset)`.
+    ArrayAccessIndex(&'ast ArrayAccess<'arena>),
 }
 
 /// Represents a single argument passed during an invocation, abstracting whether
@@ -564,7 +568,7 @@ impl<'ast, 'arena> InvocationArgumentsSource<'ast, 'arena> {
     pub fn argument_count(&self) -> usize {
         match self {
             InvocationArgumentsSource::ArgumentList(argument_list) => argument_list.arguments.len(),
-            InvocationArgumentsSource::PipeInput(_) => 1,
+            InvocationArgumentsSource::PipeInput(_) | InvocationArgumentsSource::ArrayAccessIndex(_) => 1,
             InvocationArgumentsSource::None(_) => 0,
             InvocationArgumentsSource::PartialArgumentList(partial_argument_list)
             | InvocationArgumentsSource::AttributeArgumentList(partial_argument_list) => {
@@ -592,6 +596,13 @@ impl<'ast, 'arena> InvocationArgumentsSource<'ast, 'arena> {
             InvocationArgumentsSource::PipeInput(pipe) => {
                 if index == 0 {
                     Some(InvocationArgument::PipedValue(pipe.input))
+                } else {
+                    None
+                }
+            }
+            InvocationArgumentsSource::ArrayAccessIndex(array_access) => {
+                if index == 0 {
+                    Some(InvocationArgument::PipedValue(array_access.index))
                 } else {
                     None
                 }
@@ -762,6 +773,7 @@ impl HasSpan for InvocationArgumentsSource<'_, '_> {
         match self {
             InvocationArgumentsSource::ArgumentList(arg_list) => arg_list.span(),
             InvocationArgumentsSource::PipeInput(pipe) => pipe.span(),
+            InvocationArgumentsSource::ArrayAccessIndex(array_access) => array_access.index.span(),
             InvocationArgumentsSource::None(span) => *span,
             InvocationArgumentsSource::PartialArgumentList(partial_arg_list)
             | InvocationArgumentsSource::AttributeArgumentList(partial_arg_list) => partial_arg_list.span(),

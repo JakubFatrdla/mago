@@ -54,6 +54,14 @@ macro_rules! test_case {
 }
 
 test_case!(accessing_undefined_class_constant);
+test_case!(array_access_read_uses_offset_get);
+test_case!(array_access_object_survives_isset_with_variable_key);
+test_case!(array_access_assignment_is_remembered_on_read, {
+    let mut settings = default_test_settings();
+    settings.remember_array_access_assignments = true;
+    settings
+});
+test_case!(array_access_assignment_is_not_remembered_by_default);
 test_case!(generic_docblock_native_return);
 test_case!(message_quality);
 test_case!(ds_map_defaults);
@@ -2918,6 +2926,12 @@ test_case!(foreach_empty_array_analyze_dead_code, {
     let mut settings = default_test_settings();
     settings.analyze_dead_code = true;
     settings
+});
+test_case!(array_access_offset_isset_then_type_check);
+test_case!(array_access_union_offset_write_remembered, {
+    let mut s = crate::framework::default_test_settings();
+    s.remember_array_access_assignments = true;
+    s
 });
 
 #[test]

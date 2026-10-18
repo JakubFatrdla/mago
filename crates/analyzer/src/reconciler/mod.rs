@@ -1335,7 +1335,15 @@ where
                     } else if existing_key_type_part.is_never() || existing_key_type_part.is_mixed_isset_from_loop() {
                         return Some(get_mixed_maybe_from_loop(inside_loop));
                     } else if let TAtomic::Object(TObject::Named(_named_object)) = existing_key_type_part {
-                        if has_isset || has_inverted_isset || has_inverted_key_exists {
+                        let asserts_type_beyond_isset = has_isset
+                            && !has_inverted_isset
+                            && !has_inverted_key_exists
+                            && new_base_key_atom == key
+                            && new_assertions
+                                .get(&key)
+                                .is_some_and(|assertions| assertions.iter().flatten().any(|a| !a.has_isset()));
+
+                        if (has_isset || has_inverted_isset || has_inverted_key_exists) && !asserts_type_beyond_isset {
                             *has_object_array_access = true;
                             block_context.locals.remove(&new_base_key_atom);
 

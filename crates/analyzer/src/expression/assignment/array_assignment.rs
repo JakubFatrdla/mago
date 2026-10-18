@@ -46,6 +46,7 @@ use crate::expression::assignment::PropertyWriteKind;
 use crate::expression::assignment::property_assignment;
 use crate::utils::expression::array::ArrayTarget;
 use crate::utils::expression::array::get_array_target_type_given_index;
+use crate::utils::expression::get_array_access_id;
 use crate::utils::expression::get_block_expression_id;
 use crate::utils::expression::get_index_id;
 
@@ -84,6 +85,8 @@ where
         artifacts.get_rc_expression_type(root_array_expression).cloned().unwrap_or_else(|| Rc::new(get_mixed()));
     let root_is_array_access_object =
         root_array_type.types.iter().all(|atomic| atomic.extends_or_implements(context.codebase, b"ArrayAccess"));
+    let root_has_array_access_object =
+        root_array_type.types.iter().any(|atomic| atomic.extends_or_implements(context.codebase, b"ArrayAccess"));
 
     let mut current_type = Rc::clone(&root_array_type);
 
@@ -207,6 +210,21 @@ where
     }
 
     artifacts.set_rc_expression_type(&root_array_expression, root_array_type);
+
+    if context.settings.remember_array_access_assignments
+        && root_has_array_access_object
+        && let ArrayTarget::Access(array_access) = array_target
+        && std::ptr::eq(array_access.array, root_array_expression)
+        && let Some(offset_id) = get_array_access_id(
+            array_access,
+            block_context.scope.get_class_like_name(),
+            context.resolved_names,
+            Some(context.codebase),
+        )
+    {
+        block_context.locals.insert(offset_id, Rc::new(assign_value_type.clone()));
+        block_context.possibly_assigned_variable_ids.insert(offset_id);
+    }
 
     Ok(())
 }

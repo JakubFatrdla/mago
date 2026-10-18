@@ -119,6 +119,7 @@ These flags toggle individual analyses. Defaults are tuned for everyday use; fli
 | `require-api-or-internal` | `false` | Require abstract classes, interfaces, and traits to be annotated `@api` or `@internal`. |
 | `check-experimental` | `false` | Report use of `@experimental` symbols from non-experimental contexts. Available since 1.19.0. |
 | `allow-side-effects-in-conditions` | `true` | When `false`, report calls to impure functions inside `if`, `while`, `for`, ternary, or `match` conditions. |
+| `remember-array-access-assignments` | `false` | Type a read of an `ArrayAccess` offset with the value last assigned to it in the same scope. Unsound when `offsetSet()` transforms the value. |
 
 ## Property initialization
 

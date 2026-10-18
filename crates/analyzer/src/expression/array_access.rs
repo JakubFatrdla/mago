@@ -1,18 +1,35 @@
 use mago_allocator::Arena;
 use std::rc::Rc;
 
+use mago_codex::identifier::function_like::FunctionLikeIdentifier;
+use mago_codex::identifier::method::MethodIdentifier;
+use mago_codex::ttype::atomic::TAtomic;
+use mago_codex::ttype::atomic::object::TObject;
+use mago_codex::ttype::expander::StaticClassType;
 use mago_codex::ttype::get_arraykey;
 use mago_codex::ttype::get_mixed;
+use mago_codex::ttype::template::TemplateResult;
+use mago_codex::ttype::union::TUnion;
 use mago_span::HasSpan;
 use mago_syntax::cst::ArrayAccess;
 use mago_syntax::cst::Expression;
+use mago_word::WordMap;
 use mago_word::concat_word;
+use mago_word::word;
 
 use crate::analyzable::Analyzable;
 use crate::artifacts::AnalysisArtifacts;
 use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
+use crate::invocation::Invocation;
+use crate::invocation::InvocationArgumentsSource;
+use crate::invocation::InvocationTarget;
+use crate::invocation::MethodInvocationKind;
+use crate::invocation::MethodTargetContext;
+use crate::invocation::return_type_fetcher::fetch_declared_invocation_return_type;
+use crate::invocation::return_type_fetcher::fetch_invocation_provider_return_type;
+use crate::invocation::template_result::populate_template_result_from_invocation;
 use crate::utils::expression::array::get_array_target_type_given_index;
 use crate::utils::expression::expression_is_nullsafe;
 use crate::utils::expression::get_block_expression_id;
@@ -105,6 +122,12 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for ArrayAccess<'arena> {
                 container_type.can_be_null() && expression_is_nullsafe(self.array),
             ));
 
+            let access_type =
+                match get_offset_get_read_type(context, block_context, artifacts, self, &container_type, &index_type) {
+                    Some(offset_get_type) => Rc::new(offset_get_type),
+                    None => access_type,
+                };
+
             if let Some(keyed_array_var_id) = &keyed_array_var_id {
                 let can_store_result = block_context.flags.inside_assignment() || !container_type.is_mixed();
 
@@ -126,12 +149,170 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for ArrayAccess<'arena> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use indoc::indoc;
+/// Types `$object[$offset]` the same as `$object->offsetGet($offset)` when a return-type
+/// provider handles that call or the declared return type is conditional on the offset.
+fn get_offset_get_read_type<'ctx, 'arena, A>(
+    context: &mut Context<'ctx, 'arena, A>,
+    block_context: &BlockContext<'ctx>,
+    artifacts: &AnalysisArtifacts,
+    array_access: &ArrayAccess<'arena>,
+    container_type: &TUnion,
+    index_type: &TUnion,
+) -> Option<TUnion>
+where
+    A: Arena,
+{
+    let [TAtomic::Object(TObject::Named(named_object))] = container_type.types.as_ref() else {
+        return None;
+    };
 
+    let codebase = context.codebase;
+    if !codebase.is_instance_of(named_object.name.as_bytes(), b"ArrayAccess") {
+        return None;
+    }
+
+    let class_like_metadata = codebase.get_class_like(named_object.name.as_bytes())?;
+    let method_identifier =
+        codebase.get_declaring_method_identifier(&MethodIdentifier::new(named_object.name, word(b"offsetGet")));
+    let method_metadata = codebase.get_method_by_id(&method_identifier)?;
+
+    let invocation = Invocation::new(
+        InvocationTarget::FunctionLike {
+            identifier: FunctionLikeIdentifier::Method(
+                method_identifier.get_class_name(),
+                method_identifier.get_method_name(),
+            ),
+            metadata: method_metadata,
+            inferred_return_type: None,
+            effective_signature: None,
+            method_context: Some(MethodTargetContext {
+                invocation_kind: MethodInvocationKind::Instance,
+                declaring_method_id: Some(method_identifier),
+                class_like_metadata,
+                class_type: StaticClassType::Object(TObject::Named(named_object.clone())),
+                declaring_object_type: None,
+            }),
+            span: array_access.span(),
+        },
+        InvocationArgumentsSource::ArrayAccessIndex(array_access),
+        array_access.span(),
+    );
+
+    if let Some(provided_type) = fetch_invocation_provider_return_type(context, block_context, artifacts, &invocation) {
+        return Some(provided_type);
+    }
+
+    let declared_return_type = method_metadata.return_type_metadata.as_ref()?;
+    if !declared_return_type.type_union.types.iter().any(TAtomic::is_conditional) {
+        return None;
+    }
+
+    let mut template_result = TemplateResult::default();
+    populate_template_result_from_invocation(context, &invocation, &mut template_result);
+
+    let mut parameters = WordMap::default();
+    if let Some(offset_parameter) = method_metadata.parameters.first() {
+        parameters.insert(offset_parameter.get_name().0, index_type.clone());
+    }
+
+    Some(fetch_declared_invocation_return_type(context, &invocation, &template_result, &parameters))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use std::borrow::Cow;
+    use std::sync::LazyLock;
+
+    use foldhash::HashSet;
+    use indoc::indoc;
+    use mago_allocator::LocalArena;
+    use mago_codex::populator::populate_codebase;
+    use mago_codex::scanner::scan_program;
+    use mago_codex::ttype::get_int;
+    use mago_codex::ttype::union::TUnion;
+    use mago_database::DatabaseReader;
+    use mago_database::file::File;
+    use mago_names::resolver::NameResolver;
+    use mago_prelude::Prelude;
+    use mago_syntax::parser::parse_file;
+    use mago_word::WordSet;
+
+    use crate::Analyzer;
+    use crate::analysis_result::AnalysisResult;
     use crate::code::IssueCode;
+    use crate::plugin::PluginRegistry;
+    use crate::plugin::context::InvocationInfo;
+    use crate::plugin::context::ProviderContext;
+    use crate::plugin::provider::Provider;
+    use crate::plugin::provider::ProviderMeta;
+    use crate::plugin::provider::method::MethodReturnTypeProvider;
+    use crate::plugin::provider::method::MethodTarget;
+    use crate::settings::Settings;
     use crate::test_analysis;
+
+    struct OffsetGetReturnsInt;
+
+    impl Provider for OffsetGetReturnsInt {
+        fn meta() -> &'static ProviderMeta {
+            static META: ProviderMeta =
+                ProviderMeta::new("offset-get-returns-int", "Bag::offsetGet", "Types every offsetGet() call as int");
+            &META
+        }
+    }
+
+    impl MethodReturnTypeProvider for OffsetGetReturnsInt {
+        fn targets() -> &'static [MethodTarget] {
+            static TARGETS: [MethodTarget; 1] = [MethodTarget::exact(b"bag", b"offsetget")];
+            &TARGETS
+        }
+
+        fn get_return_type(
+            &self,
+            _context: &ProviderContext<'_, '_, '_>,
+            _class_name: &[u8],
+            _method_name: &[u8],
+            _invocation: &InvocationInfo<'_, '_, '_>,
+        ) -> Option<TUnion> {
+            Some(get_int())
+        }
+    }
+
+    static PRELUDE: LazyLock<Prelude> = LazyLock::new(Prelude::build);
+
+    fn analyze(code: String, registry: &PluginRegistry, settings: Settings) -> AnalysisResult {
+        let Prelude { mut database, mut metadata, mut symbol_references } = PRELUDE.clone();
+        let file_id = database.add(File::ephemeral(Cow::Borrowed(b"read.php"), Cow::Owned(code.into_bytes())));
+        let file = database.get_ref(&file_id).unwrap();
+        let arena = LocalArena::new();
+        let program = parse_file(&arena, file);
+        assert!(!program.has_errors());
+        let resolved_names = NameResolver::new(&arena).resolve(program);
+        metadata.extend(scan_program(&arena, file, program, &resolved_names, settings.version));
+        populate_codebase(&mut metadata, &mut symbol_references, WordSet::default(), HashSet::default());
+        let mut result = AnalysisResult::new(symbol_references);
+        Analyzer::new(&arena, file, &resolved_names, &metadata, registry, settings)
+            .analyze(program, &mut result)
+            .unwrap();
+
+        result
+    }
+
+    #[test]
+    fn array_access_read_takes_the_type_a_provider_gives_offset_get() {
+        let code = "<?php /** @implements ArrayAccess<string, mixed> */ final class Bag implements ArrayAccess { public function offsetExists(mixed $offset): bool { return true; } public function offsetGet(mixed $offset): mixed { return null; } public function offsetSet(mixed $offset, mixed $value): void {} public function offsetUnset(mixed $offset): void {} } function read(Bag $bag): int { return $bag['id']; }";
+        let mut registry = PluginRegistry::with_library_providers();
+        let without_provider = analyze(code.to_string(), &registry, Settings::default());
+        assert!(
+            without_provider.issues.iter().any(|issue| issue.code.as_deref() == Some("mixed-return-statement")),
+            "{:?}",
+            without_provider.issues
+        );
+
+        registry.register_method_provider(OffsetGetReturnsInt);
+        let with_provider = analyze(code.to_string(), &registry, Settings::default());
+        assert!(with_provider.issues.is_empty(), "{:?}", with_provider.issues);
+    }
 
     test_analysis! {
         name = using_generic_parameter_as_index,

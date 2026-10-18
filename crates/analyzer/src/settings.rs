@@ -292,6 +292,12 @@ pub struct Settings {
     /// Defaults to `false`.
     pub check_name_casing: bool,
 
+    /// Type a read of an `ArrayAccess` offset with the value last assigned to it in the same scope,
+    /// instead of the `offsetGet()` return type. Unsound when `offsetSet()` transforms the value.
+    ///
+    /// Defaults to `false`.
+    pub remember_array_access_assignments: bool,
+
     /// Whether to allow calls to impure functions inside conditions.
     ///
     /// When set to `false`, any call to a function not marked `@pure` or
@@ -450,6 +456,7 @@ impl Settings {
             check_use_statements: false,
             check_experimental: false,
             check_name_casing: false,
+            remember_array_access_assignments: false,
             allow_side_effects_in_conditions: true,
             saturation_complexity_threshold: default_thresholds.saturation_complexity,
             disjunction_complexity_threshold: default_thresholds.disjunction_complexity,

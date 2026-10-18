@@ -297,6 +297,13 @@ pub struct AnalyzerConfiguration {
     #[serde(default)]
     pub check_name_casing: bool,
 
+    /// Type a read of an `ArrayAccess` offset with the value last assigned to it in the same scope,
+    /// instead of the `offsetGet()` return type. Unsound when `offsetSet()` transforms the value.
+    ///
+    /// Defaults to `false`.
+    #[serde(default)]
+    pub remember_array_access_assignments: bool,
+
     /// Enforce that concrete classes are declared `final`.
     ///
     /// When enabled, the analyzer reports a warning for any class that is not
@@ -517,6 +524,7 @@ impl AnalyzerConfiguration {
             check_use_statements: self.check_use_statements,
             check_experimental: self.check_experimental,
             check_name_casing: self.check_name_casing,
+            remember_array_access_assignments: self.remember_array_access_assignments,
             allow_side_effects_in_conditions: self.allow_side_effects_in_conditions,
             saturation_complexity_threshold: self.performance.saturation_complexity_threshold,
             disjunction_complexity_threshold: self.performance.disjunction_complexity_threshold,
@@ -575,6 +583,7 @@ impl Default for AnalyzerConfiguration {
             check_use_statements: defaults.check_use_statements,
             check_experimental: defaults.check_experimental,
             check_name_casing: defaults.check_name_casing,
+            remember_array_access_assignments: defaults.remember_array_access_assignments,
             allow_side_effects_in_conditions: defaults.allow_side_effects_in_conditions,
             perform_heuristic_checks: None,
             performance: PerformanceConfiguration::default(),

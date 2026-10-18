@@ -1210,6 +1210,10 @@ where
                 Annotation::secondary(constructor_or_attribute_span)
                     .with_message(format!("For this {target_kind_str}")),
             ),
+            InvocationArgumentsSource::ArrayAccessIndex(array_access) => issue.with_annotation(
+                Annotation::secondary(array_access.span())
+                    .with_message("This array access calls `offsetGet()` with the index as its only argument"),
+            ),
         };
 
         issue = issue.with_help("Provide all required arguments.");

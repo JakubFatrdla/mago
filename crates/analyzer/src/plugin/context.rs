@@ -469,6 +469,13 @@ fn get_argument<'ast, 'arena>(
                 None
             }
         }
+        InvocationArgumentsSource::ArrayAccessIndex(array_access) => {
+            if index == 0 {
+                Some(array_access.index)
+            } else {
+                None
+            }
+        }
         InvocationArgumentsSource::None(_) => None,
     }
 }
