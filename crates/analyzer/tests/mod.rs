@@ -953,6 +953,8 @@ test_case!(unused_closure_use_variable, {
     s.find_unused_parameters = true;
     s
 });
+test_case!(unresolvable_template_type);
+test_case!(call_reports_argument_issues_once);
 test_case!(docblock_var_widens_inferred_type);
 test_case!(unused_property_type);
 test_case!(overly_wide_bool_property_type, {
@@ -2770,6 +2772,8 @@ test_case!(issue_1682);
 test_case!(issue_1682_php90, crate::framework::php_90_settings());
 test_case!(issue_1680, crate::framework::check_name_casing_settings());
 test_case!(incorrect_method_casing, crate::framework::check_name_casing_settings());
+test_case!(static_method_call_on_mixed);
+test_case!(dynamic_call_to_static_method);
 test_case!(date_interval_days_after_diff_is_int);
 test_case!(issue_1678);
 test_case!(issue_1686);
@@ -3120,6 +3124,7 @@ test_case!(trait_this_is_the_class_its_users_share);
 test_case!(trait_method_inherits_host_docblock);
 test_case!(imprecise_signature_type_on_declaration_line, crate::framework::check_missing_type_hints_settings());
 test_case!(trait_reads_properties_every_user_declares);
+test_case!(trait_calls_methods_every_user_declares);
 test_case!(offset_write_drops_scalar_members);
 test_case!(foreach_entry_link_needs_array_iteratee);
 test_case!(variable_type_overwrite_list_drops_known_elements, {
