@@ -3176,6 +3176,7 @@ test_case!(magic_property_narrows_native_type);
 test_case!(trait_reads_properties_every_user_declares);
 test_case!(trait_calls_methods_every_user_declares);
 test_case!(receiver_checks_like_phpstan);
+test_case!(error_path_null_like_phpstan);
 test_case!(null_coalesce_chain_narrows_shared_base);
 test_case!(offset_write_drops_scalar_members);
 test_case!(stable_method_in_array_narrowing);
@@ -3199,8 +3200,37 @@ test_case!(variable_type_overwrite_list_drops_known_elements, {
     s.check_variable_type_overwrite = true;
     s
 });
+test_case!(count_upper_bound_negation);
+test_case!(count_narrows_list_to_size, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s
+});
 test_case!(list_index_below_required_element_is_set);
+test_case!(list_index_outside_known_elements, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s
+});
+test_case!(foreach_write_back_after_value_reassignment, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s
+});
+test_case!(concat_assignment_left_null_like_phpstan);
+test_case!(comparison_error_path_null_like_phpstan);
+test_case!(null_array_index_only_on_arrays_like_phpstan);
 test_case!(key_of_non_empty_array_like_phpstan);
+test_case!(missing_union_key_null_is_error_path_like_phpstan, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s
+});
+test_case!(destructuring_error_path_null_like_phpstan, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s
+});
 test_case!(clone_drops_non_object_like_phpstan);
 test_case!(debug_backtrace_shape_like_phpstan);
 test_case!(isset_on_mixed_array_keeps_mixed_like_phpstan);
@@ -3215,6 +3245,8 @@ test_case!(isset_narrows_the_chain_of_a_dynamic_property_like_phpstan);
 test_case!(comparison_narrows_null_operands_like_phpstan);
 test_case!(strlen_of_a_coalesce_narrows_its_left_side_like_phpstan);
 test_case!(true_inequality_keeps_the_other_types_like_phpstan);
+test_case!(negated_isset_drops_a_shape_that_always_has_the_key_like_phpstan);
+test_case!(assigned_conditional_remembers_its_condition_like_phpstan);
 test_case!(repeated_method_call_keeps_the_or_narrowing_like_phpstan);
 test_case!(narrowing_a_mixed_variable_keeps_its_property_memos_like_phpstan);
 test_case!(by_reference_array_item_takes_the_var_type_of_its_array_like_phpstan);
