@@ -444,6 +444,9 @@ mod tests {
             IssueCode::PossiblyUndefinedVariable, // $key
             IssueCode::PossiblyUndefinedVariable, // $value
             IssueCode::PossiblyUndefinedVariable, // $y
+            IssueCode::InvalidTypeCast,
+            IssueCode::InvalidTypeCast,
+            IssueCode::InvalidTypeCast,
         ]
     }
 
