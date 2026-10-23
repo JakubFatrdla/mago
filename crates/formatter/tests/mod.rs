@@ -292,6 +292,8 @@ test_case!(inline_empty_braces_enabled);
 test_case!(inline_empty_braces_disabled);
 test_case!(inline_empty_braces_default);
 test_case!(inline_empty_braces_swapped);
+test_case!(preserve_empty_block_braces);
+test_case!(preserve_empty_block_braces_disabled);
 test_case!(pipe_operator);
 test_case!(disabled_class_like_member_separations);
 test_case!(empty_lines_between_class_like_members);

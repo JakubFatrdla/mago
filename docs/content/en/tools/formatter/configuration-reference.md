@@ -131,6 +131,7 @@ public function bar(
 | `inline-empty-constructor-braces` | boolean | `true` | Inline empty constructor bodies. |
 | `inline-empty-classlike-braces` | boolean | `true` | Inline empty class-like bodies. |
 | `inline-empty-anonymous-class-braces` | boolean | `true` | Inline empty anonymous-class bodies. |
+| `preserve-empty-block-braces` | boolean | `false` | Keep the braces of an empty function, method, closure or control-structure body on one line (`{}`) or on two lines as the source writes them. The `inline-empty-*-braces` options then only decide where the opening brace goes. |
 
 ## Method chains
 

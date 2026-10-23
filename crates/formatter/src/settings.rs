@@ -361,6 +361,14 @@ generate_formatter_settings! {
     /// Default: true
     inline_empty_anonymous_class_braces: bool => "default_true",
 
+    /// Whether an empty function, method, closure or control structure body keeps its braces on one
+    /// line (`{}`) or on two lines as the source writes them.
+    ///
+    /// The `inline_empty_*_braces` settings then only decide where the opening brace goes.
+    ///
+    /// Default: false
+    preserve_empty_block_braces: bool => "default_false",
+
     /// How to format broken method/property chains.
     ///
     /// When `next_line`, the first method/property starts on a new line:

@@ -12,6 +12,7 @@ use crate::document::Group;
 use crate::document::Line;
 use crate::internal::FormatterState;
 use crate::internal::format::Format;
+use crate::internal::format::misc;
 use crate::internal::format::statement;
 
 pub(super) fn print_block_of_nodes<'ast, 'arena, T, A>(
@@ -105,6 +106,8 @@ where
         true
     } else if !is_empty {
         true
+    } else if f.settings.preserve_empty_block_braces {
+        misc::has_new_line_in_range(f.source_text, left_brace.end.offset, right_brace.start.offset)
     } else {
         let parent = f.parent_node();
         // in case the block is empty, we still want to add a new line

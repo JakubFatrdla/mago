@@ -139,6 +139,7 @@ const DEFAULT_PRESET: FormatSettings = FormatSettings {
     inline_empty_constructor_braces: true,
     inline_empty_classlike_braces: true,
     inline_empty_anonymous_class_braces: true,
+    preserve_empty_block_braces: false,
     method_chain_breaking_style: MethodChainBreakingStyle::NextLine,
     first_method_chain_on_new_line: true,
     method_chain_semicolon_on_next_line: false,
