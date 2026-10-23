@@ -1,4 +1,5 @@
 use mago_allocator::Arena;
+use mago_codex::assertion::Assertion;
 use mago_codex::ttype::TType;
 use mago_codex::ttype::atomic::TAtomic;
 use mago_codex::ttype::atomic::object::TObject;
@@ -168,6 +169,12 @@ where
         return get_true();
     }
 
+    if is_excluded_by_negated_instanceof(binary, context, block_context, class_name) {
+        report_constant_instanceof(context, binary, lhs_type, class_name, false);
+
+        return if block_context.flags.inside_conditional() { get_bool() } else { get_false() };
+    }
+
     if !union_comparator::can_expression_types_be_identical(context.codebase, lhs_type, &target_type, true, false) {
         if !block_context.flags.inside_conditional() {
             report_constant_instanceof(context, binary, lhs_type, class_name, false);
@@ -177,6 +184,40 @@ where
     } else {
         get_bool()
     }
+}
+
+fn is_excluded_by_negated_instanceof<A>(
+    binary: &Binary<'_>,
+    context: &Context<'_, '_, A>,
+    block_context: &BlockContext<'_>,
+    class_name: Word,
+) -> bool
+where
+    A: Arena,
+{
+    let assertion_context = context.get_assertion_context(block_context.scope.get_class_like_name());
+    let Some(variable_id) = assertion_context.get_expression_id(binary.lhs) else {
+        return false;
+    };
+
+    block_context.clauses.iter().any(|clause| {
+        if clause.wedge || !clause.reconcilable || clause.possibilities.len() != 1 {
+            return false;
+        }
+
+        let Some(assertions) = clause.possibilities.get(&variable_id) else {
+            return false;
+        };
+
+        let mut assertions = assertions.values();
+        let (Some(Assertion::IsNotType(TAtomic::Object(TObject::Named(excluded)))), None) =
+            (assertions.next(), assertions.next())
+        else {
+            return false;
+        };
+
+        context.codebase.is_instance_of(class_name.as_bytes(), excluded.name.as_bytes())
+    })
 }
 
 fn report_constant_instanceof<A>(

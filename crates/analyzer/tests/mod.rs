@@ -3339,6 +3339,7 @@ test_case!(
     inherited_docblock_return_requires_template_arguments,
     crate::framework::check_missing_type_hints_settings()
 );
+test_case!(instanceof_subclass_of_excluded_class);
 
 #[test]
 #[cfg_attr(miri, ignore)]
