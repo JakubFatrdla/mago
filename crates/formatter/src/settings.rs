@@ -794,6 +794,18 @@ generate_formatter_settings! {
     /// Default: false
     always_break_attribute_named_argument_lists: bool => "default_false",
 
+    /// Whether to always break a `match` with at least one arm into one arm per line.
+    ///
+    /// When enabled:
+    /// ```php
+    /// $label = match ($kind) {
+    ///     Kind::Draft => 'draft',
+    /// };
+    /// ```
+    ///
+    /// Default: false
+    always_break_match_expression: bool => "default_false",
+
     /// Whether to align named arguments in multiline argument lists.
     ///
     /// When enabled:

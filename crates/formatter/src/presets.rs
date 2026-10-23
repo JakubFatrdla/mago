@@ -171,6 +171,7 @@ const DEFAULT_PRESET: FormatSettings = FormatSettings {
     preserve_parentheses: false,
     always_break_named_arguments_list: false,
     always_break_attribute_named_argument_lists: false,
+    always_break_match_expression: false,
     align_named_arguments: false,
     align_parameters: false,
     array_table_style_alignment: true,

@@ -178,6 +178,7 @@ public function bar(
 | :--- | :--- | :--- | :--- |
 | `always-break-named-arguments-list` | boolean | `false` | Always break named-argument lists. |
 | `always-break-attribute-named-argument-lists` | boolean | `false` | Always break named arguments in attributes. |
+| `always-break-match-expression` | boolean | `false` | Always break a `match` with at least one arm, one arm per line. |
 | `align-parameters` | boolean | `false` | Column-align multi-line parameter lists by the variable. |
 | `align-named-arguments` | boolean | `false` | Column-align named arguments in multi-line calls and attributes. |
 | `array-table-style-alignment` | boolean | `true` | Use table-style alignment for arrays. |

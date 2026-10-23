@@ -223,6 +223,8 @@ test_case!(arrow_return);
 test_case!(match_breaking);
 test_case!(preserve_match_arm_condition_layout);
 test_case!(preserve_match_arm_condition_layout_disabled);
+test_case!(always_break_match_expression);
+test_case!(always_break_match_expression_disabled);
 test_case!(preserve_class_like_modifier_order);
 test_case!(preserve_class_like_modifier_order_disabled);
 test_case!(array_alignment);

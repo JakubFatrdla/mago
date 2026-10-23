@@ -1402,7 +1402,8 @@ where
 
             contents.push(format_token(f, self.left_brace, b"{"));
 
-            let should_break = self.arms.len() > 1
+            let should_break = (f.settings.always_break_match_expression && !self.arms.is_empty())
+                || self.arms.len() > 1
                 || self.arms.iter().any(|arm| {
                     misc::has_new_line_in_range(
                         f.source_text,
