@@ -3330,6 +3330,11 @@ test_case!(natively_false_branch_is_not_merged, {
     s
 });
 test_case!(docblock_var_shape_missing_required_key);
+test_case!(overly_wide_union_return_with_foreign_return, {
+    let mut s = crate::framework::default_test_settings();
+    s.find_overly_wide_return_types = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

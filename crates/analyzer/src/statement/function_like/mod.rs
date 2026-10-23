@@ -1193,14 +1193,22 @@ fn check_return_type_metadata_width<'ctx, A>(
         })
     });
 
-    if !inferred_fully_in_declared {
+    if !inferred_fully_in_declared && expanded_declared.types.len() < 2 {
         return;
     }
+
+    let any_inferred_overlaps = |declared_atomic: &TAtomic| -> bool {
+        let declared = TUnion::from_atomic(declared_atomic.clone());
+        artifacts.inferred_return_types.iter().any(|ret| {
+            union_comparator::can_expression_types_be_identical(context.codebase, ret, &declared, false, false)
+        })
+    };
 
     let unused_atomics = expanded_declared
         .types
         .iter()
         .filter(|declared_atomic| !any_inferred_matches(declared_atomic))
+        .filter(|declared_atomic| inferred_fully_in_declared || !any_inferred_overlaps(declared_atomic))
         .filter(|declared_atomic| width_scope != ReturnWidthScope::NullBranch || declared_atomic.is_null())
         .collect::<Vec<_>>();
     if unused_atomics.is_empty() {
