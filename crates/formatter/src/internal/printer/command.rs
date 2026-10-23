@@ -43,6 +43,10 @@ impl<'arena> Indentation<'arena> {
         Self { depth: 0, alignment: None }
     }
 
+    pub const fn new(depth: usize, alignment: Option<&'arena [u8]>) -> Self {
+        Self { depth, alignment }
+    }
+
     pub const fn aligned(value: &'arena [u8]) -> Self {
         Self { depth: 0, alignment: Some(value) }
     }

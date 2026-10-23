@@ -272,6 +272,11 @@ where
         None
     };
 
+    let indents_hugged_arguments = should_keep_hugged && prints_hugged_arguments_indented(f, argument_list);
+    if indents_hugged_arguments {
+        f.unbroken_indent_offsets.push(argument_list.left_parenthesis.start.offset);
+    }
+
     let arguments_count = argument_list.arguments.len();
     let mut formatted_arguments: Vec<'arena, Document<'arena, A>, A> = Vec::with_capacity_in(arguments_count, f.arena);
     let previous_named_argument_padding = f.argument_state.named_argument_padding;
@@ -308,6 +313,9 @@ where
         formatted_arguments.push(arg.format(f));
     }
     f.argument_state.named_argument_padding = previous_named_argument_padding;
+    if indents_hugged_arguments {
+        f.unbroken_indent_offsets.pop();
+    }
 
     let dangling_comments = f.print_dangling_comments(argument_list.span(), true);
     let right_parenthesis = format_token(f, argument_list.right_parenthesis, b")");
@@ -385,6 +393,7 @@ where
             f,
             argument_list,
             formatted_arguments,
+            indents_hugged_arguments,
             left_parenthesis,
             dangling_comments.as_ref(),
             &right_parenthesis,
@@ -744,6 +753,7 @@ fn print_hugged_arguments<'arena, A>(
     f: &mut FormatterState<'_, 'arena, A>,
     argument_list: &'arena PartialArgumentList<'arena>,
     formatted_arguments: Vec<'arena, Document<'arena, A>, A>,
+    indents_arguments: bool,
     left_parenthesis: Document<'arena, A>,
     dangling_comments: Option<&Document<'arena, A>>,
     right_parenthesis: &Document<'arena, A>,
@@ -788,7 +798,7 @@ where
             contents.push(Document::Array(head));
             contents.push(Document::Indent(tail));
         }
-        None if !breaks_before_right_parenthesis && has_extra_indent_in_source(f, argument_list) => {
+        None if indents_arguments => {
             contents.push(Document::Indent(head));
         }
         None => contents.push(Document::Array(head)),
@@ -806,6 +816,27 @@ where
     contents.push(print_right_parenthesis(f, dangling_comments, right_parenthesis, Some(false)));
 
     Document::Group(Group::new(contents))
+}
+
+/// Whether a hugged argument list keeps all its arguments on the line of `(` and indents them one
+/// level, because the source indents them deeper than a multi-line argument indents by itself.
+fn prints_hugged_arguments_indented<A>(f: &FormatterState<'_, '_, A>, argument_list: &PartialArgumentList) -> bool
+where
+    A: Arena,
+{
+    let arguments = argument_list.arguments.as_slice();
+    let breaks_between_arguments = arguments.iter().zip(arguments.iter().skip(1)).any(|(previous, next)| {
+        misc::has_new_line_in_range(f.source_text, previous.span().end.offset, next.span().start.offset)
+    });
+    let breaks_before_right_parenthesis = arguments.last().is_some_and(|argument| {
+        misc::has_new_line_in_range(
+            f.source_text,
+            argument.span().end.offset,
+            argument_list.right_parenthesis.start.offset,
+        )
+    });
+
+    !breaks_between_arguments && !breaks_before_right_parenthesis && has_extra_indent_in_source(f, argument_list)
 }
 
 /// Whether the source indents the first line it breaks inside the argument list two or more levels
@@ -831,7 +862,7 @@ where
     }
 
     let next_line_indent = misc::line_indent_width(f, (start + new_line + next_line_start) as u32);
-    let parenthesis_line_indent = misc::line_indent_width(f, argument_list.left_parenthesis.start.offset);
+    let parenthesis_line_indent = misc::indent_width_at(f, argument_list.left_parenthesis.start.offset);
 
     next_line_indent >= parenthesis_line_indent + 2 * f.settings.tab_width
 }

@@ -150,6 +150,7 @@ where
     halted_compilation: bool,
     alignment_context: Option<AssignmentAlignment>,
     member_access_chain_context: Option<MemberAccessChainContext>,
+    unbroken_indent_offsets: BumpVec<'arena, u32, A>,
     range: Option<RangeState>,
 }
 
@@ -211,6 +212,7 @@ where
             in_script_terminating_statement: false,
             alignment_context: None,
             member_access_chain_context: None,
+            unbroken_indent_offsets: BumpVec::new_in(arena),
             range: None,
         }
     }

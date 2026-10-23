@@ -23,6 +23,7 @@ use mago_syntax::cst::PartialApplication;
 use mago_syntax::cst::StringPart;
 
 use crate::document::Align;
+use crate::document::AlignToLine;
 use crate::document::BreakMode;
 use crate::document::Document;
 use crate::document::IndentIfBreak;
@@ -172,6 +173,7 @@ where
         | Document::LineSuffix(contents)
         | Document::IndentIfBreak(IndentIfBreak { contents, .. })
         | Document::Align(Align { contents, .. }) => check_array(contents),
+        Document::AlignToLine(AlignToLine { head, contents }) => check_array(head) || check_array(contents),
         _ => false,
     }
 }

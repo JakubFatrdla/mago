@@ -22,6 +22,7 @@ use mago_syntax::cst::PropertyAccess;
 use mago_syntax::cst::StaticMethodCall;
 use mago_syntax::cst::Variable;
 
+use crate::document::AlignToLine;
 use crate::document::Document;
 use crate::document::Group;
 use crate::document::IndentIfBreak;
@@ -247,6 +248,12 @@ where
     pub fn is_eligible_for_chaining(&self, f: &FormatterState<'_, 'arena, A>) -> bool {
         if self.has_comments_in_chain(f) {
             return true;
+        }
+
+        if f.settings.preserve_member_access_chain_layout {
+            return self
+                .link_gaps()
+                .any(|(start, end)| misc::has_new_line_in_range(f.source_text, start.offset, end.offset));
         }
 
         if f.settings.preserve_breaking_member_access_chain && self.is_already_broken(f) {
@@ -887,6 +894,10 @@ where
         vec_in![f.arena; base_document]
     };
 
+    if f.settings.preserve_member_access_chain_layout {
+        return print_member_access_chain_as_written(member_access_chain, f, parts);
+    }
+
     let mut accesses_iter = member_access_chain.accesses.iter().enumerate().peekable();
     let fluent_access_chain_start = member_access_chain.find_fluent_access_chain_start();
     let must_break = member_access_chain.must_break(f);
@@ -975,6 +986,72 @@ where
 
     // Wrap everything in a group to manage line breaking
     Document::Group(Group::new(parts).with_id(group_id))
+}
+
+/// Prints the links of a chain with a line break before each link that starts a line in the source.
+fn print_member_access_chain_as_written<'arena, A>(
+    member_access_chain: &MemberAccessChain<'arena, A>,
+    f: &mut FormatterState<'_, 'arena, A>,
+    mut parts: Vec<'arena, Document<'arena, A>, A>,
+) -> Document<'arena, A>
+where
+    A: Arena,
+{
+    let base_indent = misc::line_indent_width(f, member_access_chain.base.span().start.offset);
+    let mut broken_parts = vec_in![f.arena];
+    let mut broken_links: Option<(usize, Vec<'arena, Document<'arena, A>, A>)> = None;
+    let mut last_element_end = member_access_chain.base.span().end;
+
+    for chain_link in member_access_chain.accesses.iter() {
+        let operator_span = chain_link.get_operator_span();
+        if misc::has_new_line_in_range(f.source_text, last_element_end.offset, operator_span.start.offset) {
+            if let Some((levels, contents)) = broken_links.take() {
+                broken_parts.push(indent_levels(f, levels, contents));
+            }
+
+            let link_indent = misc::line_indent_width(f, operator_span.start.offset);
+            let levels = (link_indent.saturating_sub(base_indent) / f.settings.tab_width.max(1)).max(1);
+            broken_links = Some((levels, vec_in![f.arena; Document::Line(Line::hard())]));
+        }
+
+        let contents = broken_links.as_mut().map_or(&mut parts, |(_, contents)| contents);
+        contents.push(format_access_operator(f, operator_span, chain_link.get_operator_as_bytes()));
+        let selector = chain_link.get_selector();
+        contents.push(selector.format(f));
+        last_element_end = selector.span().end;
+        if let Some(argument_list) = chain_link.get_arguments_list() {
+            let mut formatted_argument_list = vec_in![f.arena; print_argument_list(f, argument_list, true)];
+            if let Some(comments) = f.print_trailing_comments(argument_list.span()) {
+                formatted_argument_list.push(comments);
+            }
+
+            contents.push(Document::Group(Group::new(formatted_argument_list)));
+            last_element_end = argument_list.span().end;
+        }
+    }
+
+    if let Some((levels, contents)) = broken_links {
+        broken_parts.push(indent_levels(f, levels, contents));
+    }
+
+    if broken_parts.is_empty() {
+        return Document::Group(Group::new(parts));
+    }
+
+    let links_from_base_line = Document::AlignToLine(AlignToLine { head: parts, contents: broken_parts });
+
+    Document::Group(Group::new(vec_in![f.arena; links_from_base_line]))
+}
+
+fn indent_levels<'arena, A>(
+    f: &FormatterState<'_, 'arena, A>,
+    levels: usize,
+    contents: Vec<'arena, Document<'arena, A>, A>,
+) -> Document<'arena, A>
+where
+    A: Arena,
+{
+    (1..levels).fold(Document::Indent(contents), |document, _| Document::Indent(vec_in![f.arena; document]))
 }
 
 fn inline_prefix_len<'arena, A>(

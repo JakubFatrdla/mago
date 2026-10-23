@@ -44,6 +44,7 @@ where
     /// Include this anywhere to force all parent groups to break.
     BreakParent,
     Align(Align<'arena, A>),
+    AlignToLine(AlignToLine<'arena, A>),
     /// Trim all newlines from the end of the document.
     Trim(Trim),
     /// Do not perform any trimming before printing the next document.
@@ -57,6 +58,17 @@ where
     A: Arena,
 {
     pub alignment: &'arena [u8],
+    pub contents: Vec<'arena, Document<'arena, A>, A>,
+}
+
+/// Prints `head`, then `contents` indented from the output line that `head` starts on instead of from the
+/// enclosing indentation.
+#[derive(Debug, Eq, PartialEq, PartialOrd, Ord)]
+pub struct AlignToLine<'arena, A>
+where
+    A: Arena,
+{
+    pub head: Vec<'arena, Document<'arena, A>, A>,
     pub contents: Vec<'arena, Document<'arena, A>, A>,
 }
 
@@ -269,6 +281,9 @@ where
             Document::IfBreak(IfBreak { break_contents, flat_content, .. }) => {
                 predicate(break_contents) || predicate(flat_content)
             }
+            Document::AlignToLine(AlignToLine { head, contents }) => {
+                head.iter().any(&predicate) || contents.iter().any(&predicate)
+            }
             _ => false,
         }
     }
@@ -359,6 +374,10 @@ where
         Document::Align(a) => {
             Document::Align(Align { alignment: a.alignment, contents: clone_vec_in_arena(arena, &a.contents) })
         }
+        Document::AlignToLine(a) => Document::AlignToLine(AlignToLine {
+            head: clone_vec_in_arena(arena, &a.head),
+            contents: clone_vec_in_arena(arena, &a.contents),
+        }),
 
         // The special case for `Box`
         Document::IfBreak(ib) => Document::IfBreak(IfBreak {
@@ -514,6 +533,13 @@ where
             let _ = write!(buffer, "{alignment:?}, ");
             write_documents_vec_to_buffer(&mut buffer, arena, contents);
             buffer.push(')');
+            buffer.push(')');
+        }
+        Document::AlignToLine(AlignToLine { head, contents }) => {
+            buffer.push_str("alignToLine(");
+            write_documents_vec_to_buffer(&mut buffer, arena, head);
+            buffer.push_str(", ");
+            write_documents_vec_to_buffer(&mut buffer, arena, contents);
             buffer.push(')');
         }
         Document::Trim(trim) => match trim {

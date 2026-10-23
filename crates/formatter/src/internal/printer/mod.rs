@@ -5,6 +5,7 @@ use mago_allocator::vec::Vec;
 use mago_allocator::vec_in;
 
 use crate::document::Align;
+use crate::document::AlignToLine;
 use crate::document::BreakMode;
 use crate::document::Document;
 use crate::document::Group;
@@ -115,6 +116,7 @@ where
                             | Document::Array(_)
                             | Document::Indent(_)
                             | Document::Align(_)
+                            | Document::AlignToLine(_)
                             | Document::IndentIfBreak(_)
                             | Document::IfBreak(_)
                     ) {
@@ -136,6 +138,10 @@ where
                         Document::Indent(docs) => self.push_docs(indentation.indented(), mode, docs),
                         Document::Align(align) => {
                             self.push_docs(Indentation::aligned(align.alignment), mode, &align.contents)
+                        }
+                        Document::AlignToLine(AlignToLine { head, contents }) => {
+                            self.push_docs(self.current_line_indentation(), mode, contents);
+                            self.push_docs(indentation, mode, head);
                         }
                         Document::Group(_) => {
                             should_remeasure = self.handle_group(&indentation, mode, document, should_remeasure);
@@ -372,6 +378,22 @@ where
         }
     }
 
+    fn current_line_indentation(&self) -> Indentation<'arena> {
+        let line_start = self.out.iter().rposition(|&byte| byte == b'\n').map_or(0, |position| position + 1);
+        let tab_width = self.settings.tab_width.max(1);
+        let width: usize = self.out[line_start..]
+            .iter()
+            .take_while(|&&byte| is_space(byte))
+            .map(|&byte| if byte == b'\t' { tab_width } else { 1 })
+            .sum();
+        let alignment = width % tab_width;
+
+        Indentation::new(
+            width / tab_width,
+            if alignment == 0 { None } else { Some(self.arena.alloc_slice_fill_copy(alignment, b' ')) },
+        )
+    }
+
     fn add_indentation(&mut self, indentation: &Indentation<'arena>) -> usize {
         let depth = indentation.depth();
         let indentation_width = depth * self.settings.tab_width;
@@ -447,6 +469,10 @@ where
                 | Document::Array(contents) => {
                     stack.push(mode, contents);
                 }
+                Document::AlignToLine(AlignToLine { head, contents }) => {
+                    stack.push(mode, contents);
+                    stack.push(mode, head);
+                }
                 Document::Group(group) => {
                     let group_break_mode = *group.break_mode.borrow();
                     if group_break_mode == BreakMode::Preserve && mode.is_flat() {
@@ -514,6 +540,11 @@ where
                 | Document::Align(Align { contents: arr, .. })
                 | Document::IndentIfBreak(IndentIfBreak { contents: arr, .. }) => {
                     return Self::propagate_slice_breaks(propagated_breaks, arr);
+                }
+                Document::AlignToLine(AlignToLine { head, contents }) => {
+                    let contents_break = Self::propagate_slice_breaks(propagated_breaks, contents);
+
+                    return Self::propagate_slice_breaks(propagated_breaks, head) || contents_break;
                 }
                 _ => return false,
             }

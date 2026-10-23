@@ -140,6 +140,7 @@ public function bar(
 | `method-chain-semicolon-on-next-line` | boolean | `false` | When a multi-line chain is a statement, put the terminating semicolon on its own line. |
 | `preserve-breaking-member-access-chain` | boolean | `false` | Preserve existing line breaks in member-access chains. |
 | `preserve-breaking-member-access-chain-first-method-on-same-line` | boolean | `false` | When preserving a broken chain, keep the first method on the receiver line. |
+| `preserve-member-access-chain-layout` | boolean | `false` | Break a member-access chain before the links that start a line in the source and nowhere else, even past `print-width`, indenting each such link as many levels as the source does (at least one). A multi-line argument then breaks in place. |
 
 ## Preserving author breaks
 

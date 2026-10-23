@@ -72,6 +72,19 @@ where
         .sum()
 }
 
+/// The indentation width in effect at `offset`: that of its source line, plus one level for each
+/// indent opened on that line that the line does not break.
+pub(super) fn indent_width_at<A>(f: &FormatterState<'_, '_, A>, offset: u32) -> usize
+where
+    A: Arena,
+{
+    let line = f.file.line_number(offset);
+    let unbroken_indents =
+        f.unbroken_indent_offsets.iter().filter(|&&indent_offset| f.file.line_number(indent_offset) == line).count();
+
+    line_indent_width(f, offset) + unbroken_indents * f.settings.tab_width
+}
+
 pub(crate) fn get_document_width<A>(doc: &Document<'_, A>) -> usize
 where
     A: Arena,
@@ -86,6 +99,9 @@ where
             get_document_width(if_break.break_contents).max(get_document_width(if_break.flat_content))
         }
         Document::IndentIfBreak(indent_if_break) => indent_if_break.contents.iter().map(get_document_width).sum(),
+        Document::AlignToLine(align_to_line) => {
+            align_to_line.head.iter().chain(align_to_line.contents.iter()).map(get_document_width).sum()
+        }
         _ => 0,
     }
 }

@@ -448,6 +448,23 @@ generate_formatter_settings! {
     /// Default: false
     preserve_breaking_member_access_chain_first_method_on_same_line: bool => "default_false",
 
+    /// Whether to lay out member access chains exactly as the source does.
+    ///
+    /// A chain then breaks before the links that start a line in the source, and nowhere else, even
+    /// past `print_width`. Such a link is indented as many levels deeper than the receiver as in the
+    /// source, at least one. A multi-line argument breaks in place instead of moving every link onto
+    /// its own line:
+    ///
+    /// ```php
+    /// $rows = $this->repository->findBy([
+    ///     'state' => $state,
+    /// ])->order('id')
+    ///     ->fetchAll();
+    /// ```
+    ///
+    /// Default: false
+    preserve_member_access_chain_layout: bool => "default_false",
+
     /// Whether to preserve line breaks in argument lists, even if they could fit on a single line.
     ///
     /// Default: false
