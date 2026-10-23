@@ -37,8 +37,7 @@ function last(
 
 $leading = g(1, /* one */ 2);
 $docblock = [
-    1,
-    /**
+    1, /**
      * two
      */
     2,

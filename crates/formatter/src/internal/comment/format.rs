@@ -252,6 +252,7 @@ where
     pub(crate) fn print_trailing_comments(&mut self, range: Span) -> Option<Document<'arena, A>> {
         let mut parts = vec_in![self.arena];
         let mut previous_comment: Option<Comment> = None;
+        let mut follows_separator = false;
 
         while let Some(trivia) = self.all_comments.get(self.next_comment_index) {
             if self.placed_comments.is_consumed(self.next_comment_index) {
@@ -259,56 +260,66 @@ where
                 continue;
             }
 
-            let comment_start = trivia.span.start.offset;
-            let continues_line =
-                previous_comment.is_some_and(|previous| self.continues_line(previous.end, comment_start));
-            if continues_line
-                || (range.end_offset() < comment_start && self.is_insignificant(range.end_offset(), comment_start))
-            {
-                let gap = &self.source_text[(range.end_offset() as usize)..(comment_start as usize)];
-                let comment = Comment::from_trivia(self.file, trivia);
-                let follows_separator = !continues_line && comment.is_block && gap.contains(&b',');
-                if follows_separator && !self.ends_line(comment) {
+            let comment = Comment::from_trivia(self.file, trivia);
+            if !previous_comment.is_some_and(|previous| self.continues_line(previous.end, comment.start)) {
+                if comment.start <= range.end_offset() || !self.is_insignificant(range.end_offset(), comment.start) {
                     break;
                 }
 
-                // Check if comment is in an ignore region - if so, preserve as-is
-                if self.get_ignore_region_for(comment.start).is_some() {
-                    self.print_preserved_trailing_comment(&mut parts, comment);
-                    previous_comment = Some(comment);
-                } else if follows_separator {
-                    let printed = self.print_comment(comment);
-                    parts.push(Document::LineSuffix(vec_in![self.arena; Document::Space(Space::soft()), printed]));
-                    previous_comment = Some(comment.with_line_suffix(true));
-                } else {
-                    previous_comment =
-                        Some(self.print_trailing_comment(&mut parts, comment, previous_comment, range.end_offset()));
+                let gap = &self.source_text[(range.end_offset() as usize)..(comment.start as usize)];
+                follows_separator = comment.is_block && gap.contains(&b',');
+                if follows_separator && !self.comment_run_ends_line(self.next_comment_index) {
+                    break;
                 }
-                self.placed_comments.mark_consumed(self.next_comment_index);
-                self.next_comment_index += 1;
-            } else {
-                break;
             }
+
+            // Check if comment is in an ignore region - if so, preserve as-is
+            if self.get_ignore_region_for(comment.start).is_some() {
+                self.print_preserved_trailing_comment(&mut parts, comment);
+                previous_comment = Some(comment);
+            } else if follows_separator {
+                let printed = self.print_comment(comment);
+                parts.push(Document::LineSuffix(vec_in![self.arena; Document::Space(Space::soft()), printed]));
+                previous_comment = Some(comment.with_line_suffix(true));
+            } else {
+                previous_comment =
+                    Some(self.print_trailing_comment(&mut parts, comment, previous_comment, range.end_offset()));
+            }
+            self.placed_comments.mark_consumed(self.next_comment_index);
+            self.next_comment_index += 1;
         }
 
         if parts.is_empty() { None } else { Some(Document::Array(parts)) }
     }
 
     pub(crate) fn has_line_ending_comment_after_separator(&self, range: Span) -> bool {
+        let end = range.end_offset();
         self.all_comments[self.next_comment_index..]
             .iter()
-            .find(|trivia| trivia.span.start.offset >= range.end_offset())
-            .filter(|trivia| self.is_insignificant(range.end_offset(), trivia.span.start.offset))
-            .map(|trivia| Comment::from_trivia(self.file, trivia))
-            .is_some_and(|comment| {
-                comment.is_block
-                    && self.source_text[range.end_offset() as usize..comment.start as usize].contains(&b',')
-                    && self.ends_line(comment)
+            .position(|trivia| trivia.span.start.offset >= end)
+            .map(|offset| self.next_comment_index + offset)
+            .is_some_and(|index| {
+                let trivia = &self.all_comments[index];
+                let start = trivia.span.start.offset;
+                trivia.kind.is_block_comment()
+                    && self.is_insignificant(end, start)
+                    && self.source_text[end as usize..start as usize].contains(&b',')
+                    && self.comment_run_ends_line(index)
             })
     }
 
-    fn ends_line(&self, comment: Comment) -> bool {
-        comment.is_single_line && self.has_newline(comment.end, /* backwards */ false)
+    /// Whether the comments that follow the one at `index` on its line run up to the line end.
+    fn comment_run_ends_line(&self, index: usize) -> bool {
+        let mut end = self.all_comments[index].span.end.offset;
+        for trivia in &self.all_comments[index + 1..] {
+            if !self.continues_line(end, trivia.span.start.offset) {
+                break;
+            }
+
+            end = trivia.span.end.offset;
+        }
+
+        self.has_newline(end, /* backwards */ false)
     }
 
     fn continues_line(&self, end: u32, start: u32) -> bool {
