@@ -258,6 +258,8 @@ test_case!(preserve_breaking_attribute_list);
 test_case!(preserve_breaking_attribute_list_disabled);
 test_case!(preserve_breaking_conditional_expression);
 test_case!(preserve_breaking_conditional_expression_disabled);
+test_case!(preserve_conditional_expression_layout);
+test_case!(preserve_conditional_expression_layout_disabled);
 test_case!(preserve_breaking_condition_expression);
 test_case!(preserve_breaking_condition_expression_disabled);
 test_case!(preserve_breaking_binary_expression);

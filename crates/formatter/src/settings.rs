@@ -541,6 +541,15 @@ generate_formatter_settings! {
     /// Default: false
     preserve_breaking_conditional_expression: bool => "default_false",
 
+    /// Whether to lay out conditional (ternary) expressions exactly as the source does.
+    ///
+    /// The `?` and `:` then start a line only where they do in the source, even past `print_width`.
+    /// The lines after the first break are indented one level when the source indents them, and an
+    /// assignment or a `return` keeps the expression where the source puts it.
+    ///
+    /// Default: false
+    preserve_conditional_expression_layout: bool => "default_false",
+
     /// Whether to preserve line breaks in condition expressions (if, elseif, while, do-while, switch, match).
     ///
     /// When enabled, if the original source has conditions broken across multiple lines,

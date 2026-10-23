@@ -259,7 +259,9 @@ where
         return Layout::NeverBreakAfterOperator;
     }
 
-    if f.settings.preserve_binary_expression_layout && matches!(rhs_expression, Expression::Binary(_)) {
+    if (f.settings.preserve_binary_expression_layout && matches!(rhs_expression, Expression::Binary(_)))
+        || (f.settings.preserve_conditional_expression_layout && matches!(rhs_expression, Expression::Conditional(_)))
+    {
         return if has_new_line_before(f.source_text, rhs_expression.span().start.offset) {
             Layout::BreakAfterOperator
         } else {

@@ -1454,6 +1454,9 @@ where
             };
 
             match &self.then {
+                Some(then) if f.settings.preserve_conditional_expression_layout => {
+                    print_conditional_as_written(f, self, then)
+                }
                 Some(then) => {
                     let inline_colon = !misc::has_new_line_in_range(
                         f.source_text,
@@ -1537,6 +1540,55 @@ where
             }
         })
     }
+}
+
+/// Prints a ternary with a line break before `?` and `:` only where the source has one.
+fn print_conditional_as_written<'arena, A>(
+    f: &mut FormatterState<'_, 'arena, A>,
+    conditional: &'arena Conditional<'arena>,
+    then: &'arena Expression<'arena>,
+) -> Document<'arena, A>
+where
+    A: Arena,
+{
+    let breaks_before_question_mark = misc::has_new_line_before(f.source_text, conditional.question_mark.start.offset);
+    let breaks_before_colon = misc::has_new_line_before(f.source_text, conditional.colon.start.offset);
+    let source_line_or_space = |f: &FormatterState<'_, 'arena, A>, has_new_line: bool| {
+        if has_new_line {
+            Document::Array(vec_in![f.arena; Document::Line(Line::hard()), Document::BreakParent])
+        } else {
+            Document::space()
+        }
+    };
+
+    let condition = conditional.condition.format(f);
+    let tail = vec_in![f.arena;
+        source_line_or_space(f, breaks_before_question_mark),
+        format_token_with_only_leading_comments(f, conditional.question_mark, b"? "),
+        then.format(f),
+        source_line_or_space(f, breaks_before_colon),
+        format_token_with_only_leading_comments(f, conditional.colon, b": "),
+        conditional.r#else.format(f),
+    ];
+
+    let continuation_offset = if breaks_before_question_mark {
+        Some(conditional.question_mark.start.offset)
+    } else if breaks_before_colon {
+        Some(conditional.colon.start.offset)
+    } else {
+        None
+    };
+    let tail = match continuation_offset {
+        Some(offset)
+            if misc::line_indent_width(f, offset)
+                > misc::line_indent_width(f, conditional.condition.span().start.offset) =>
+        {
+            Document::Indent(tail)
+        }
+        _ => Document::Array(tail),
+    };
+
+    Document::Group(Group::new(vec_in![f.arena; condition, tail]))
 }
 
 impl<'arena, A> Format<'arena, A> for CompositeString<'arena>

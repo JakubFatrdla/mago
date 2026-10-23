@@ -29,6 +29,8 @@ where
     if f.settings.preserve_parentheses
         || (f.settings.preserve_binary_expression_layout
             && matches!(unwrap_parenthesized(value), Expression::Binary(_)))
+        || (f.settings.preserve_conditional_expression_layout
+            && matches!(unwrap_parenthesized(value), Expression::Conditional(_)))
     {
         return value.format(f);
     }
