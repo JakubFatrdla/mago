@@ -180,6 +180,7 @@ pub fn check_parameter_type_hint<'arena, A>(
     // If this is a method, check if it's safe to add a type hint
     if let Some(class_metadata) = class_like_metadata
         && !is_safe_to_add_parameter_type_hint(context, class_metadata, function_like_metadata)
+        && docblock_type.is_some_and(|type_metadata| type_metadata.from_docblock)
     {
         return;
     }
