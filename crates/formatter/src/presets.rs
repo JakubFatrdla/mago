@@ -218,6 +218,7 @@ const DEFAULT_PRESET: FormatSettings = FormatSettings {
     separate_attributes: false,
     separate_trait_use: true,
     indent_heredoc: true,
+    preserve_block_comment_text: false,
     uppercase_literal_keyword: false,
 };
 

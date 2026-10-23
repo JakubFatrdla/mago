@@ -1316,6 +1316,14 @@ generate_formatter_settings! {
     /// Default: true
     indent_heredoc: bool => "default_true",
 
+    /// Whether to print multi-line `/* */` comments exactly as written.
+    ///
+    /// By default, the lines of such a comment are re-indented and given a leading ` * `.
+    /// Doc comments (`/** */`) are formatted either way.
+    ///
+    /// Default: false
+    preserve_block_comment_text: bool => "default_false",
+
     /// Whether to print boolean and null literals in upper-case (e.g. `TRUE`, `FALSE`, `NULL`).
     /// When enabled these literals are printed in uppercase; when disabled they are printed
     /// in lowercase.

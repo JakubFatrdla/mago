@@ -64,6 +64,8 @@ test_case!(inline_single_breaking_value_argument_default_off);
 test_case!(preserve_hugged_argument_list);
 test_case!(preserve_hugged_argument_list_disabled);
 test_case!(dangling_block_comments);
+test_case!(preserve_block_comment_text);
+test_case!(preserve_block_comment_text_disabled);
 test_case!(opening_tag_trailing_comments);
 test_case!(opening_tag_on_own_line);
 test_case!(opening_tag_on_own_line_disabled);

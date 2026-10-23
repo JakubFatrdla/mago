@@ -707,6 +707,10 @@ where
             return Document::String(content);
         }
 
+        if self.settings.preserve_block_comment_text && !content.starts_with(b"/**") {
+            return Document::String(content);
+        }
+
         let lines = self.split_lines(content);
         let mut contents = Vec::with_capacity_in(lines.len() * 2, self.arena);
 
