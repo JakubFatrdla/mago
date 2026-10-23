@@ -688,6 +688,27 @@ where
     Document::join(f.arena, printed_modifiers, Separator::Space)
 }
 
+/// Prints the modifiers of a class-like declaration, in the source order when
+/// `preserve_class_like_modifier_order` is enabled.
+pub(super) fn print_class_like_modifiers<'arena, A>(
+    f: &mut FormatterState<'_, 'arena, A>,
+    modifiers: &'arena Sequence<'arena, Modifier<'arena>>,
+) -> Vec<'arena, Document<'arena, A>, A>
+where
+    A: Arena,
+{
+    if !f.settings.preserve_class_like_modifier_order {
+        return print_modifiers(f, modifiers);
+    }
+
+    let mut printed_modifiers = vec_in![f.arena;];
+    for modifier in modifiers.iter() {
+        printed_modifiers.push(modifier.format(f));
+    }
+
+    Document::join(f.arena, printed_modifiers, Separator::Space)
+}
+
 pub(super) fn print_attribute_list_sequence<'arena, A>(
     f: &mut FormatterState<'_, 'arena, A>,
     attribute_lists: &'arena Sequence<'arena, AttributeList<'arena>>,

@@ -155,6 +155,7 @@ const DEFAULT_PRESET: FormatSettings = FormatSettings {
     preserve_breaking_conditional_expression: false,
     preserve_conditional_expression_layout: false,
     preserve_match_arm_condition_layout: false,
+    preserve_class_like_modifier_order: false,
     preserve_breaking_condition_expression: false,
     preserve_breaking_binary_expression: false,
     preserve_binary_expression_layout: false,

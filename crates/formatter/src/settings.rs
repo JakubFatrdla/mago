@@ -564,6 +564,15 @@ generate_formatter_settings! {
     /// Default: false
     preserve_match_arm_condition_layout: bool => "default_false",
 
+    /// Whether to print the modifiers of a class-like declaration (`final`, `abstract`, `readonly`)
+    /// in the order the source writes them.
+    ///
+    /// By default, they are printed as `final`/`abstract` before `readonly`. Members keep that order
+    /// either way.
+    ///
+    /// Default: false
+    preserve_class_like_modifier_order: bool => "default_false",
+
     /// Whether to preserve line breaks in condition expressions (if, elseif, while, do-while, switch, match).
     ///
     /// When enabled, if the original source has conditions broken across multiple lines,

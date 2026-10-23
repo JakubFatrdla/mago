@@ -118,6 +118,7 @@ use crate::internal::format::call_node::CallLikeNode;
 use crate::internal::format::call_node::print_call_like_node;
 use crate::internal::format::class_like::print_class_like_body;
 use crate::internal::format::misc::print_attribute_list_sequence;
+use crate::internal::format::misc::print_class_like_modifiers;
 use crate::internal::format::misc::print_colon_delimited_body;
 use crate::internal::format::misc::print_modifiers;
 use crate::internal::format::parameters::print_function_like_parameters;
@@ -1360,7 +1361,7 @@ where
     fn format(&'arena self, f: &mut FormatterState<'_, 'arena, A>) -> Document<'arena, A> {
         wrap!(f, self, Class, {
             let attributes = misc::print_attribute_list_sequence(f, &self.attribute_lists);
-            let mut signature = print_modifiers(f, &self.modifiers);
+            let mut signature = print_class_like_modifiers(f, &self.modifiers);
             if !signature.is_empty() {
                 signature.push(Document::space());
             }

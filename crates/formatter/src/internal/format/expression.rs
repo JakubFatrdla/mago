@@ -127,8 +127,8 @@ use crate::internal::format::member_access::collect_member_access_chain;
 use crate::internal::format::member_access::print_member_access_chain;
 use crate::internal::format::misc;
 use crate::internal::format::misc::print_attribute_list_sequence;
+use crate::internal::format::misc::print_class_like_modifiers;
 use crate::internal::format::misc::print_condition;
-use crate::internal::format::misc::print_modifiers;
 use crate::internal::format::print_lowercase_keyword;
 use crate::internal::format::return_value::format_return_value;
 use crate::internal::format::string::print_string;
@@ -2027,7 +2027,7 @@ where
             let signature_start = self.modifiers.first().map(|m| m.span()).unwrap_or_else(|| self.class.span());
             let inline_doc = f.collect_inline_block_comments_between(self.new.span(), signature_start);
 
-            let mut signature = print_modifiers(f, &self.modifiers);
+            let mut signature = print_class_like_modifiers(f, &self.modifiers);
             if !signature.is_empty() {
                 signature.push(Document::space());
             }
