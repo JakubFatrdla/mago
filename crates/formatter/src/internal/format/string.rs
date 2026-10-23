@@ -51,6 +51,10 @@ pub(super) fn print_string<'arena, A>(
 where
     A: Arena,
 {
+    if f.settings.preserve_string_quotes {
+        return text;
+    }
+
     // Strip binary string prefix (b/B) if present
     let (prefix, text_without_prefix): (&[u8], &[u8]) =
         if text.starts_with(b"b") || text.starts_with(b"B") { (&text[..1], &text[1..]) } else { (&[], text) };

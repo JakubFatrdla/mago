@@ -99,6 +99,13 @@ generate_formatter_settings! {
     /// Default: true
     single_quote: bool => "default_true",
 
+    /// Whether to keep every string literal in the quotes it was written with.
+    ///
+    /// When enabled, `single_quote` has no effect: no string is requoted.
+    ///
+    /// Default: false
+    preserve_string_quotes: bool => "default_false",
+
     /// Whether to add a trailing comma to the last element in multi-line syntactic structures.
     ///
     /// When enabled, trailing commas are added to lists, arrays, parameter lists,

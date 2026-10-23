@@ -158,6 +158,8 @@ test_case!(closing_tag_preserved);
 test_case!(inline_comment_before_closing_tag);
 test_case!(single_quote_string);
 test_case!(double_quote_string);
+test_case!(preserve_string_quotes);
+test_case!(preserve_string_quotes_disabled);
 test_case!(uppercase_literal_keyword);
 test_case!(inline_if_statement);
 test_case!(top_level_inline_if);

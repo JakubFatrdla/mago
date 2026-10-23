@@ -123,6 +123,7 @@ const DEFAULT_PRESET: FormatSettings = FormatSettings {
     use_tabs: false,
     end_of_line: EndOfLine::Auto,
     single_quote: true,
+    preserve_string_quotes: false,
     trailing_comma: true,
     remove_trailing_close_tag: true,
     control_brace_style: BraceStyle::SameLine,
