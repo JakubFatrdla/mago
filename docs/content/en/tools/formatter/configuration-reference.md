@@ -235,6 +235,7 @@ public function bar(
 | `empty-line-after-class-like-open` | boolean | `false` | Blank line after the opening brace of a class-like. |
 | `empty-line-after-class-like-constant` | boolean | `false` | Blank line after a class constant. |
 | `empty-line-before-class-like-close` | boolean | `false` | Blank line before the closing brace of a non-empty class-like. |
+| `empty-line-in-empty-class-like-body` | boolean | `false` | Blank line between the braces of an empty class-like body that is not printed inline. |
 | `empty-line-after-enum-case` | boolean | `false` | Blank line after an enum case. |
 | `empty-line-after-trait-use` | boolean | `false` | Blank line after a trait `use`. |
 | `empty-line-after-property` | boolean | `false` | Blank line after a property. |

@@ -252,6 +252,9 @@ where
             contents.push(comments);
         } else if length > 0 || !should_inline {
             contents.push(Document::Line(Line::hard()));
+            if length == 0 && f.settings.empty_line_in_empty_class_like_body {
+                contents.push(Document::Line(Line::hard()));
+            }
         }
 
         if length > 0 && f.settings.empty_line_before_class_like_close {

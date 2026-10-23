@@ -208,6 +208,7 @@ const DEFAULT_PRESET: FormatSettings = FormatSettings {
     empty_line_after_class_like_constant: false,
     empty_line_after_class_like_open: false,
     empty_line_before_class_like_close: false,
+    empty_line_in_empty_class_like_body: false,
     empty_line_after_enum_case: false,
     empty_line_after_trait_use: false,
     empty_line_after_property: false,

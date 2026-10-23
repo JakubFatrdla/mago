@@ -1251,6 +1251,12 @@ generate_formatter_settings! {
     /// Default: false
     empty_line_before_class_like_close: bool => "default_false",
 
+    /// Whether to put one empty line between the braces of an empty class-like body that is not
+    /// printed inline.
+    ///
+    /// Default: false
+    empty_line_in_empty_class_like_body: bool => "default_false",
+
     /// Whether to add an empty line after enum case.
     ///
     /// Note: if an empty line already exists, it will be preserved regardless of this
