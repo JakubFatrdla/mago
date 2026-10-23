@@ -500,6 +500,12 @@ generate_formatter_settings! {
     /// Default: false
     preserve_hugged_argument_list: bool => "default_false",
 
+    /// Whether to keep the line breaks of a multi-line parameter list whose first parameter starts on
+    /// the line of `(`, like `preserve_hugged_argument_list` does for argument lists.
+    ///
+    /// Default: false
+    preserve_hugged_parameter_list: bool => "default_false",
+
     /// Keep a call's single value-shaped argument inline even when the line
     /// overflows `print-width`.
     ///

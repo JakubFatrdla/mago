@@ -148,6 +148,7 @@ const DEFAULT_PRESET: FormatSettings = FormatSettings {
     preserve_member_access_chain_layout: false,
     preserve_breaking_argument_list: false,
     preserve_hugged_argument_list: false,
+    preserve_hugged_parameter_list: false,
     inline_single_breaking_value_argument: false,
     preserve_breaking_array_like: true,
     preserve_breaking_parameter_list: false,

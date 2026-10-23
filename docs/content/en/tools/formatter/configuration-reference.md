@@ -150,6 +150,7 @@ public function bar(
 | :--- | :--- | :--- | :--- |
 | `preserve-breaking-argument-list` | boolean | `false` | Preserve existing line breaks in argument lists. |
 | `preserve-hugged-argument-list` | boolean | `false` | Keep the line breaks of a multi-line argument list whose first argument starts on the line of `(`: it breaks between arguments and before `)` only where the source does, indenting the arguments after the first break one level. A multi-line argument then breaks in place, one level deeper when the source indents it so. |
+| `preserve-hugged-parameter-list` | boolean | `false` | Keep the line breaks of a multi-line parameter list whose first parameter starts on the line of `(`, like `preserve-hugged-argument-list` does for argument lists. |
 | `inline-single-breaking-value-argument` | boolean | `false` | Keep a call's single value-shaped argument (literal, variable, identifier, class constant) inline even when the line overflows `print-width`. Breaking the parens around such an argument adds a newline + indent + closing-paren line without making the long value any shorter. Has no effect on multi-arg calls or arguments that are themselves calls / arrays / closures. Enabled by default in the `tempest` preset, off everywhere else. |
 | `preserve-breaking-array-like` | boolean | `true` | Preserve existing line breaks in array-likes. |
 | `preserve-breaking-parameter-list` | boolean | `false` | Preserve existing line breaks in parameter lists. |

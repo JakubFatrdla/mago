@@ -85,6 +85,12 @@ where
         Document::Array(contents)
     };
 
+    if !force_break && f.settings.preserve_hugged_parameter_list && is_hugged_in_source(f, parameter_list) {
+        f.parameter_state.list_group_id = previous_list_group_id;
+
+        return print_hugged_parameters(f, parameter_list, left_parenthesis);
+    }
+
     let mut parts = vec_in![f.arena; left_parenthesis];
 
     let mut printed = vec_in![f.arena; ];
@@ -150,6 +156,88 @@ where
     } else {
         BreakMode::Auto
     }))
+}
+
+/// Whether the source spreads the parameter list over several lines and starts its first parameter
+/// on the line of `(`.
+fn is_hugged_in_source<A>(f: &FormatterState<'_, '_, A>, parameter_list: &FunctionLikeParameterList<'_>) -> bool
+where
+    A: Arena,
+{
+    let left_parenthesis = parameter_list.left_parenthesis;
+    let Some(first_parameter) = parameter_list.parameters.first() else {
+        return false;
+    };
+
+    misc::has_new_line_in_range(
+        f.source_text,
+        left_parenthesis.start.offset,
+        parameter_list.right_parenthesis.end.offset,
+    ) && !misc::has_new_line_in_range(f.source_text, left_parenthesis.end.offset, first_parameter.span().start.offset)
+}
+
+/// Prints a hugged parameter list with a line break between parameters and before `)` only where the
+/// source has one. The parameters after the first such break are indented one level.
+fn print_hugged_parameters<'arena, A>(
+    f: &mut FormatterState<'_, 'arena, A>,
+    parameter_list: &'arena FunctionLikeParameterList<'arena>,
+    left_parenthesis: Document<'arena, A>,
+) -> Document<'arena, A>
+where
+    A: Arena,
+{
+    let parameters = parameter_list.parameters.as_slice();
+    let previous_variable_padding = f.parameter_state.variable_padding.take();
+    let mut head = vec_in![f.arena;];
+    let mut tail: Option<Vec<'arena, Document<'arena, A>, A>> = None;
+    for (index, parameter) in parameters.iter().enumerate() {
+        if index > 0 {
+            let breaks = misc::has_new_line_in_range(
+                f.source_text,
+                parameters[index - 1].span().end.offset,
+                parameter.span().start.offset,
+            );
+            let contents = tail.as_mut().unwrap_or(&mut head);
+            contents.push(Document::String(b","));
+            if breaks {
+                tail.get_or_insert_with(|| vec_in![f.arena;])
+                    .extend([Document::Line(Line::hard()), Document::BreakParent]);
+            } else {
+                contents.push(Document::space());
+            }
+        }
+
+        let document = parameter.format(f);
+        tail.as_mut().unwrap_or(&mut head).push(document);
+    }
+
+    f.parameter_state.variable_padding = previous_variable_padding;
+
+    let breaks_before_right_parenthesis = parameters.last().is_some_and(|parameter| {
+        misc::has_new_line_in_range(
+            f.source_text,
+            parameter.span().end.offset,
+            parameter_list.right_parenthesis.start.offset,
+        )
+    });
+
+    let mut contents = vec_in![f.arena; left_parenthesis, Document::Array(head)];
+    if let Some(tail) = tail {
+        contents.push(Document::Indent(tail));
+    }
+
+    if breaks_before_right_parenthesis {
+        if f.trailing_comma_for(Feature::TrailingCommaInParameterList) {
+            contents.push(Document::String(b","));
+        }
+
+        contents.push(Document::Line(Line::hard()));
+        contents.push(Document::BreakParent);
+    }
+
+    contents.push(Document::String(b")"));
+
+    Document::Group(Group::new(contents))
 }
 
 pub(super) fn force_break_parameters<'arena, A>(
