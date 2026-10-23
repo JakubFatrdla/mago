@@ -3335,6 +3335,10 @@ test_case!(overly_wide_union_return_with_foreign_return, {
     s.find_overly_wide_return_types = true;
     s
 });
+test_case!(
+    inherited_docblock_return_requires_template_arguments,
+    crate::framework::check_missing_type_hints_settings()
+);
 
 #[test]
 #[cfg_attr(miri, ignore)]
