@@ -59,12 +59,12 @@ pub(super) fn has_new_line_in_range(text: &[u8], start: u32, end: u32) -> bool {
 }
 
 /// Whether the whitespace that ends at `offset` holds a line break.
-pub(super) fn has_new_line_before(text: &[u8], offset: u32) -> bool {
+pub(crate) fn has_new_line_before(text: &[u8], offset: u32) -> bool {
     text[..offset as usize].iter().rev().take_while(|byte| byte.is_ascii_whitespace()).any(|&byte| byte == b'\n')
 }
 
 /// Whether the whitespace that starts at `offset` holds a line break.
-pub(super) fn has_new_line_after(text: &[u8], offset: u32) -> bool {
+pub(crate) fn has_new_line_after(text: &[u8], offset: u32) -> bool {
     text[offset as usize..].iter().take_while(|byte| byte.is_ascii_whitespace()).any(|&byte| byte == b'\n')
 }
 

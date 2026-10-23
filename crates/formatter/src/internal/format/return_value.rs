@@ -26,7 +26,10 @@ pub fn format_return_value<'arena, A>(
 where
     A: Arena,
 {
-    if f.settings.preserve_binary_expression_layout && matches!(unwrap_parenthesized(value), Expression::Binary(_)) {
+    if f.settings.preserve_parentheses
+        || (f.settings.preserve_binary_expression_layout
+            && matches!(unwrap_parenthesized(value), Expression::Binary(_)))
+    {
         return value.format(f);
     }
 

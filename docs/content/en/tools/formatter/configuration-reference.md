@@ -165,6 +165,7 @@ public function bar(
 | `omit-redundant-arithmetic-binary-expression-parentheses` | boolean | `false` | Drop redundant parens around arithmetic when comparison or null coalesce already preserves meaning. |
 | `omit-redundant-bitwise-binary-expression-parentheses` | boolean | `false` | Drop redundant parens around bitwise sub-expressions when precedence already preserves meaning. |
 | `preserve-redundant-logical-binary-expression-parentheses` | boolean | `false` | Keep author-written parens around a logical sub-expression when its parent is also logical. |
+| `preserve-parentheses` | boolean | `false` | Keep parentheses exactly where the source has them: written parentheses stay even where PHP does not need them, and the formatter adds only those PHP needs, none for readability. |
 
 ## Argument and parameter alignment
 

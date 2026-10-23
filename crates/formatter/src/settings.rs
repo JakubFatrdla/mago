@@ -720,6 +720,15 @@ generate_formatter_settings! {
     /// Default: false
     preserve_redundant_logical_binary_expression_parentheses: bool => "default_false",
 
+    /// Whether to keep parentheses exactly where the source has them.
+    ///
+    /// Parentheses the source writes around an expression are kept even where PHP does not need
+    /// them, and the formatter adds only those PHP needs, none for readability, so
+    /// `$total / $count * 100` stays as written.
+    ///
+    /// Default: false
+    preserve_parentheses: bool => "default_false",
+
     /// Whether to always break named argument lists into multiple lines.
     ///
     /// When enabled:

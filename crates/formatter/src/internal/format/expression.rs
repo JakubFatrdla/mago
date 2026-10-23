@@ -146,7 +146,15 @@ where
 {
     fn format(&'arena self, f: &mut FormatterState<'_, 'arena, A>) -> Document<'arena, A> {
         if let Expression::Parenthesized(parenthesized) = self {
-            return parenthesized.expression.format(f);
+            if !f.settings.preserve_parentheses {
+                return parenthesized.expression.format(f);
+            }
+
+            let outer_written_parentheses = f.written_parentheses.replace(parenthesized.expression.span());
+            let document = parenthesized.expression.format(f);
+            f.written_parentheses = outer_written_parentheses;
+
+            return document;
         }
 
         wrap!(f, self, Expression, {

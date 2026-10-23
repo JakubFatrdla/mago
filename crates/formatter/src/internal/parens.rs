@@ -2,6 +2,7 @@ use mago_allocator::Arena;
 use mago_allocator::vec_in;
 use mago_php_version::feature::Feature;
 use mago_span::HasSpan;
+use mago_span::Span;
 use mago_syntax::cst::Access;
 use mago_syntax::cst::Binary;
 use mago_syntax::cst::BinaryOperator;
@@ -23,6 +24,8 @@ use crate::document::IfBreak;
 use crate::document::IndentIfBreak;
 use crate::document::Line;
 use crate::internal::FormatterState;
+use crate::internal::format::misc::has_new_line_after;
+use crate::internal::format::misc::has_new_line_before;
 use crate::internal::utils::unwrap_parenthesized;
 
 impl<'arena, A> FormatterState<'_, 'arena, A>
@@ -35,6 +38,10 @@ where
         node: Node<'arena, 'arena>,
         has_leading_comments: bool,
     ) -> Document<'arena, A> {
+        if self.settings.preserve_parentheses && self.written_parentheses == Some(node.span()) {
+            return self.add_written_parens(document, node.span());
+        }
+
         if has_leading_comments || self.should_indent(node) {
             let group_id = self.next_id();
             let condition_group_id = self
@@ -78,9 +85,33 @@ where
         }
     }
 
+    /// Wraps an expression in the parentheses the source writes around it, with a line break after
+    /// `(` and before `)` where the source has one.
+    fn add_written_parens(&self, document: Document<'arena, A>, span: Span) -> Document<'arena, A> {
+        let hard_line = || Document::Array(vec_in![self.arena; Document::Line(Line::hard()), Document::BreakParent]);
+        let contents = if has_new_line_before(self.source_text, span.start.offset) {
+            Document::Indent(vec_in![self.arena; hard_line(), document])
+        } else {
+            document
+        };
+        let line_before_right_parenthesis =
+            if has_new_line_after(self.source_text, span.end.offset) { hard_line() } else { Document::empty() };
+
+        Document::Group(Group::new(vec_in![self.arena;
+            Document::String(b"("),
+            contents,
+            line_before_right_parenthesis,
+            Document::String(b")"),
+        ]))
+    }
+
     pub(crate) fn need_parens(&mut self, node: Node<'arena, 'arena>) -> bool {
         if matches!(node, Node::Program(_)) || node.is_statement() {
             return false;
+        }
+
+        if self.settings.preserve_parentheses && self.written_parentheses == Some(node.span()) {
+            return matches!(node, Node::Expression(_));
         }
 
         if matches!(node, Node::Binary(_) | Node::Conditional(_))
@@ -378,7 +409,7 @@ where
             return true;
         }
 
-        self.binary_style_grouping_needs_parens(operator, parent_operator)
+        !self.settings.preserve_parentheses && self.binary_style_grouping_needs_parens(operator, parent_operator)
     }
 
     fn binary_style_grouping_needs_parens(

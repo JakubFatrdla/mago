@@ -183,12 +183,12 @@ where
 
         return Document::Group(
             Group::new(vec_in![f.arena;
-                left.format(f),
+                original_left.format(f),
                 Document::IndentIfBreak(IndentIfBreak::new(group_id, vec_in![f.arena;
                     Document::Line(if has_space_around { Line::default() } else { Line::soft() }),
                     format_token(f, operator.span(), operator.as_bytes()),
                     Document::String(if has_space_around { b" " } else { b"" }),
-                    right.format(f),
+                    original_right.format(f),
                 ])),
             ])
             .with_id(group_id),
@@ -223,8 +223,15 @@ where
 
     let first_written_binary_break = std::mem::replace(&mut f.first_written_binary_break, outer_written_binary_break);
 
+    let is_in_written_parentheses = f.settings.preserve_parentheses
+        && f.written_parentheses.is_some_and(|span| {
+            span.start.offset == original_left.start_offset() && span.end.offset == original_right.end_offset()
+        });
+
     if is_inside_parenthesis
-        && (!f.settings.preserve_binary_expression_layout || is_control_structure_condition || f.is_wrapped_in_parens)
+        && (!f.settings.preserve_binary_expression_layout
+            || is_control_structure_condition
+            || (f.is_wrapped_in_parens && !is_in_written_parentheses))
     {
         let lhs_is_binary = left.is_binary();
         let rhs_is_binary = right.is_binary();
@@ -241,14 +248,19 @@ where
         }
     }
 
-    if is_at_callee(f) || matches!(f.grandparent_node(), Some(Node::UnaryPrefix(_) | Node::UnaryPostfix(_))) {
+    let keeps_written_layout = f.settings.preserve_binary_expression_layout && is_in_written_parentheses;
+    if !keeps_written_layout
+        && (is_at_callee(f) || matches!(f.grandparent_node(), Some(Node::UnaryPrefix(_) | Node::UnaryPostfix(_))))
+    {
         return Document::Group(Group::new(vec_in![f.arena;
             Document::Indent(vec_in![f.arena; Document::Line(Line::soft()), Document::Array(parts)]),
             Document::Line(Line::soft()),
         ]));
     }
 
-    if f.settings.preserve_binary_expression_layout && !matches!(grandparent, Some(Node::Binary(_))) {
+    if f.settings.preserve_binary_expression_layout
+        && (is_in_written_parentheses || !matches!(grandparent, Some(Node::Binary(_))))
+    {
         let mut head_parts = parts;
         if let Some((split_index, continuation_offset)) = first_written_binary_break
             && misc::line_indent_width(f, continuation_offset)
@@ -410,7 +422,10 @@ where
     let old_inlined_chain_state = f.is_in_inlined_binary_chain;
     f.is_in_inlined_binary_chain = should_inline_this_level;
 
+    let keeps_left_parentheses = f.settings.preserve_parentheses && !std::ptr::eq(original_left, left);
+    let keeps_right_parentheses = f.settings.preserve_parentheses && !std::ptr::eq(original_right, right);
     let mut parts = match left {
+        _ if keeps_left_parentheses => vec_in![f.arena; original_left.format(f)],
         Expression::Binary(binary) => {
             let binaryish_operator = BinaryishOperator::Binary(&binary.operator);
             if should_flatten(&operator, &binaryish_operator) {
@@ -461,9 +476,11 @@ where
     // Only a non-nested operation can be grouped, and logical operands keep their existing chain layout.
     let groups_operands = !is_nested && !operator.is_logical();
     // A flattened left operand is printed as part of this chain, never through `Expression::format`.
-    let is_left_flattened = matches!(left, Expression::Binary(binary) if should_flatten(&operator, &BinaryishOperator::Binary(&binary.operator)));
-    let is_left_parenthesized = groups_operands && !is_left_flattened && binary_operand_needs_parens(f, left);
-    let is_right_parenthesized = groups_operands && binary_operand_needs_parens(f, right);
+    let is_left_flattened = !keeps_left_parentheses
+        && matches!(left, Expression::Binary(binary) if should_flatten(&operator, &BinaryishOperator::Binary(&binary.operator)));
+    let is_left_parenthesized =
+        groups_operands && !is_left_flattened && (keeps_left_parentheses || binary_operand_needs_parens(f, left));
+    let is_right_parenthesized = groups_operands && (keeps_right_parentheses || binary_operand_needs_parens(f, right));
 
     push_binaryish_operation(
         f,
@@ -471,7 +488,7 @@ where
         BinaryishOperation {
             left,
             operator,
-            right,
+            right: if keeps_right_parentheses { original_right } else { right },
             is_inside_parenthesis,
             is_nested,
             should_break,
