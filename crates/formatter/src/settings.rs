@@ -562,6 +562,22 @@ generate_formatter_settings! {
     /// Default: false
     preserve_breaking_binary_expression: bool => "default_false",
 
+    /// Whether to lay out binary expressions exactly as the source does.
+    ///
+    /// An operator then has a line break before or after it only where the source has one, and
+    /// operands that share a line in the source stay on it, even past `print_width`. The lines after
+    /// the first break are indented one level when the source indents them. An assignment or a
+    /// `return` keeps such an expression where the source puts it, and a control structure keeps a
+    /// line break after `(` or before `)` of its condition only where the source has one:
+    ///
+    /// ```php
+    /// $message = 'Total: ' . $total
+    ///     . ' (' . $count . ' items)';
+    /// ```
+    ///
+    /// Default: false
+    preserve_binary_expression_layout: bool => "default_false",
+
     /// Whether to preserve line breaks in pipe expressions.
     ///
     /// Default: false

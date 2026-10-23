@@ -33,6 +33,7 @@ use crate::internal::comment::CommentFlags;
 use crate::internal::format::Format;
 use crate::internal::format::binaryish::should_inline_binary_expression;
 use crate::internal::format::member_access::collect_member_access_chain;
+use crate::internal::format::misc::has_new_line_before;
 use crate::internal::format::misc::is_breaking_expression;
 use crate::internal::format::misc::is_simple_expression;
 use crate::internal::utils;
@@ -256,6 +257,14 @@ where
     {
         // special case for require/include constructs.
         return Layout::NeverBreakAfterOperator;
+    }
+
+    if f.settings.preserve_binary_expression_layout && matches!(rhs_expression, Expression::Binary(_)) {
+        return if has_new_line_before(f.source_text, rhs_expression.span().start.offset) {
+            Layout::BreakAfterOperator
+        } else {
+            Layout::NeverBreakAfterOperator
+        };
     }
 
     if let Expression::Binary(binary) = rhs_expression {

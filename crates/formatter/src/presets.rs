@@ -154,6 +154,7 @@ const DEFAULT_PRESET: FormatSettings = FormatSettings {
     preserve_breaking_conditional_expression: false,
     preserve_breaking_condition_expression: false,
     preserve_breaking_binary_expression: false,
+    preserve_binary_expression_layout: false,
     preserve_breaking_pipe_expression: false,
     break_promoted_properties_list: true,
     parameter_attribute_on_new_line: true,

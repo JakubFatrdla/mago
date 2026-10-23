@@ -155,6 +155,7 @@ public function bar(
 | `preserve-breaking-conditional-expression` | boolean | `false` | Preserve existing line breaks in ternaries. |
 | `preserve-breaking-condition-expression` | boolean | `false` | Preserve existing line breaks in control-structure conditions. When enabled, each boolean operator goes on its own line. |
 | `preserve-breaking-binary-expression` | boolean | `false` | Preserve existing line breaks before binary operators (`&&`, `\|\|`, `and`, `or`, `??`, `.`, etc.). When enabled, a binary expression that has a newline before an operand in the source is kept broken rather than collapsed onto one line. Useful alongside tools like PHP-CS-Fixer that place each operand on its own line. |
+| `preserve-binary-expression-layout` | boolean | `false` | Break a binary expression before or after an operator only where the source does, even past `print-width`. Operands that share a line in the source stay on it, and the lines after the first break are indented one level when the source indents them. Assignments, `return` and control-structure conditions keep the expression where the source puts it. |
 | `preserve-breaking-pipe-expression` | boolean | `false` | Preserve existing line breaks in pipe expressions. |
 | `break-promoted-properties-list` | boolean | `true` | Always break parameter lists with promoted properties. |
 | `parameter-attribute-on-new-line` | boolean | `true` | Put parameter attributes on their own line when the parameter list breaks (PER-CS 12.2). |

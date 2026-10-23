@@ -58,6 +58,16 @@ pub(super) fn has_new_line_in_range(text: &[u8], start: u32, end: u32) -> bool {
     text[start as usize..end as usize].contains(&b'\n')
 }
 
+/// Whether the whitespace that ends at `offset` holds a line break.
+pub(super) fn has_new_line_before(text: &[u8], offset: u32) -> bool {
+    text[..offset as usize].iter().rev().take_while(|byte| byte.is_ascii_whitespace()).any(|&byte| byte == b'\n')
+}
+
+/// Whether the whitespace that starts at `offset` holds a line break.
+pub(super) fn has_new_line_after(text: &[u8], offset: u32) -> bool {
+    text[offset as usize..].iter().take_while(|byte| byte.is_ascii_whitespace()).any(|&byte| byte == b'\n')
+}
+
 /// The indentation width of the source line that holds `offset`, counting a tab as `tab_width` columns.
 pub(super) fn line_indent_width<A>(f: &FormatterState<'_, '_, A>, offset: u32) -> usize
 where
@@ -849,7 +859,36 @@ where
         _ => false,
     };
 
-    let condition = if is_expandable_expression(condition, true)
+    let condition = if f.settings.preserve_binary_expression_layout && matches!(condition, Expression::Binary(_)) {
+        let source_line = |f: &FormatterState<'_, 'arena, A>, has_new_line: bool| {
+            if has_new_line {
+                Document::Array(vec_in![f.arena; Document::Line(Line::hard()), Document::BreakParent])
+            } else {
+                Document::empty()
+            }
+        };
+        let breaks_after_left_parenthesis = has_new_line_after(f.source_text, left_parenthesis.end.offset);
+        let line_after_left_parenthesis = source_line(f, breaks_after_left_parenthesis);
+        let line_before_right_parenthesis =
+            source_line(f, has_new_line_before(f.source_text, right_parenthesis.start.offset));
+
+        let left_parenthesis_document = format_token(f, left_parenthesis, b"(");
+        if !breaks_after_left_parenthesis {
+            f.unbroken_indent_offsets.push(left_parenthesis.start.offset);
+        }
+        let condition_document = condition.format(f);
+        if !breaks_after_left_parenthesis {
+            f.unbroken_indent_offsets.pop();
+        }
+
+        Document::Group(Group::new(vec_in![f.arena;
+            Document::space(),
+            left_parenthesis_document,
+            Document::Indent(vec_in![f.arena; line_after_left_parenthesis, condition_document]),
+            line_before_right_parenthesis,
+            format_token(f, right_parenthesis, b")"),
+        ]))
+    } else if is_expandable_expression(condition, true)
         && !has_breaking_concat
         && !f.has_comment(condition.span(), CommentFlags::LEADING | CommentFlags::TRAILING)
         && !must_break

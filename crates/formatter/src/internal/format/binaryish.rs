@@ -204,6 +204,7 @@ where
             ) && (operator.is_logical() || operator.is_comparison())
     );
 
+    let outer_written_binary_break = f.first_written_binary_break.take();
     let parts = if operator.is_null_coalesce()
         && (matches!(left, Expression::Binary(binary) if binary.operator.is_null_coalesce())
             || matches!(right, Expression::Binary(binary) if binary.operator.is_null_coalesce()))
@@ -220,7 +221,11 @@ where
         )
     };
 
-    if is_inside_parenthesis {
+    let first_written_binary_break = std::mem::replace(&mut f.first_written_binary_break, outer_written_binary_break);
+
+    if is_inside_parenthesis
+        && (!f.settings.preserve_binary_expression_layout || is_control_structure_condition || f.is_wrapped_in_parens)
+    {
         let lhs_is_binary = left.is_binary();
         let rhs_is_binary = right.is_binary();
         if ((!lhs_is_binary && !rhs_is_binary) || !operator.is_logical()) && !preserves_breaking_layout {
@@ -241,6 +246,19 @@ where
             Document::Indent(vec_in![f.arena; Document::Line(Line::soft()), Document::Array(parts)]),
             Document::Line(Line::soft()),
         ]));
+    }
+
+    if f.settings.preserve_binary_expression_layout && !matches!(grandparent, Some(Node::Binary(_))) {
+        let mut head_parts = parts;
+        if let Some((split_index, continuation_offset)) = first_written_binary_break
+            && misc::line_indent_width(f, continuation_offset)
+                > misc::line_indent_width(f, original_left.start_offset())
+        {
+            let tail_parts = head_parts.split_off(split_index);
+            head_parts.push(Document::Indent(tail_parts));
+        }
+
+        return Document::Group(Group::new(head_parts));
     }
 
     let should_not_indent = matches!(
@@ -614,21 +632,47 @@ fn push_binaryish_operation<'arena, A>(
     let operator_has_leading_comments = f.has_comment(operation.operator.span(), CommentFlags::LEADING);
     let mut right_document = vec_in![f.arena];
 
-    right_document.push(
-        if let Some(group_id) = f.condition_group_id
-            && line_before_operator
-            && operation.operator.is_logical()
-        {
-            Document::IfBreak(IfBreak::new(f.arena, Document::Line(Line::hard()), Document::space()).with_id(group_id))
-        } else if operator_has_leading_comments || (line_before_operator && !operation.should_inline) {
-            Document::Line(if has_space_around { Line::default() } else { Line::soft() })
+    let preserves_layout = f.settings.preserve_binary_expression_layout;
+    let breaks_after_operator = misc::has_new_line_in_range(
+        f.source_text,
+        operation.operator.span().end.offset,
+        operation.right.start_offset(),
+    );
+    if preserves_layout && f.first_written_binary_break.is_none() {
+        let operator_span = operation.operator.span();
+        if misc::has_new_line_before(f.source_text, operator_span.start.offset) {
+            f.first_written_binary_break = Some((parts.len(), operator_span.start.offset));
+        } else if breaks_after_operator {
+            f.first_written_binary_break = Some((parts.len(), operation.right.start_offset()));
+        }
+    }
+
+    let arena = f.arena;
+    let source_line_or_space = |has_new_line: bool| {
+        if has_new_line {
+            Document::Array(vec_in![arena; Document::Line(Line::hard()), Document::BreakParent])
         } else {
             Document::String(if has_space_around { b" " } else { b"" })
-        },
-    );
+        }
+    };
+
+    right_document.push(if preserves_layout {
+        source_line_or_space(misc::has_new_line_before(f.source_text, operation.operator.span().start.offset))
+    } else if let Some(group_id) = f.condition_group_id
+        && line_before_operator
+        && operation.operator.is_logical()
+    {
+        Document::IfBreak(IfBreak::new(f.arena, Document::Line(Line::hard()), Document::space()).with_id(group_id))
+    } else if operator_has_leading_comments || (line_before_operator && !operation.should_inline) {
+        Document::Line(if has_space_around { Line::default() } else { Line::soft() })
+    } else {
+        Document::String(if has_space_around { b" " } else { b"" })
+    });
 
     right_document.push(format_token(f, operation.operator.span(), operation.operator.as_bytes()));
-    right_document.push(if operator_has_leading_comments || line_before_operator || operation.should_inline {
+    right_document.push(if preserves_layout {
+        source_line_or_space(breaks_after_operator)
+    } else if operator_has_leading_comments || line_before_operator || operation.should_inline {
         Document::String(if has_space_around { b" " } else { b"" })
     } else {
         Document::Line(if has_space_around { Line::default() } else { Line::soft() })
