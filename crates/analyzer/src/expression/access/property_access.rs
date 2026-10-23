@@ -39,6 +39,7 @@ use crate::resolver::property::resolve_instance_properties;
 use crate::statement::class_like::initialization::report_read_before_initialization;
 use crate::utils::deprecation::report_deprecated_property;
 use crate::utils::expression::get_block_expression_id;
+use crate::utils::expression::get_expression_id;
 use crate::utils::expression::get_property_access_expression_id;
 use crate::utils::expression::get_variable_id;
 
@@ -161,6 +162,18 @@ where
 
         if let Expression::ArrayAccess(array_access) = object {
             report_index_types_of_array_access(context, block_context, artifacts, array_access)?;
+        }
+
+        if artifacts.get_expression_type(object).is_none()
+            && let Some(object_id) = get_expression_id(
+                object,
+                block_context.scope.get_class_like_name(),
+                context.resolved_names,
+                Some(context.codebase),
+            )
+            && let Some(object_type) = block_context.locals.get(&object_id)
+        {
+            artifacts.set_rc_expression_type(object, Rc::clone(object_type));
         }
 
         artifacts.set_rc_expression_type(&span, existing_type);
