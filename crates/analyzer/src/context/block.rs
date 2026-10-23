@@ -26,6 +26,7 @@ use crate::context::block_flags::BlockContextFlags;
 use crate::context::scope::control_action::ControlActionSet;
 use crate::context::scope::finally_scope::FinallyScope;
 use crate::context::scope::is_access_path;
+use crate::context::scope::narrowed_function_call_reads;
 use crate::context::scope::var_has_root;
 use crate::reconciler::assertion_reconciler;
 use crate::reconciler::negated_assertion_reconciler;
@@ -579,7 +580,9 @@ impl<'ctx> BlockContext<'ctx> {
             },
         );
 
-        self.locals.retain(|var_id, _| !var_has_root(*var_id, remove_var_id));
+        self.locals.retain(|var_id, _| {
+            !var_has_root(*var_id, remove_var_id) && !narrowed_function_call_reads(*var_id, remove_var_id)
+        });
     }
 
     /// Registers a variable that is referenced conditionally, like in a property

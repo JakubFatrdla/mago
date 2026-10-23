@@ -38,6 +38,7 @@ use mago_reporting::Issue;
 use mago_span::HasSpan;
 use mago_syntax::cst::Argument;
 use mago_syntax::cst::BinaryOperator;
+use mago_syntax::cst::Call;
 use mago_syntax::cst::Expression;
 use mago_syntax::cst::Literal;
 use mago_word::Word;
@@ -72,6 +73,8 @@ use crate::reconciler;
 use crate::reconciler::assertion_reconciler::intersect_union_with_union;
 use crate::utils::deprecation::report_deprecated_function_like;
 use crate::utils::expression::get_block_expression_id;
+use crate::utils::expression::get_function_call_id;
+use crate::utils::expression::get_narrowed_function_call_id;
 use crate::utils::expression::get_non_nullsafe_expression_id;
 use crate::utils::expression::get_nullsafe_base_expressions;
 use crate::utils::misc::unwrap_expression;
@@ -212,6 +215,7 @@ where
         template_result,
         parameters,
         false,
+        !metadata.assertions_inferred,
     );
 
     block_context
@@ -231,6 +235,7 @@ where
         &metadata.if_false_assertions,
         template_result,
         parameters,
+        false,
         false,
     );
 
@@ -386,6 +391,7 @@ fn apply_assertion_to_call_context<'ctx, 'arena, A>(
         template_result,
         parameters,
         true,
+        false,
     );
 
     if type_assertions.is_empty() {
@@ -1043,6 +1049,7 @@ fn resolve_invocation_assertion<'ctx, 'arena, A>(
     template_result: &TemplateResult,
     parameters: &WordMap<TUnion>,
     is_unconditional_assert: bool,
+    checks_call_arguments: bool,
 ) -> AssertionMap<Word, AssertionSet>
 where
     A: Arena,
@@ -1331,6 +1338,27 @@ where
             }
             None => {
                 if let Some(assertion_expression) = assertion_expression {
+                    if checks_call_arguments
+                        && let [variable_assertion] = variable_assertions.as_slice()
+                        && !is_narrowed_by_earlier_condition(context, block_context, artifacts, assertion_expression)
+                        && let Some(asserted_type) = artifacts.get_expression_type(assertion_expression)
+                    {
+                        match check_expression_type_assertion(
+                            context,
+                            invocation,
+                            variable_assertion,
+                            asserted_type,
+                            template_result,
+                            parameters,
+                        ) {
+                            Some((IssueCode::RedundantTypeComparison, issue)) => pending_redundant_issues.push(issue),
+                            Some((code, issue)) => {
+                                context.collector.report_with_code(code, issue);
+                            }
+                            None => has_non_redundant_assertion = true,
+                        }
+                    }
+
                     if variable_assertions.len() != 1 {
                         continue; // We only support single assertions for expressions
                         // maybe we should support more? idk for now, we are following
@@ -1408,6 +1436,126 @@ where
     }
 
     type_assertions
+}
+
+fn is_narrowed_by_earlier_condition<A>(
+    context: &Context<'_, '_, A>,
+    block_context: &BlockContext<'_>,
+    artifacts: &AnalysisArtifacts,
+    expression: &Expression<'_>,
+) -> bool
+where
+    A: Arena,
+{
+    let Expression::Call(Call::Function(function_call)) = expression.unparenthesized() else {
+        return false;
+    };
+
+    let Some(call_id) = get_function_call_id(
+        function_call,
+        block_context.scope.get_class_like_name(),
+        context.resolved_names,
+        context.codebase,
+    ) else {
+        return false;
+    };
+
+    if block_context
+        .locals
+        .get(&get_narrowed_function_call_id(call_id))
+        .is_none_or(|narrowed_call| narrowed_call.possibly_undefined())
+    {
+        return false;
+    }
+
+    let start = expression.span().start.offset;
+    let body_start = block_context.scope.get_function_like().map_or(0, |function_like| function_like.span.start.offset);
+
+    artifacts
+        .condition_function_calls
+        .iter()
+        .any(|(offset, condition_call_id)| *offset >= body_start && *offset < start && *condition_call_id == call_id)
+}
+
+fn check_expression_type_assertion<'ctx, 'arena, A>(
+    context: &Context<'ctx, 'arena, A>,
+    invocation: &Invocation<'ctx, '_, 'arena>,
+    assertion: &Assertion,
+    asserted_type: &TUnion,
+    template_result: &TemplateResult,
+    parameters: &WordMap<TUnion>,
+) -> Option<(IssueCode, Issue)>
+where
+    A: Arena,
+{
+    if asserted_type.is_mixed() || assertion.has_equality() {
+        return None;
+    }
+
+    let assertion_atomic = assertion.get_type()?;
+    let assertion_type = resolve_invocation_type(
+        context,
+        invocation,
+        template_result,
+        parameters,
+        TUnion::from_atomic(assertion_atomic.to_owned()),
+    );
+    if assertion_type.is_never()
+        || assertion_type.has_template()
+        || derived_assertion_loses_template_precision(assertion_atomic)
+    {
+        return None;
+    }
+
+    let can_be_asserted_type =
+        can_expression_types_be_identical(context.codebase, asserted_type, &assertion_type, false, false);
+    let is_asserted_type = is_contained_by(
+        context.codebase,
+        asserted_type,
+        &assertion_type,
+        false,
+        false,
+        true,
+        &mut ComparisonResult::default(),
+    );
+
+    let (always_true, always_false) = if assertion.is_negation() {
+        (!can_be_asserted_type, is_asserted_type)
+    } else {
+        (is_asserted_type, !can_be_asserted_type)
+    };
+
+    let asserted_type_id = asserted_type.get_id();
+    let assertion_type_id = assertion_type.get_id();
+
+    if always_true {
+        Some((
+            IssueCode::RedundantTypeComparison,
+            Issue::warning(format!(
+                "Redundant type assertion: the argument of type `{asserted_type_id}` always passes this check."
+            ))
+            .with_annotation(
+                Annotation::primary(invocation.span)
+                    .with_message(format!("The argument has type `{asserted_type_id}`")),
+            )
+            .with_help("Consider removing this assertion as it has no effect."),
+        ))
+    } else if always_false {
+        Some((
+            IssueCode::ImpossibleTypeComparison,
+            Issue::error(format!(
+                "Impossible type assertion: the argument of type `{asserted_type_id}` never passes this check."
+            ))
+            .with_annotation(
+                Annotation::primary(invocation.span)
+                    .with_message(format!("The argument has type `{asserted_type_id}`")),
+            )
+            .with_note(format!("No value of type `{asserted_type_id}` is `{assertion_type_id}`."))
+            .with_help("Check that the correct argument is passed, or update the assertion type."),
+        ))
+    } else {
+        None
+    }
 }
 
 fn assertion_excludes_null(assertion: &Assertion) -> bool {
@@ -1818,6 +1966,7 @@ where
         template_result,
         parameters,
         false,
+        false,
     );
 
     for (variable, assertion_set) in resolved_if_true_assertions {
@@ -1833,6 +1982,7 @@ where
         &assertions.if_false,
         template_result,
         parameters,
+        false,
         false,
     );
 

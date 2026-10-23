@@ -31,6 +31,7 @@ use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::context::scope::if_scope::IfScope;
 use crate::context::scope::is_access_path;
+use crate::context::scope::is_narrowed_function_call;
 use crate::context::utils::inherit_branch_context_properties;
 use crate::error::AnalysisError;
 use crate::formula::get_formula;
@@ -291,7 +292,9 @@ where
             .into_iter()
             .filter(|(branch_context, _)| !branch_context.flags.has_returned())
             .flat_map(|(_, removed_variables)| removed_variables)
-            .filter(|variable_id| is_access_path(variable_id.as_bytes()))
+            .filter(|variable_id| {
+                is_access_path(variable_id.as_bytes()) || is_narrowed_function_call(variable_id.as_bytes())
+            })
             .chain(
                 [&if_block_context, &else_block_context]
                     .into_iter()

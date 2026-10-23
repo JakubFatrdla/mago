@@ -3340,6 +3340,7 @@ test_case!(
     crate::framework::check_missing_type_hints_settings()
 );
 test_case!(instanceof_subclass_of_excluded_class);
+test_case!(type_assertion_on_call_result);
 
 #[test]
 #[cfg_attr(miri, ignore)]

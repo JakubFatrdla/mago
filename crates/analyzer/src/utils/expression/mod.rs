@@ -15,6 +15,7 @@ use mago_span::HasSpan;
 use mago_syntax::cst::Access;
 use mago_syntax::cst::Argument;
 use mago_syntax::cst::ArrayAccess;
+use mago_syntax::cst::ArrayElement;
 use mago_syntax::cst::Binary;
 use mago_syntax::cst::BinaryOperator;
 use mago_syntax::cst::Call;
@@ -25,9 +26,12 @@ use mago_syntax::cst::Expression;
 use mago_syntax::cst::FunctionCall;
 use mago_syntax::cst::Literal;
 use mago_syntax::cst::MethodCall;
+use mago_syntax::cst::NamedArgument;
 use mago_syntax::cst::NullSafeMethodCall;
+use mago_syntax::cst::PositionalArgument;
 use mago_syntax::cst::PropertyAccess;
 use mago_syntax::cst::StaticMethodCall;
+use mago_syntax::cst::TokenSeparatedSequence;
 use mago_syntax::cst::UnaryPostfixOperator;
 use mago_syntax::cst::UnaryPrefix;
 use mago_syntax::cst::UnaryPrefixOperator;
@@ -515,6 +519,118 @@ fn get_array_key_first_last_index_id(
     let array_id = get_expression_id(array_argument.value, this_class_name, resolved_names, codebase)?;
 
     Some(concat_word!(b"(", name, b"(", array_id.as_bytes(), b"))"))
+}
+
+pub fn get_function_call_id(
+    function_call: &FunctionCall<'_>,
+    this_class_name: Option<Word>,
+    resolved_names: &ResolvedNames<'_>,
+    codebase: &CodebaseMetadata,
+) -> Option<Word> {
+    let Expression::Identifier(function) = function_call.function else {
+        return None;
+    };
+
+    let name = resolved_names.get(function);
+    let mut id = name.strip_prefix(b"\\").unwrap_or(name).to_vec();
+    id.push(b'(');
+    for (position, argument) in function_call.argument_list.arguments.iter().enumerate() {
+        let (name, value) = match argument {
+            Argument::Positional(PositionalArgument { ellipsis: None, value }) => (None, value),
+            Argument::Named(NamedArgument { name, value, .. }) => (Some(name.value), value),
+            _ => return None,
+        };
+
+        let argument_id = get_call_argument_id(value, this_class_name, resolved_names, codebase)?;
+
+        if position > 0 {
+            id.push(b',');
+        }
+
+        if let Some(name) = name {
+            id.extend_from_slice(name);
+            id.extend_from_slice(b": ");
+        }
+
+        id.extend_from_slice(argument_id.as_bytes());
+    }
+
+    id.push(b')');
+
+    Some(word(id))
+}
+
+fn get_call_argument_id(
+    expression: &Expression<'_>,
+    this_class_name: Option<Word>,
+    resolved_names: &ResolvedNames<'_>,
+    codebase: &CodebaseMetadata,
+) -> Option<Word> {
+    let expression = unwrap_expression(expression);
+    if let Expression::Call(Call::Function(argument_call)) = expression {
+        return get_function_call_id(argument_call, this_class_name, resolved_names, codebase);
+    }
+
+    if let Some(index_id) = get_index_id(expression, this_class_name, resolved_names, Some(codebase)) {
+        return Some(index_id);
+    }
+
+    let argument_id = |expression| get_call_argument_id(expression, this_class_name, resolved_names, codebase);
+
+    Some(match expression {
+        Expression::ConstantAccess(constant_access) => word(resolved_names.get(&constant_access.name)),
+        Expression::UnaryPrefix(UnaryPrefix { operator, operand }) => {
+            concat_word!(b"(", operator.to_string().as_bytes(), b" ", argument_id(operand)?.as_bytes(), b")")
+        }
+        Expression::Binary(Binary { lhs, operator, rhs }) => concat_word!(
+            b"(",
+            argument_id(lhs)?.as_bytes(),
+            b" ",
+            operator.to_string().as_bytes(),
+            b" ",
+            argument_id(rhs)?.as_bytes(),
+            b")"
+        ),
+        Expression::Array(array) => get_array_literal_id(b"[", &array.elements, b"]", argument_id)?,
+        Expression::LegacyArray(array) => get_array_literal_id(b"array(", &array.elements, b")", argument_id)?,
+        _ => return None,
+    })
+}
+
+fn get_array_literal_id<'ast, 'arena>(
+    open: &[u8],
+    elements: &'ast TokenSeparatedSequence<'arena, ArrayElement<'arena>>,
+    close: &[u8],
+    argument_id: impl Fn(&'ast Expression<'arena>) -> Option<Word>,
+) -> Option<Word> {
+    let mut id = open.to_vec();
+    for (position, element) in elements.iter().enumerate() {
+        if position > 0 {
+            id.push(b',');
+        }
+
+        match element {
+            ArrayElement::KeyValue(element) => {
+                id.extend_from_slice(argument_id(element.key)?.as_bytes());
+                id.extend_from_slice(b" => ");
+                id.extend_from_slice(argument_id(element.value)?.as_bytes());
+            }
+            ArrayElement::Value(element) => id.extend_from_slice(argument_id(element.value)?.as_bytes()),
+            ArrayElement::Variadic(element) => {
+                id.extend_from_slice(b"...");
+                id.extend_from_slice(argument_id(element.value)?.as_bytes());
+            }
+            ArrayElement::Missing(_) => {}
+        }
+    }
+
+    id.extend_from_slice(close);
+
+    Some(word(id))
+}
+
+pub fn get_narrowed_function_call_id(call_id: Word) -> Word {
+    concat_word!(b"@", call_id.as_bytes())
 }
 
 #[inline]

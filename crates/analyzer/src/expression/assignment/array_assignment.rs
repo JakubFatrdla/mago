@@ -42,6 +42,7 @@ use crate::code::IssueCode;
 use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::context::block::ReferenceConstraintSource;
+use crate::context::scope::narrowed_function_call_reads;
 use crate::context::scope::var_has_root;
 use crate::error::AnalysisError;
 use crate::expression::access::property_access::analyze_offset_write_root;
@@ -202,6 +203,7 @@ where
     let root_array_type = Rc::new(root_array_type);
     if let Some(root_var_id) = &root_var_id {
         block_context.locals.insert(*root_var_id, Rc::clone(&root_array_type));
+        block_context.locals.retain(|variable_id, _| !narrowed_function_call_reads(*variable_id, *root_var_id));
         block_context.assigned_variable_ids.insert(*root_var_id, array_target.span().start_offset());
 
         if let Some(written_ids) = &written_ids_under_mixed_root {

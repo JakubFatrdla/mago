@@ -31,7 +31,48 @@ pub fn var_has_root(var_id: Word, root_var_id: Word) -> bool {
 }
 
 #[inline]
+pub fn is_narrowed_function_call(var_id: &[u8]) -> bool {
+    var_id.starts_with(b"@")
+}
+
+pub fn narrowed_function_call_reads(narrowed_call_id: Word, root_var_id: Word) -> bool {
+    let call_bytes = narrowed_call_id.as_bytes();
+    let root_bytes = root_var_id.as_bytes();
+    if !is_narrowed_function_call(call_bytes) {
+        return false;
+    }
+
+    let mut quote = None;
+    let mut position = 0;
+    while position < call_bytes.len() {
+        let byte = call_bytes[position];
+        match quote {
+            Some(_) if byte == b'\\' => position += 1,
+            Some(open) if byte == open => quote = None,
+            Some(_) => {}
+            None if byte == b'\'' || byte == b'"' => quote = Some(byte),
+            None if call_bytes[position..].starts_with(root_bytes)
+                && call_bytes
+                    .get(position + root_bytes.len())
+                    .is_none_or(|next| !(next.is_ascii_alphanumeric() || *next == b'_' || *next >= 0x80)) =>
+            {
+                return true;
+            }
+            None => {}
+        }
+
+        position += 1;
+    }
+
+    false
+}
+
+#[inline]
 pub fn var_references_dynamic(var_id: Word, referenced_var_id: Word) -> bool {
+    if is_narrowed_function_call(var_id.as_bytes()) {
+        return narrowed_function_call_reads(var_id, referenced_var_id);
+    }
+
     let var_bytes = var_id.as_bytes();
     let ref_bytes = referenced_var_id.as_bytes();
     if ref_bytes.len() >= var_bytes.len() {
@@ -84,5 +125,17 @@ mod tests {
         assert!(!var_references_dynamic(word(b"$name"), word(b"$name")));
         assert!(!var_references_dynamic(word(b"$name->foo"), word(b"$name")));
         assert!(!var_references_dynamic(word(b"$name[0]"), word(b"$name")));
+    }
+
+    #[test]
+    fn test_narrowed_function_call_reads() {
+        assert!(narrowed_function_call_reads(word(b"@intval($name)"), word(b"$name")));
+        assert!(narrowed_function_call_reads(word(b"@count($rows['key'])"), word(b"$rows")));
+        assert!(narrowed_function_call_reads(word(b"@intval('a', $name)"), word(b"$name")));
+        assert!(!narrowed_function_call_reads(word(b"@intval($names)"), word(b"$name")));
+        assert!(!narrowed_function_call_reads(word(b"@intval('$name')"), word(b"$name")));
+        assert!(!narrowed_function_call_reads(word(b"@intval('it\\'s $name')"), word(b"$name")));
+        assert!(!narrowed_function_call_reads(word(b"@intval(\"$name\")"), word(b"$name")));
+        assert!(!narrowed_function_call_reads(word(b"$name"), word(b"$name")));
     }
 }

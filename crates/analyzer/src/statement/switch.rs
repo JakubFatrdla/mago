@@ -45,6 +45,7 @@ use crate::context::scope::control_action::BreakType;
 use crate::context::scope::control_action::ControlAction;
 use crate::context::scope::control_action::ControlActionSet;
 use crate::context::scope::is_access_path;
+use crate::context::scope::is_narrowed_function_call;
 use crate::context::utils::inherit_branch_context_properties;
 use crate::error::AnalysisError;
 use crate::expression::binary::utils::is_always_identical_to;
@@ -99,6 +100,7 @@ where
     has_default_case: bool,
     definitely_initialized_properties: Option<WordSet>,
     definitely_called_methods: Option<HashSet<Word>>,
+    removed_narrowed_function_calls: WordSet,
 }
 
 impl<'anlyz, 'ctx, 'arena, A> SwitchAnalyzer<'anlyz, 'ctx, 'arena, A>
@@ -136,6 +138,7 @@ where
             has_default_case: false,
             definitely_initialized_properties: None,
             definitely_called_methods: None,
+            removed_narrowed_function_calls: WordSet::default(),
         }
     }
 
@@ -292,6 +295,10 @@ where
             if let Some(methods) = self.definitely_called_methods.take() {
                 self.block_context.definitely_called_methods.extend(methods);
             }
+        }
+
+        for narrowed_function_call in self.removed_narrowed_function_calls {
+            self.block_context.locals.remove(&narrowed_function_call);
         }
 
         let mut possibly_redefined_vars = self.possibly_redefined_variables.unwrap_or_default();
@@ -979,6 +986,8 @@ where
         let mut removed_var_ids = WordSet::default();
         let case_redefined_vars =
             case_block_context.get_redefined_locals(&original_block_context.locals, false, &mut removed_var_ids);
+        self.removed_narrowed_function_calls
+            .extend(removed_var_ids.into_iter().filter(|var_id| is_narrowed_function_call(var_id.as_bytes())));
 
         if let Some(possibly_redefined_var_ids) = &mut self.possibly_redefined_variables {
             for (var_id, var_type) in &case_redefined_vars {

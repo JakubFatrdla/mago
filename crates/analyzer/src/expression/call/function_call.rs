@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use mago_allocator::Arena;
 use mago_codex::identifier::function_like::FunctionLikeIdentifier;
 use mago_codex::ttype::TType;
@@ -5,6 +7,7 @@ use mago_codex::ttype::atomic::callable::TCallable;
 use mago_codex::ttype::atomic::callable::TCallableSignature;
 use mago_codex::ttype::cast::cast_atomic_to_callable;
 use mago_codex::ttype::expander::contains_parameter_variable;
+use mago_codex::ttype::get_true;
 use mago_codex::ttype::template::TemplateResult;
 use mago_reporting::Annotation;
 use mago_reporting::Issue;
@@ -26,6 +29,8 @@ use crate::invocation::InvocationArgumentsSource;
 use crate::invocation::InvocationTarget;
 use crate::plugin::ExpressionHookResult;
 use crate::plugin::context::HookContext;
+use crate::utils::expression::get_function_call_id;
+use crate::utils::expression::get_narrowed_function_call_id;
 
 impl<'ast, 'arena> Analyzable<'ast, 'arena> for FunctionCall<'arena> {
     fn analyze<'ctx, A>(
@@ -37,6 +42,18 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for FunctionCall<'arena> {
     where
         A: Arena,
     {
+        if block_context.flags.inside_conditional()
+            && let Some(call_id) = get_function_call_id(
+                self,
+                block_context.scope.get_class_like_name(),
+                context.resolved_names,
+                context.codebase,
+            )
+        {
+            artifacts.condition_function_calls.push((self.span().start.offset, call_id));
+            block_context.locals.insert(get_narrowed_function_call_id(call_id), Rc::new(get_true()));
+        }
+
         if context.plugin_registry.has_function_call_hooks() {
             let mut hook_context = HookContext::new(context.codebase, context.source_file, block_context, artifacts);
             let result = context.plugin_registry.before_function_call(self, &mut hook_context)?;

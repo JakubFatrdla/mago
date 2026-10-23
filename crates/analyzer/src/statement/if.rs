@@ -45,6 +45,7 @@ use crate::context::scope::control_action::ControlAction;
 use crate::context::scope::control_action::ControlActionSet;
 use crate::context::scope::if_scope::IfScope;
 use crate::context::scope::is_access_path;
+use crate::context::scope::is_narrowed_function_call;
 use crate::context::scope::var_has_root;
 use crate::context::scope::var_references_dynamic;
 use crate::context::utils::inherit_branch_context_properties;
@@ -1339,9 +1340,9 @@ fn update_if_scope<'ctx, A>(
     let mut removed_variables = WordSet::default();
     let mut redefined_variables =
         if_block_context.get_redefined_locals(&outer_block_context.locals, false, &mut removed_variables);
-    if_scope
-        .removed_access_paths
-        .extend(removed_variables.into_iter().filter(|variable_id| is_access_path(variable_id.as_bytes())));
+    if_scope.removed_access_paths.extend(removed_variables.into_iter().filter(|variable_id| {
+        is_access_path(variable_id.as_bytes()) || is_narrowed_function_call(variable_id.as_bytes())
+    }));
     if_scope.removed_access_paths.extend(
         outer_block_context
             .stable_method_call_assertions
