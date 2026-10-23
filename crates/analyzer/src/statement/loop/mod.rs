@@ -46,6 +46,7 @@ use mago_reporting::Annotation;
 use mago_reporting::Issue;
 use mago_span::HasSpan;
 use mago_span::Span;
+use mago_syntax::cst::AssignmentOperator;
 use mago_syntax::cst::BinaryOperator;
 use mago_syntax::cst::Expression;
 use mago_syntax::cst::Foreach;
@@ -326,6 +327,39 @@ where
         context.codebase,
         CombinerOptions::default(),
     )))
+}
+
+fn get_pre_condition_assigned_types<A>(
+    context: &Context<'_, '_, A>,
+    block_context: &BlockContext<'_>,
+    artifacts: &AnalysisArtifacts,
+    pre_conditions: &[&Expression<'_>],
+) -> Vec<(Word, Rc<TUnion>)>
+where
+    A: Arena,
+{
+    let assertion_context = context.get_assertion_context(block_context.scope.get_class_like_name());
+    let mut assigned_types = vec![];
+    let mut expressions = pre_conditions.to_vec();
+    while let Some(expression) = expressions.pop() {
+        match expression.unparenthesized() {
+            Expression::Assignment(assignment) if matches!(assignment.operator, AssignmentOperator::Assign(_)) => {
+                if let Some(variable_id) = assertion_context.get_expression_id(assignment.lhs)
+                    && let Some(assigned_type) = artifacts.get_rc_expression_type(assignment.rhs)
+                {
+                    assigned_types.push((variable_id, Rc::clone(assigned_type)));
+                }
+            }
+            Expression::Binary(binary) => {
+                expressions.push(binary.lhs);
+                expressions.push(binary.rhs);
+            }
+            Expression::UnaryPrefix(unary) => expressions.push(unary.operand),
+            _ => {}
+        }
+    }
+
+    assigned_types
 }
 
 #[allow(clippy::similar_names)]
@@ -1117,8 +1151,8 @@ where
         }
     }
 
-    if !pre_conditions.is_empty() && !pre_condition_clauses.is_empty() && !does_sometimes_break {
-        // if the loop contains an assertion and there are no break statements, we can negate that assertion
+    if !pre_conditions.is_empty() && !pre_condition_clauses.is_empty() {
+        // if the loop contains an assertion, we can negate that assertion
         // and apply it to the current context
 
         let pre_condition_clauses: Vec<Clause> = pre_condition_clauses.into_iter().flatten().collect();
@@ -1135,11 +1169,25 @@ where
             negate_formula(&pre_condition_clauses, &context.settings.algebra_thresholds()).unwrap_or_default()
         };
 
-        let (negated_pre_condition_types, _) =
+        let (mut negated_pre_condition_types, _) =
             find_satisfying_assignments(negated_pre_condition_clauses.iter().as_slice(), None, &mut WordSet::default());
+
+        let pre_condition_assigned_types =
+            get_pre_condition_assigned_types(context, &continue_context, artifacts, pre_conditions);
+        if does_sometimes_break {
+            negated_pre_condition_types.retain(|variable_id, _| {
+                pre_condition_assigned_types.iter().any(|(assigned_variable_id, _)| assigned_variable_id == variable_id)
+            });
+        }
 
         if !negated_pre_condition_types.is_empty() {
             let mut changed_variable_ids = WordSet::default();
+
+            for (variable_id, assigned_type) in pre_condition_assigned_types {
+                if negated_pre_condition_types.contains_key(&variable_id) {
+                    continue_context.locals.insert(variable_id, assigned_type);
+                }
+            }
 
             reconcile_keyed_types(
                 context,
@@ -1159,8 +1207,17 @@ where
 
             for variable_id in changed_variable_ids {
                 if let Some(reconciled_type) = continue_context.locals.get(&variable_id) {
-                    if loop_parent_context.locals.contains_key(&variable_id) {
-                        loop_parent_context.locals.insert(variable_id, Rc::clone(reconciled_type));
+                    if let Some(loop_parent_type) = loop_parent_context.locals.get_mut(&variable_id) {
+                        *loop_parent_type = if does_sometimes_break {
+                            Rc::new(ttype::combine_union_types(
+                                loop_parent_type,
+                                reconciled_type,
+                                codebase,
+                                CombinerOptions::default(),
+                            ))
+                        } else {
+                            Rc::clone(reconciled_type)
+                        };
                     }
 
                     loop_parent_context.remove_variable_from_conflicting_clauses(context, variable_id, None);

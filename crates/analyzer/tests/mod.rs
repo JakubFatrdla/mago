@@ -3346,6 +3346,7 @@ test_case!(unused_throws_type, {
     s.find_unused_throws_types = true;
     s
 });
+test_case!(loop_condition_assignment_exit_type);
 
 #[test]
 #[cfg_attr(miri, ignore)]
