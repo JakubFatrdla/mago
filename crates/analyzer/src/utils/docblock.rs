@@ -5,6 +5,8 @@ use mago_codex::metadata::CodebaseMetadata;
 use mago_codex::ttype::TType;
 use mago_codex::ttype::TypeRef;
 use mago_codex::ttype::atomic::TAtomic;
+use mago_codex::ttype::atomic::array::TArray;
+use mago_codex::ttype::atomic::array::key::ArrayKey;
 use mago_codex::ttype::atomic::object::TObject;
 use mago_codex::ttype::atomic::object::r#enum::TEnum;
 use mago_codex::ttype::atomic::object::named::TNamedObject;
@@ -537,7 +539,7 @@ where
     let codebase = context.codebase;
     let (native_type, is_valid) = match source_expression.unparenthesized() {
         Expression::Literal(_) | Expression::ConstantAccess(_) | Expression::Array(_) | Expression::LegacyArray(_) => {
-            (assigned_type.clone(), types_overlap(codebase, assigned_type, docblock_type))
+            (assigned_type.clone(), literal_can_be(codebase, assigned_type, docblock_type))
         }
         expression => {
             let Some(native_type) = get_native_expression_type(context, block_context, artifacts, expression) else {
@@ -581,6 +583,94 @@ where
     );
 
     true
+}
+
+fn literal_can_be(codebase: &CodebaseMetadata, literal_type: &TUnion, docblock_type: &TUnion) -> bool {
+    types_overlap(codebase, literal_type, docblock_type)
+        && literal_type.types.iter().any(|literal_atomic| {
+            docblock_type
+                .types
+                .iter()
+                .any(|docblock_atomic| literal_atomic_can_be(codebase, literal_atomic, docblock_atomic))
+        })
+}
+
+fn literal_atomic_can_be(codebase: &CodebaseMetadata, literal_atomic: &TAtomic, docblock_atomic: &TAtomic) -> bool {
+    let atomics_overlap = || {
+        types_overlap(
+            codebase,
+            &TUnion::from_atomic(literal_atomic.clone()),
+            &TUnion::from_atomic(docblock_atomic.clone()),
+        )
+    };
+
+    let literal_items: Vec<(ArrayKey, &TUnion)> = match literal_atomic {
+        TAtomic::Array(TArray::Keyed(keyed)) if keyed.parameters.is_none() => keyed
+            .known_items
+            .iter()
+            .flat_map(|items| items.iter().map(|(key, (_, item_type))| (*key, item_type)))
+            .collect(),
+        TAtomic::Array(TArray::List(list)) if list.element_type.is_never() => list
+            .known_elements
+            .iter()
+            .flat_map(|elements| {
+                elements.iter().map(|(index, (_, element_type))| (ArrayKey::Integer(*index as i64), element_type))
+            })
+            .collect(),
+        _ => return atomics_overlap(),
+    };
+
+    if literal_items.is_empty() {
+        return true;
+    }
+
+    let (known_items, rest_type): (Vec<(ArrayKey, bool, &TUnion)>, Option<&TUnion>) = match docblock_atomic {
+        TAtomic::Array(TArray::Keyed(keyed)) => (
+            keyed
+                .known_items
+                .iter()
+                .flat_map(|items| items.iter().map(|(key, (optional, item_type))| (*key, *optional, item_type)))
+                .collect(),
+            keyed.parameters.as_ref().map(|(_, value_type)| value_type.as_ref()),
+        ),
+        TAtomic::Array(TArray::List(list)) => (
+            list.known_elements
+                .iter()
+                .flat_map(|elements| {
+                    elements.iter().map(|(index, (optional, element_type))| {
+                        (ArrayKey::Integer(*index as i64), *optional, element_type)
+                    })
+                })
+                .collect(),
+            Some(list.element_type.as_ref()),
+        ),
+        TAtomic::Iterable(iterable) => {
+            return literal_items.iter().all(|(key, literal_item_type)| {
+                literal_can_be(codebase, &key.to_union(), iterable.get_key_type())
+                    && literal_can_be(codebase, literal_item_type, iterable.get_value_type())
+            });
+        }
+        TAtomic::Callable(_) => {
+            return literal_items.len() == 2
+                && literal_items.iter().all(|(key, _)| matches!(key, ArrayKey::Integer(0 | 1)));
+        }
+        _ => return atomics_overlap(),
+    };
+
+    for (key, optional, item_type) in &known_items {
+        match literal_items.iter().find(|(literal_key, _)| literal_key == key) {
+            Some((_, literal_item_type)) if !literal_can_be(codebase, literal_item_type, item_type) => return false,
+            None if !optional => return false,
+            _ => {}
+        }
+    }
+
+    literal_items.iter().all(|(key, literal_item_type)| {
+        known_items.iter().any(|(known_key, _, _)| known_key == key)
+            || rest_type.is_some_and(|rest_type| {
+                !rest_type.is_never() && literal_can_be(codebase, literal_item_type, rest_type)
+            })
+    })
 }
 
 fn types_overlap(codebase: &CodebaseMetadata, left: &TUnion, right: &TUnion) -> bool {

@@ -1,5 +1,6 @@
 <?php
 
+// @mago-expect analysis:docblock-type-mismatch
 /** @var array{foo?: array{bar?: string, baz: string}} $y */
 $y = ['foo' => ['baz' => 123]];
 $x = null;
