@@ -1212,25 +1212,48 @@ where
             .take(len.saturating_sub(1))
             .any(|condition| f.has_comment(condition.span(), CommentFlags::TRAILING | CommentFlags::LINE));
 
+        let preserves_layout = f.settings.preserve_match_arm_condition_layout;
+        let source_line_or_space = |f: &FormatterState<'_, 'arena, A>, start: u32, end: u32| {
+            if misc::has_new_line_in_range(f.source_text, start, end) {
+                Document::Array(vec_in![f.arena; Document::Line(Line::hard()), Document::BreakParent])
+            } else {
+                Document::space()
+            }
+        };
+
         let mut contents = vec_in![f.arena];
         for (i, condition) in arm.conditions.iter().enumerate() {
             contents.push(condition.format(f));
             if i != (len - 1) {
                 contents.push(Document::String(b","));
-                contents.push(if must_break { Document::Line(Line::hard()) } else { Document::Line(Line::default()) });
-            } else if f.settings.trailing_comma && i > 0 {
+                contents.push(if preserves_layout {
+                    source_line_or_space(f, condition.end_offset(), arm.conditions.as_slice()[i + 1].start_offset())
+                } else if must_break {
+                    Document::Line(Line::hard())
+                } else {
+                    Document::Line(Line::default())
+                });
+            } else if f.settings.trailing_comma
+                && i > 0
+                && (!preserves_layout
+                    || misc::has_new_line_in_range(f.source_text, condition.end_offset(), arm.arrow.start.offset))
+            {
                 contents.push(Document::IfBreak(IfBreak::then(f.arena, Document::String(b","))));
             }
         }
 
         let group_id = f.next_id();
         contents.push(match_arm_alignment_padding_unless_breaks(f, alignment, group_id));
+        let line_before_arrow = match arm.conditions.last() {
+            Some(condition) if preserves_layout => {
+                source_line_or_space(f, condition.end_offset(), arm.arrow.start.offset)
+            }
+            _ if must_break => Document::Line(Line::hard()),
+            _ => Document::Line(Line::default()),
+        };
         contents.push(Document::IndentIfBreak(IndentIfBreak::new(
             group_id,
-            vec_in![f.arena;
-                if must_break { Document::Line(Line::hard()) } else { Document::Line(Line::default()) },
-                format_token(f, arm.arrow, b"=> "),
-            ],
+            vec_in![f.arena; line_before_arrow, format_token(f, arm.arrow, b"=> ")],
         )));
 
         let rhs = if expression_has_leading_own_line_comment {

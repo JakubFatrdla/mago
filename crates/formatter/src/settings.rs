@@ -558,6 +558,12 @@ generate_formatter_settings! {
     /// Default: false
     preserve_conditional_expression_layout: bool => "default_false",
 
+    /// Whether to keep the line breaks between the conditions of a `match` arm, and before its `=>`,
+    /// exactly as the source writes them.
+    ///
+    /// Default: false
+    preserve_match_arm_condition_layout: bool => "default_false",
+
     /// Whether to preserve line breaks in condition expressions (if, elseif, while, do-while, switch, match).
     ///
     /// When enabled, if the original source has conditions broken across multiple lines,
