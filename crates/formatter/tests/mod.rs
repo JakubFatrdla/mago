@@ -275,6 +275,8 @@ test_case!(inline_empty_braces_default);
 test_case!(inline_empty_braces_swapped);
 test_case!(pipe_operator);
 test_case!(disabled_class_like_member_separations);
+test_case!(empty_lines_between_class_like_members);
+test_case!(empty_lines_between_class_like_members_disabled);
 test_case!(sort_class_methods);
 test_case!(sort_class_methods_disabled);
 test_case!(unary_parens);

@@ -41,6 +41,18 @@ enum ClassLikeMemberKind {
     Method,
 }
 
+impl ClassLikeMemberKind {
+    const fn of(member: &ClassLikeMember<'_>) -> Self {
+        match member {
+            ClassLikeMember::TraitUse(_) => Self::TraitUse,
+            ClassLikeMember::Constant(_) => Self::Constant,
+            ClassLikeMember::Property(_) => Self::Property,
+            ClassLikeMember::EnumCase(_) => Self::EnumCase,
+            ClassLikeMember::Method(_) => Self::Method,
+        }
+    }
+}
+
 /// A class member paired with its associated comment index.
 /// Used when sorting members to ensure comments move with their associated member.
 struct SortedMember<'arena> {
@@ -75,7 +87,6 @@ where
         }
 
         if length != 0 {
-            let mut last_member_kind = None;
             let mut last_has_line_after = false;
             let mut members = vec_in![f.arena; Document::Line(Line::hard())];
 
@@ -146,7 +157,6 @@ where
                     }
 
                     formatted_count += 1;
-                    last_member_kind = None;
                     continue;
                 }
 
@@ -172,24 +182,10 @@ where
                     }
 
                     formatted_count += 1;
-                    last_member_kind = None;
                     continue;
                 }
 
-                let member_kind = match item {
-                    ClassLikeMember::TraitUse(_) => ClassLikeMemberKind::TraitUse,
-                    ClassLikeMember::Constant(_) => ClassLikeMemberKind::Constant,
-                    ClassLikeMember::Property(_) => ClassLikeMemberKind::Property,
-                    ClassLikeMember::EnumCase(_) => ClassLikeMemberKind::EnumCase,
-                    ClassLikeMember::Method(_) => ClassLikeMemberKind::Method,
-                };
-
-                if formatted_count != 0
-                    && !last_has_line_after
-                    && should_add_empty_line_before(f, member_kind, last_member_kind)
-                {
-                    members.push(Document::Line(Line::hard()));
-                }
+                let member_kind = ClassLikeMemberKind::of(item);
 
                 if let Some(widths) = get_alignment(&alignment_runs, i) {
                     let alignment = calculate_member_alignment(item, &widths);
@@ -207,17 +203,24 @@ where
                 if i < (length - 1) {
                     members.push(Document::Line(Line::hard()));
 
-                    if should_add_empty_line_after(f, member_kind) || f.is_next_line_empty(item.span()) {
-                        members.push(Document::Line(Line::hard()));
-                        last_has_line_after = true;
+                    let next_member_kind = ClassLikeMemberKind::of(members_to_format[i + 1].member);
+                    let empty_lines = if should_add_empty_line_after(f, member_kind)
+                        || should_add_empty_line_before(f, next_member_kind, member_kind)
+                    {
+                        f.settings.empty_lines_between_class_like_members
                     } else {
-                        last_has_line_after = false;
+                        usize::from(f.is_next_line_empty(item.span()))
+                    };
+
+                    for _ in 0..empty_lines {
+                        members.push(Document::Line(Line::hard()));
                     }
+
+                    last_has_line_after = empty_lines > 0;
                 } else {
                     last_has_line_after = false;
                 }
 
-                last_member_kind = Some(member_kind);
                 formatted_count += 1;
                 i += 1;
             }
@@ -294,13 +297,12 @@ where
 fn should_add_empty_line_before<A>(
     f: &FormatterState<'_, '_, A>,
     class_like_member_kind: ClassLikeMemberKind,
-    last_class_like_member_kind: Option<ClassLikeMemberKind>,
+    last_class_like_member_kind: ClassLikeMemberKind,
 ) -> bool
 where
     A: Arena,
 {
-    f.settings.separate_class_like_members
-        && last_class_like_member_kind.is_some_and(|last_member_kind| last_member_kind != class_like_member_kind)
+    f.settings.separate_class_like_members && last_class_like_member_kind != class_like_member_kind
 }
 
 #[inline]

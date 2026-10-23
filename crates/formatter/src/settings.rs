@@ -1218,6 +1218,15 @@ generate_formatter_settings! {
     /// Default: true
     separate_class_like_members: bool => "default_true",
 
+    /// Number of empty lines placed where class-like members are separated: after a member
+    /// whose `empty_line_after_*` setting is enabled, and between members of different kinds
+    /// when `separate_class_like_members` is enabled.
+    ///
+    /// Members that no setting separates keep at most one empty line from the source.
+    ///
+    /// Default: 1
+    empty_lines_between_class_like_members: usize => "default_empty_lines_between_class_like_members",
+
     /// How to order `#[Attribute]` annotations on a declaration.
     ///
     /// Default: `preserve`
@@ -1440,6 +1449,11 @@ fn default_print_width() -> usize {
 #[cfg(feature = "serde")]
 fn default_tab_width() -> usize {
     4
+}
+
+#[cfg(feature = "serde")]
+fn default_empty_lines_between_class_like_members() -> usize {
+    1
 }
 
 #[cfg(feature = "serde")]

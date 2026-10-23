@@ -209,6 +209,7 @@ const DEFAULT_PRESET: FormatSettings = FormatSettings {
     empty_line_before_return: false,
     empty_line_before_dangling_comments: true,
     separate_class_like_members: true,
+    empty_lines_between_class_like_members: 1,
     attributes_order: SortOrder::Preserve,
     separate_attributes: false,
     separate_trait_use: true,
