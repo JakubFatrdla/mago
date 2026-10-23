@@ -58,6 +58,20 @@ pub(super) fn has_new_line_in_range(text: &[u8], start: u32, end: u32) -> bool {
     text[start as usize..end as usize].contains(&b'\n')
 }
 
+/// The indentation width of the source line that holds `offset`, counting a tab as `tab_width` columns.
+pub(super) fn line_indent_width<A>(f: &FormatterState<'_, '_, A>, offset: u32) -> usize
+where
+    A: Arena,
+{
+    let line_start = f.file.get_line_start_offset(f.file.line_number(offset)).unwrap_or(offset);
+
+    f.source_text[line_start as usize..offset as usize]
+        .iter()
+        .take_while(|byte| matches!(byte, b' ' | b'\t'))
+        .map(|&byte| if byte == b'\t' { f.settings.tab_width } else { 1 })
+        .sum()
+}
+
 pub(crate) fn get_document_width<A>(doc: &Document<'_, A>) -> usize
 where
     A: Arena,

@@ -8,6 +8,7 @@ use mago_syntax::cst::Argument;
 use mago_syntax::cst::ArgumentList;
 use mago_syntax::cst::Call;
 use mago_syntax::cst::Expression;
+use mago_syntax::cst::Literal;
 use mago_syntax::cst::Node;
 use mago_syntax::cst::PartialArgument;
 use mago_syntax::cst::PartialArgumentList;
@@ -254,13 +255,17 @@ where
     }
 
     // First, run all the decision functions with unformatted arguments
-    let should_break_all = force_break || should_break_all_arguments(f, argument_list, for_attribute);
-    let should_inline = !force_break && should_inline_breaking_arguments(f, argument_list);
+    let should_keep_hugged =
+        !force_break && f.settings.preserve_hugged_argument_list && is_hugged_in_source(f, argument_list);
+    let should_break_all =
+        force_break || (!should_keep_hugged && should_break_all_arguments(f, argument_list, for_attribute));
+    let should_inline = should_keep_hugged || (!force_break && should_inline_breaking_arguments(f, argument_list));
     let should_expand_first =
         can_expand_first_or_last && !force_break && should_expand_first_arg(f, argument_list, false);
     let should_expand_last =
         can_expand_first_or_last && !force_break && should_expand_last_arg(f, argument_list, false);
-    let is_single_late_breaking_argument = !force_break && is_single_late_breaking_argument(f, argument_list);
+    let is_single_late_breaking_argument =
+        !force_break && !should_keep_hugged && is_single_late_breaking_argument(f, argument_list);
     let named_argument_width = if should_align_named_arguments(f, argument_list, should_break_all, should_inline) {
         Some(get_max_named_argument_width(argument_list))
     } else {
@@ -373,6 +378,17 @@ where
             ),
             Document::Group(Group::new(vec_in![f.arena; left_parenthesis, single_argument, right_parenthesis])),
         ));
+    }
+
+    if should_keep_hugged {
+        return print_hugged_arguments(
+            f,
+            argument_list,
+            formatted_arguments,
+            left_parenthesis,
+            dangling_comments.as_ref(),
+            &right_parenthesis,
+        );
     }
 
     if should_inline {
@@ -702,6 +718,150 @@ where
     }
 
     false
+}
+
+/// Whether the source spreads the argument list over several lines and starts its first argument
+/// on the line of `(`.
+fn is_hugged_in_source<A>(f: &FormatterState<'_, '_, A>, argument_list: &PartialArgumentList) -> bool
+where
+    A: Arena,
+{
+    let left_parenthesis = argument_list.left_parenthesis;
+    let Some(first_argument) = argument_list.arguments.first() else {
+        return false;
+    };
+
+    misc::has_new_line_in_range(
+        f.source_text,
+        left_parenthesis.start.offset,
+        argument_list.right_parenthesis.end.offset,
+    ) && !misc::has_new_line_in_range(f.source_text, left_parenthesis.end.offset, first_argument.span().start.offset)
+}
+
+/// Prints a hugged argument list with a line break between arguments and before `)` only where the
+/// source has one. The arguments after the first such break are indented one level.
+fn print_hugged_arguments<'arena, A>(
+    f: &mut FormatterState<'_, 'arena, A>,
+    argument_list: &'arena PartialArgumentList<'arena>,
+    formatted_arguments: Vec<'arena, Document<'arena, A>, A>,
+    left_parenthesis: Document<'arena, A>,
+    dangling_comments: Option<&Document<'arena, A>>,
+    right_parenthesis: &Document<'arena, A>,
+) -> Document<'arena, A>
+where
+    A: Arena,
+{
+    let arguments = argument_list.arguments.as_slice();
+    let mut head = vec_in![f.arena;];
+    let mut tail: Option<Vec<'arena, Document<'arena, A>, A>> = None;
+    for (index, document) in formatted_arguments.into_iter().enumerate() {
+        if index > 0 {
+            let breaks = misc::has_new_line_in_range(
+                f.source_text,
+                arguments[index - 1].span().end.offset,
+                arguments[index].span().start.offset,
+            );
+            let contents = tail.as_mut().unwrap_or(&mut head);
+            contents.push(Document::String(b","));
+            if breaks {
+                tail.get_or_insert_with(|| vec_in![f.arena;])
+                    .extend([Document::Line(Line::hard()), Document::BreakParent]);
+            } else {
+                contents.push(Document::space());
+            }
+        }
+
+        tail.as_mut().unwrap_or(&mut head).push(document);
+    }
+
+    let breaks_before_right_parenthesis = arguments.last().is_some_and(|argument| {
+        misc::has_new_line_in_range(
+            f.source_text,
+            argument.span().end.offset,
+            argument_list.right_parenthesis.start.offset,
+        )
+    });
+
+    let mut contents = vec_in![f.arena; left_parenthesis];
+    match tail {
+        Some(tail) => {
+            contents.push(Document::Array(head));
+            contents.push(Document::Indent(tail));
+        }
+        None if !breaks_before_right_parenthesis && has_extra_indent_in_source(f, argument_list) => {
+            contents.push(Document::Indent(head));
+        }
+        None => contents.push(Document::Array(head)),
+    }
+
+    if breaks_before_right_parenthesis {
+        if f.trailing_comma_for(Feature::TrailingCommaInFunctionCalls) {
+            contents.push(Document::String(b","));
+        }
+
+        contents.push(Document::Line(Line::hard()));
+        contents.push(Document::BreakParent);
+    }
+
+    contents.push(print_right_parenthesis(f, dangling_comments, right_parenthesis, Some(false)));
+
+    Document::Group(Group::new(contents))
+}
+
+/// Whether the source indents the first line it breaks inside the argument list two or more levels
+/// deeper than the line of `(`, one level more than a multi-line argument indents by itself.
+fn has_extra_indent_in_source<A>(f: &FormatterState<'_, '_, A>, argument_list: &PartialArgumentList) -> bool
+where
+    A: Arena,
+{
+    let start = argument_list.left_parenthesis.end.offset as usize;
+    let end = argument_list.right_parenthesis.start.offset as usize;
+    let Some(new_line) = f.source_text[start..end].iter().position(|&byte| byte == b'\n') else {
+        return false;
+    };
+
+    let Some(next_line_start) =
+        f.source_text[start + new_line..end].iter().position(|byte| !byte.is_ascii_whitespace())
+    else {
+        return false;
+    };
+
+    if line_starts_inside_string(f, argument_list.left_parenthesis.start.offset) {
+        return false;
+    }
+
+    let next_line_indent = misc::line_indent_width(f, (start + new_line + next_line_start) as u32);
+    let parenthesis_line_indent = misc::line_indent_width(f, argument_list.left_parenthesis.start.offset);
+
+    next_line_indent >= parenthesis_line_indent + 2 * f.settings.tab_width
+}
+
+/// Whether the source line that holds `offset` starts inside a string an enclosing operation spreads
+/// over several lines, so the line has no indentation of its own.
+fn line_starts_inside_string<A>(f: &FormatterState<'_, '_, A>, offset: u32) -> bool
+where
+    A: Arena,
+{
+    let line_start = f.file.get_line_start_offset(f.file.line_number(offset)).unwrap_or(offset);
+
+    f.stack.iter().any(|node| match node {
+        Node::Binary(binary) => has_string_at(binary.lhs, line_start) || has_string_at(binary.rhs, line_start),
+        _ => false,
+    })
+}
+
+fn has_string_at(expression: &Expression<'_>, offset: u32) -> bool {
+    let span = expression.span();
+    if offset <= span.start.offset || offset >= span.end.offset {
+        return false;
+    }
+
+    match expression {
+        Expression::Literal(Literal::String(_)) | Expression::CompositeString(_) => true,
+        Expression::Binary(binary) => has_string_at(binary.lhs, offset) || has_string_at(binary.rhs, offset),
+        Expression::Parenthesized(parenthesized) => has_string_at(parenthesized.expression, offset),
+        _ => false,
+    }
 }
 
 #[inline]

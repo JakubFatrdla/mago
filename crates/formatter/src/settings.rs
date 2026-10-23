@@ -453,6 +453,28 @@ generate_formatter_settings! {
     /// Default: false
     preserve_breaking_argument_list: bool => "default_false",
 
+    /// Whether to keep the line breaks of a multi-line argument list whose first argument starts on
+    /// the line of `(`.
+    ///
+    /// The list then breaks between arguments and before `)` only where the source does, and the
+    /// arguments after the first such break are indented one level. A multi-line argument breaks in
+    /// place instead of every argument moving onto its own line. When the source indents a hugged
+    /// argument one level deeper than that, the extra level is kept:
+    ///
+    /// ```php
+    /// $result = array_filter([
+    ///     'a' => $a,
+    ///     'b' => $b,
+    /// ], static fn (mixed $value): bool => $value !== null);
+    ///
+    /// $line = sprintf('%s: %s',
+    ///     $key,
+    ///     $value);
+    /// ```
+    ///
+    /// Default: false
+    preserve_hugged_argument_list: bool => "default_false",
+
     /// Keep a call's single value-shaped argument inline even when the line
     /// overflows `print-width`.
     ///
