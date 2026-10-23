@@ -247,8 +247,9 @@ pub(super) fn force_break_parameters<'arena, A>(
 where
     A: Arena,
 {
-    f.settings.break_promoted_properties_list
-        && parameter_list.parameters.iter().any(FunctionLikeParameter::is_promoted_property)
+    (f.settings.break_promoted_properties_list
+        && parameter_list.parameters.iter().any(FunctionLikeParameter::is_promoted_property))
+        || parameter_list.parameters.iter().any(|parameter| f.has_line_ending_comment_after_separator(parameter.span()))
 }
 
 pub(super) fn preserve_break_parameters<'arena, A>(

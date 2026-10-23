@@ -216,7 +216,9 @@ where
     if !force_break {
         let args = argument_list.arguments.as_slice();
         for (i, arg) in args.iter().enumerate() {
-            if i < args.len() - 1 && f.has_comment(arg.span(), CommentFlags::TRAILING | CommentFlags::LINE) {
+            if (i < args.len() - 1 && f.has_comment(arg.span(), CommentFlags::TRAILING | CommentFlags::LINE))
+                || f.has_line_ending_comment_after_separator(arg.span())
+            {
                 force_break = true;
                 break;
             }

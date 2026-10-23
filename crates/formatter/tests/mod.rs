@@ -385,6 +385,7 @@ test_case!(align_match_arms_default_off);
 test_case!(align_run_breaking);
 test_case!(align_modifier_breaking);
 test_case!(inline_block_comments_in_arguments);
+test_case!(trailing_block_comments_after_separator);
 test_case!(idempotent_chain_with_array);
 test_case!(idempotent_nested_member_chain);
 test_case!(idempotent_chain_with_complex_arguments);

@@ -263,15 +263,20 @@ where
             let comment_start = trivia.span.start.offset;
             if range.end_offset() < comment_start && self.is_insignificant(range.end_offset(), comment_start) {
                 let gap = &self.source_text[(range.end_offset() as usize)..(comment_start as usize)];
-                if trivia.kind.is_block_comment() && gap.contains(&b',') {
+                let comment = Comment::from_trivia(self.file, trivia);
+                let follows_separator = comment.is_block && gap.contains(&b',');
+                if follows_separator && !self.ends_line(comment) {
                     break;
                 }
 
-                let comment = Comment::from_trivia(self.file, trivia);
                 // Check if comment is in an ignore region - if so, preserve as-is
                 if self.get_ignore_region_for(comment.start).is_some() {
                     self.print_preserved_trailing_comment(&mut parts, comment);
                     previous_comment = Some(comment);
+                } else if follows_separator {
+                    let printed = self.print_comment(comment);
+                    parts.push(Document::LineSuffix(vec_in![self.arena; Document::Space(Space::soft()), printed]));
+                    previous_comment = Some(comment.with_line_suffix(true));
                 } else {
                     previous_comment =
                         Some(self.print_trailing_comment(&mut parts, comment, previous_comment, range.end_offset()));
@@ -284,6 +289,23 @@ where
         }
 
         if parts.is_empty() { None } else { Some(Document::Array(parts)) }
+    }
+
+    pub(crate) fn has_line_ending_comment_after_separator(&self, range: Span) -> bool {
+        self.all_comments[self.next_comment_index..]
+            .iter()
+            .find(|trivia| trivia.span.start.offset >= range.end_offset())
+            .filter(|trivia| self.is_insignificant(range.end_offset(), trivia.span.start.offset))
+            .map(|trivia| Comment::from_trivia(self.file, trivia))
+            .is_some_and(|comment| {
+                comment.is_block
+                    && self.source_text[range.end_offset() as usize..comment.start as usize].contains(&b',')
+                    && self.ends_line(comment)
+            })
+    }
+
+    fn ends_line(&self, comment: Comment) -> bool {
+        comment.is_single_line && self.has_newline(comment.end, /* backwards */ false)
     }
 
     fn push_leading_comment_document(
