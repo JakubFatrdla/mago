@@ -3097,6 +3097,15 @@ fn check_docblock_declared_members<A>(
                 report_undefined_type_references(context, parameter_type);
             }
         }
+
+        let function_label =
+            format!("docblock method `{}::{}()`", class_like_metadata.original_name, metadata.original_name);
+        missing_type_hints::check_function_like_callable_signatures(context, metadata, metadata.span, &function_label);
+    }
+
+    for (alias_name, alias_type) in &class_like_metadata.type_aliases {
+        let subject = format!("Type alias `{alias_name}` of `{}`", class_like_metadata.original_name);
+        missing_type_hints::check_callable_signatures(context, Some(alias_type), alias_type.span, &subject);
     }
 
     for (property_name, property_metadata) in &class_like_metadata.magic_properties {

@@ -11,6 +11,8 @@ use mago_codex::ttype::atomic::TAtomic;
 use mago_codex::ttype::atomic::callable::TCallable;
 use mago_codex::ttype::atomic::callable::TCallableSignature;
 use mago_codex::ttype::atomic::object::TObject;
+use mago_codex::ttype::expander::TypeExpansionOptions;
+use mago_codex::ttype::expander::expand_union;
 use mago_codex::ttype::union::TUnion;
 use mago_php_version::PHPVersion;
 use mago_php_version::feature::Feature;
@@ -412,6 +414,13 @@ pub fn check_function_like_callable_signatures<A>(
             parameter.span,
             &format!("Parameter `{}` of {function_label}", parameter.name.0),
         );
+
+        check_callable_signatures(
+            context,
+            parameter.out_type.as_ref(),
+            parameter.span,
+            &format!("The `@param-out` type of parameter `{}` of {function_label}", parameter.name.0),
+        );
     }
 
     check_callable_signatures(
@@ -440,7 +449,12 @@ pub fn check_callable_signatures<A>(
         return;
     };
 
-    for node in type_metadata.type_union.get_all_child_nodes() {
+    let mut type_union = type_metadata.type_union.clone();
+    if type_union.get_all_child_nodes().iter().any(|node| matches!(node, TypeRef::Atomic(TAtomic::Alias(_)))) {
+        expand_union(context.codebase, &mut type_union, &TypeExpansionOptions::default());
+    }
+
+    for node in type_union.get_all_child_nodes() {
         let TypeRef::Atomic(atomic) = node else {
             continue;
         };
