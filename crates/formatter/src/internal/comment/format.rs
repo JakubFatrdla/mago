@@ -12,7 +12,6 @@ use crate::document::BreakMode;
 use crate::document::Document;
 use crate::document::Group;
 use crate::document::Line;
-use crate::document::Separator;
 use crate::document::Space;
 use crate::internal::FormatterState;
 use crate::internal::comment::Comment;
@@ -261,10 +260,14 @@ where
             }
 
             let comment_start = trivia.span.start.offset;
-            if range.end_offset() < comment_start && self.is_insignificant(range.end_offset(), comment_start) {
+            let continues_line =
+                previous_comment.is_some_and(|previous| self.continues_line(previous.end, comment_start));
+            if continues_line
+                || (range.end_offset() < comment_start && self.is_insignificant(range.end_offset(), comment_start))
+            {
                 let gap = &self.source_text[(range.end_offset() as usize)..(comment_start as usize)];
                 let comment = Comment::from_trivia(self.file, trivia);
-                let follows_separator = comment.is_block && gap.contains(&b',');
+                let follows_separator = !continues_line && comment.is_block && gap.contains(&b',');
                 if follows_separator && !self.ends_line(comment) {
                     break;
                 }
@@ -306,6 +309,35 @@ where
 
     fn ends_line(&self, comment: Comment) -> bool {
         comment.is_single_line && self.has_newline(comment.end, /* backwards */ false)
+    }
+
+    fn continues_line(&self, end: u32, start: u32) -> bool {
+        end <= start && self.source_text[end as usize..start as usize].iter().all(|c| matches!(c, b' ' | b'\t'))
+    }
+
+    fn push_comment_separator(
+        &self,
+        parts: &mut Vec<'arena, Document<'arena, A>, A>,
+        previous: Option<Comment>,
+        comment: Comment,
+    ) {
+        match previous {
+            Some(previous) if self.continues_line(previous.end, comment.start) => parts.push(Document::String(b" ")),
+            Some(_) => parts.push(Document::Line(Line::hard())),
+            None => {}
+        }
+    }
+
+    fn print_comment_run(&self, comments: &[Comment]) -> Vec<'arena, Document<'arena, A>, A> {
+        let mut parts = vec_in![self.arena];
+        let mut previous = None;
+        for comment in comments {
+            self.push_comment_separator(&mut parts, previous, *comment);
+            parts.push(self.print_comment(*comment));
+            previous = Some(*comment);
+        }
+
+        parts
     }
 
     fn push_leading_comment_document(
@@ -478,10 +510,14 @@ where
                 break;
             }
 
-            if self.is_next_line_empty_after_index(end) {
+            if !parts.is_empty() && self.continues_line(end, comment.start) {
+                parts.push(Document::String(b" "));
+            } else {
+                if self.is_next_line_empty_after_index(end) {
+                    parts.push(Document::Line(Line::hard()));
+                }
                 parts.push(Document::Line(Line::hard()));
             }
-            parts.push(Document::Line(Line::hard()));
             parts.push(self.print_comment(comment));
             end = comment.end;
             self.placed_comments.mark_consumed(self.next_comment_index);
@@ -497,17 +533,12 @@ where
             comment.start >= range.start_offset() && comment.end <= range.end_offset()
         });
 
-        let must_break = comments.iter().any(|comment| !comment.is_block);
-        let mut parts = vec_in![self.arena];
-        for comment in comments {
-            parts.push(self.print_comment(comment));
-        }
-
-        if parts.is_empty() {
+        if comments.is_empty() {
             return None;
         }
 
-        let document = Document::Array(Document::join(self.arena, parts, Separator::HardLine));
+        let must_break = comments.iter().any(|comment| !comment.is_block);
+        let document = Document::Array(self.print_comment_run(&comments));
 
         Some(Document::Group(
             Group::new(vec_in![self.arena;
@@ -523,21 +554,23 @@ where
         let comments = self.take_comments_while(|_, comment| comment.end <= range.end_offset());
 
         let mut parts = vec_in![self.arena];
-        for comment in comments {
-            if !indented && self.is_next_line_empty_after_index(comment.end) {
-                parts.push(Document::Array(
-                    vec_in![self.arena; self.print_comment(comment), Document::Line(Line::hard())],
-                ));
-            } else {
-                parts.push(self.print_comment(comment));
+        let mut previous = None;
+        for (index, comment) in comments.iter().copied().enumerate() {
+            self.push_comment_separator(&mut parts, previous, comment);
+            parts.push(self.print_comment(comment));
+            let line_continues =
+                comments.get(index + 1).is_some_and(|next| self.continues_line(comment.end, next.start));
+            if !indented && !line_continues && self.is_next_line_empty_after_index(comment.end) {
+                parts.push(Document::Line(Line::hard()));
             }
+            previous = Some(comment);
         }
 
         if parts.is_empty() {
             return None;
         }
 
-        let document = Document::Array(Document::join(self.arena, parts, Separator::HardLine));
+        let document = Document::Array(parts);
 
         Some(if indented {
             Document::Array(vec_in![self.arena;
@@ -561,19 +594,14 @@ where
                 && state.is_insignificant(after.end_offset(), comment.start)
         });
 
-        let mut parts = vec_in![self.arena];
-        for comment in comments {
-            parts.push(self.print_comment(comment));
-        }
-
-        if parts.is_empty() {
+        if comments.is_empty() {
             return None;
         }
 
         Some(Document::Indent(vec_in![self.arena;
             Document::BreakParent,
             Document::Line(Line::hard()),
-            Document::Array(Document::join(self.arena, parts, Separator::HardLine)),
+            Document::Array(self.print_comment_run(&comments)),
         ]))
     }
 
