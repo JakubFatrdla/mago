@@ -3037,6 +3037,8 @@ test_case!(issue_2520);
 test_case!(issue_2523);
 test_case!(issue_2563);
 test_case!(issue_2585);
+test_case!(issue_2593);
+test_case!(issue_2593_short_circuit);
 test_case!(simplexml_truthiness);
 test_case!(traversable_static_template_binds_to_iterated_class);
 test_case!(simple_xml_element_iterates_as_static);
