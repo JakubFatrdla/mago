@@ -3349,6 +3349,16 @@ test_case!(unused_throws_type, {
 test_case!(loop_condition_assignment_exit_type);
 test_case!(callable_signatures_in_class_docblocks, crate::framework::check_missing_type_hints_settings());
 test_case!(untyped_parameter_of_overriding_method, crate::framework::check_missing_type_hints_settings());
+test_case!(native_types_of_built_in_calls, {
+    let mut s = crate::framework::default_test_settings();
+    s.treat_docblock_types_as_certain = false;
+    s
+});
+test_case!(native_types_of_preg_subject_without_strict_types, {
+    let mut s = crate::framework::default_test_settings();
+    s.treat_docblock_types_as_certain = false;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

@@ -226,6 +226,23 @@ where
         artifacts.if_true_assertions.entry(range).or_default().entry(variable).or_default().extend(assertions);
     }
 
+    if context.native_types_only
+        && context.strict_types
+        && let FunctionLikeIdentifier::Function(function_name) = identifier
+        && (function_name.as_bytes().eq_ignore_ascii_case(b"preg_match")
+            || function_name.as_bytes().eq_ignore_ascii_case(b"preg_match_all"))
+        && let (_, Some(subject)) =
+            resolve_argument_or_special_target(context, block_context, invoication, word("$subject"), this_variable)
+    {
+        artifacts
+            .if_true_assertions
+            .entry(range)
+            .or_default()
+            .entry(subject)
+            .or_default()
+            .push(vec![Assertion::IsType(TAtomic::Scalar(TScalar::string()))]);
+    }
+
     let resolved_if_false_assertions = resolve_invocation_assertion(
         context,
         block_context,

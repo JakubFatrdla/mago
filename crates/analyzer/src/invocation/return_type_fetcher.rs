@@ -97,6 +97,7 @@ where
 {
     let target_return_type = if context.native_types_only
         && let Some(function_like_metadata) = invocation.target.get_function_like_metadata()
+        && !has_signature_map_return_type(invocation, function_like_metadata)
     {
         get_native_return_type(function_like_metadata)
     } else if let Some(function_like_metadata) = invocation.target.get_function_like_metadata()
@@ -150,4 +151,17 @@ fn get_native_return_type(function_like_metadata: &FunctionLikeMetadata) -> Opti
     }
 
     function_like_metadata.return_type_declaration_metadata.as_ref().map(|return_type| return_type.type_union.clone())
+}
+
+fn has_signature_map_return_type(
+    invocation: &Invocation<'_, '_, '_>,
+    function_like_metadata: &FunctionLikeMetadata,
+) -> bool {
+    function_like_metadata.flags.is_built_in()
+        && matches!(invocation.target.get_function_like_identifier(), Some(FunctionLikeIdentifier::Function(name))
+            if !name.as_bytes().eq_ignore_ascii_case(b"explode"))
+        && function_like_metadata.return_type_metadata.as_ref().is_some_and(|return_type| {
+            !return_type.type_union.has_template_types()
+                && !return_type.type_union.types.iter().any(TAtomic::is_conditional)
+        })
 }

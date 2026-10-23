@@ -370,7 +370,8 @@ where
             None,
             None,
         )
-        .with_native_types_only();
+        .with_native_types_only()
+        .with_strict_types(program);
 
         let mut block_context = BlockContext::new(
             ScopeContext::new(ReferenceOrigin::File(word(context.source_file.name.as_ref()))),

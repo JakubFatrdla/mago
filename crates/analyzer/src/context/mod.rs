@@ -24,7 +24,12 @@ use mago_reporting::IssueCollection;
 use mago_span::HasSpan;
 use mago_span::Span;
 use mago_syntax::comments::docblock::PrecedingDocblocks;
+use mago_syntax::cst::Expression;
 use mago_syntax::cst::Identifier;
+use mago_syntax::cst::Literal;
+use mago_syntax::cst::LiteralInteger;
+use mago_syntax::cst::Program;
+use mago_syntax::cst::Statement;
 use mago_syntax::cst::Trivia;
 
 use crate::analysis_result::AnalysisResult;
@@ -69,6 +74,7 @@ where
     pub(super) property_types: HashMap<(Word, bool), PropertyTypes>,
     /// Types come from native declarations only, like PHPStan's scope with promoted native types.
     pub(super) native_types_only: bool,
+    pub(super) strict_types: bool,
     /// `if` conditions the native pass found always false; `None` when docblock types are certain.
     pub(crate) natively_false_conditions: Option<HashSet<Span>>,
     class_initializers: WordMap<WordSet>,
@@ -109,6 +115,7 @@ where
             additional_symbol_references,
             property_types: HashMap::default(),
             native_types_only: false,
+            strict_types: false,
             natively_false_conditions: None,
             class_initializers: WordMap::default(),
             constructor_initialized_properties: WordMap::default(),
@@ -119,6 +126,17 @@ where
     pub(crate) fn with_native_types_only(mut self) -> Self {
         self.native_types_only = true;
         self.natively_false_conditions = Some(HashSet::default());
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn with_strict_types(mut self, program: &Program<'_>) -> Self {
+        self.strict_types = program.statements.iter().any(|statement| {
+            matches!(statement, Statement::Declare(declare) if declare.items.iter().any(|item| {
+                item.name.value.eq_ignore_ascii_case(b"strict_types")
+                    && matches!(item.value, Expression::Literal(Literal::Integer(LiteralInteger { value: Some(1), .. })))
+            }))
+        });
         self
     }
 
