@@ -361,6 +361,7 @@ final class AnalyzerCodeModuleGenerator
         'incorrect-method-casing',
         'unused-closure-use-variable',
         'possibly-invalid-array-index',
+        'unused-throws-type',
     ];
 
     /**

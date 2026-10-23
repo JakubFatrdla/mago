@@ -97,6 +97,8 @@ pub struct AnalyzerConfiguration {
     /// actually returns (e.g. `: string|false` on a function that always returns a string).
     pub find_overly_wide_return_types: bool,
 
+    pub find_unused_throws_types: bool,
+
     /// Whether to warn when a private `bool` property is only ever given `true`, or only ever `false`.
     #[serde(default)]
     pub find_overly_wide_bool_property_types: bool,
@@ -530,6 +532,7 @@ impl AnalyzerConfiguration {
             analyze_dead_code: self.analyze_dead_code,
             find_unused_definitions: self.find_unused_definitions,
             find_overly_wide_return_types: self.find_overly_wide_return_types,
+            find_unused_throws_types: self.find_unused_throws_types,
             find_overly_wide_bool_property_types: self.find_overly_wide_bool_property_types,
             find_unused_expressions: self.find_unused_expressions,
             memoize_properties: self.memoize_properties,
@@ -609,6 +612,7 @@ impl Default for AnalyzerConfiguration {
             find_unused_expressions: defaults.find_unused_expressions,
             find_unused_definitions: defaults.find_unused_definitions,
             find_overly_wide_return_types: defaults.find_overly_wide_return_types,
+            find_unused_throws_types: defaults.find_unused_throws_types,
             find_overly_wide_bool_property_types: defaults.find_overly_wide_bool_property_types,
             analyze_dead_code: defaults.analyze_dead_code,
             memoize_properties: defaults.memoize_properties,

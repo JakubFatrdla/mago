@@ -82,6 +82,8 @@ use crate::statement::class_like::property::analyze_property_hook;
 use crate::statement::r#return::handle_return_value;
 use crate::statement::r#static::add_captured_types;
 use crate::statement::r#static::infer_static_local_types;
+use crate::statement::r#try::dead_catch::collect_uncaught_throw_points;
+use crate::statement::r#try::dead_catch::throw_point_can_be;
 use crate::utils::casing::check_class_like_casing;
 use crate::utils::expression::get_variable_id;
 
@@ -390,6 +392,7 @@ where
     }
 
     check_return_type_width(context, block_context, &mut artifacts, function_like_metadata, &body);
+    check_unused_throws_types(context, block_context, &mut artifacts, function_like_metadata, &body);
     check_thrown_types(context, block_context, &mut artifacts, function_like_metadata);
 
     std::mem::swap(&mut context.type_resolution_context, &mut previous_type_resolution_context);
@@ -1406,6 +1409,79 @@ fn split_top_level_union_members(text: &str) -> Vec<&str> {
     }
     segments.push(&text[start..]);
     segments
+}
+
+fn check_unused_throws_types<'ctx, A>(
+    context: &mut Context<'ctx, '_, A>,
+    block_context: &BlockContext<'ctx>,
+    artifacts: &mut AnalysisArtifacts,
+    function_like_metadata: &'ctx FunctionLikeMetadata,
+    body: &FunctionLikeBody<'_, '_>,
+) where
+    A: Arena,
+{
+    if !context.settings.find_unused_throws_types
+        || function_like_metadata.thrown_types.is_empty()
+        || !(function_like_metadata.kind.is_function() || function_like_metadata.kind.is_method())
+    {
+        return;
+    }
+
+    let FunctionLikeBody::Statements(statements, _) = body else {
+        return;
+    };
+
+    if let Some(method_metadata) = function_like_metadata.method_metadata.as_ref() {
+        let Some(class_like) = block_context.scope.get_class_like() else {
+            return;
+        };
+
+        let is_checked = method_metadata.visibility.is_private()
+            || method_metadata.is_final
+            || class_like.flags.is_final()
+            || context
+                .codebase
+                .method_is_overriding(class_like.name.as_bytes(), function_like_metadata.name.as_bytes());
+        if !is_checked {
+            return;
+        }
+    }
+
+    let throw_points = collect_uncaught_throw_points(statements, context, artifacts);
+    let function_name = match block_context.scope.get_class_like() {
+        Some(class_like) if function_like_metadata.kind.is_method() => {
+            format!("Method `{}::{}()`", class_like.original_name, function_like_metadata.original_name)
+        }
+        _ => format!("Function `{}()`", function_like_metadata.original_name),
+    };
+
+    for thrown_type in &function_like_metadata.thrown_types {
+        let expanded = expand_type_metadata(context, block_context, artifacts, function_like_metadata, thrown_type);
+        for thrown_atomic in expanded.types.iter() {
+            let TAtomic::Object(TObject::Named(thrown_object)) = thrown_atomic else {
+                continue;
+            };
+
+            if throw_points.iter().any(|throw_point| throw_point_can_be(context, throw_point, thrown_object.name)) {
+                continue;
+            }
+
+            let thrown_name = thrown_atomic.get_id();
+            context.collector.report_with_code(
+                IssueCode::UnusedThrowsType,
+                Issue::warning(format!(
+                    "{function_name} has `{thrown_name}` in its `@throws` tag, but never throws it."
+                ))
+                .with_annotation(Annotation::primary(
+                    function_like_metadata.name_span.unwrap_or(function_like_metadata.span),
+                ))
+                .with_annotation(
+                    Annotation::secondary(thrown_type.span).with_message(format!("`{thrown_name}` is never thrown")),
+                )
+                .with_help(format!("Remove `{thrown_name}` from the `@throws` tag, or throw it.")),
+            );
+        }
+    }
 }
 
 fn check_thrown_types<'ctx, A>(

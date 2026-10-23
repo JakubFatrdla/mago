@@ -42,7 +42,7 @@ use crate::error::AnalysisError;
 use crate::statement::analyze_statements;
 use crate::statement::r#try::dead_catch::DeadCatchCheck;
 
-mod dead_catch;
+pub(crate) mod dead_catch;
 
 impl<'ast, 'arena> Analyzable<'ast, 'arena> for Try<'arena> {
     fn analyze<'ctx, A>(

@@ -26,6 +26,7 @@ use mago_syntax::cst::Expression;
 use mago_syntax::cst::Foreach;
 use mago_syntax::cst::Function;
 use mago_syntax::cst::FunctionCall;
+use mago_syntax::cst::Hint;
 use mago_syntax::cst::IncludeConstruct;
 use mago_syntax::cst::IncludeOnceConstruct;
 use mago_syntax::cst::Instantiation;
@@ -45,6 +46,7 @@ use mago_syntax::cst::StaticMethodCall;
 use mago_syntax::cst::StringPart;
 use mago_syntax::cst::Throw;
 use mago_syntax::cst::Trait;
+use mago_syntax::cst::Try;
 use mago_syntax::cst::TryCatchClause;
 use mago_syntax::cst::UnaryPrefix;
 use mago_syntax::cst::UnaryPrefixOperator;
@@ -73,7 +75,8 @@ impl DeadCatchCheck {
     where
         A: Arena,
     {
-        let mut collector = ThrowPointCollector { throw_points: vec![], context, artifacts, throw_operand: None };
+        let mut collector =
+            ThrowPointCollector { throw_points: vec![], context, artifacts, throw_operand: None, filter_caught: false };
         for statement in statements {
             ThrowPointWalker.walk_statement(statement, &mut collector);
         }
@@ -114,20 +117,68 @@ impl DeadCatchCheck {
             }
         }
 
-        self.throw_points.retain_mut(|throw_point| match throw_point {
-            CallThrowPoint::AnyThrowable => !catches_throwable,
-            CallThrowPoint::Classes(thrown_classes) => {
-                thrown_classes.retain(|thrown_class| {
-                    !caught_classes
-                        .iter()
-                        .any(|caught_class| is_same_or_subclass(context, *thrown_class, *caught_class))
-                });
-
-                !thrown_classes.is_empty()
-            }
-        });
+        remove_caught_throw_points(context, &mut self.throw_points, &caught_classes);
 
         self.caught_above.extend(caught_classes);
+    }
+}
+
+pub(crate) fn collect_uncaught_throw_points<'arena, A>(
+    statements: &[Statement<'arena>],
+    context: &Context<'_, 'arena, A>,
+    artifacts: &AnalysisArtifacts,
+) -> Vec<CallThrowPoint>
+where
+    A: Arena,
+{
+    let mut collector =
+        ThrowPointCollector { throw_points: vec![], context, artifacts, throw_operand: None, filter_caught: true };
+    for statement in statements {
+        ThrowPointWalker.walk_statement(statement, &mut collector);
+    }
+
+    collector.throw_points
+}
+
+pub(crate) fn throw_point_can_be<A>(context: &Context<'_, '_, A>, throw_point: &CallThrowPoint, class: Word) -> bool
+where
+    A: Arena,
+{
+    can_be_caught_as(context, throw_point, class)
+}
+
+fn remove_caught_throw_points<A>(
+    context: &Context<'_, '_, A>,
+    throw_points: &mut Vec<CallThrowPoint>,
+    caught_classes: &[Word],
+) where
+    A: Arena,
+{
+    let catches_throwable = caught_classes.iter().any(|class| class.as_bytes().eq_ignore_ascii_case(THROWABLE));
+
+    throw_points.retain_mut(|throw_point| match throw_point {
+        CallThrowPoint::AnyThrowable => !catches_throwable,
+        CallThrowPoint::Classes(thrown_classes) => {
+            thrown_classes.retain(|thrown_class| {
+                !caught_classes.iter().any(|caught_class| is_same_or_subclass(context, *thrown_class, *caught_class))
+            });
+
+            !thrown_classes.is_empty()
+        }
+    });
+}
+
+fn get_hint_class_names<A>(context: &Context<'_, '_, A>, hint: &Hint<'_>, names: &mut Vec<Word>)
+where
+    A: Arena,
+{
+    match hint {
+        Hint::Identifier(identifier) => names.push(word(context.resolved_names.get(identifier))),
+        Hint::Union(union_hint) => {
+            get_hint_class_names(context, union_hint.left, names);
+            get_hint_class_names(context, union_hint.right, names);
+        }
+        _ => {}
     }
 }
 
@@ -194,6 +245,7 @@ where
     context: &'analysis Context<'ctx, 'arena, A>,
     artifacts: &'analysis AnalysisArtifacts,
     throw_operand: Option<(u32, u32)>,
+    filter_caught: bool,
 }
 
 impl<A> ThrowPointCollector<'_, '_, '_, A>
@@ -526,6 +578,30 @@ where
         collector: &mut ThrowPointCollector<'_, '_, 'arena, A>,
     ) {
         collector.add_any_throwable();
+    }
+
+    fn walk_try(&self, r#try: &'ast Try<'arena>, collector: &mut ThrowPointCollector<'_, '_, 'arena, A>) {
+        let outer_throw_points = std::mem::take(&mut collector.throw_points);
+        self.walk_block(&r#try.block, collector);
+        let mut try_throw_points = std::mem::replace(&mut collector.throw_points, outer_throw_points);
+
+        if collector.filter_caught {
+            for catch_clause in &r#try.catch_clauses {
+                let mut caught_classes = vec![];
+                get_hint_class_names(collector.context, &catch_clause.hint, &mut caught_classes);
+                remove_caught_throw_points(collector.context, &mut try_throw_points, &caught_classes);
+            }
+        }
+
+        collector.throw_points.extend(try_throw_points);
+
+        for catch_clause in &r#try.catch_clauses {
+            self.walk_block(&catch_clause.block, collector);
+        }
+
+        if let Some(finally_clause) = &r#try.finally_clause {
+            self.walk_block(&finally_clause.block, collector);
+        }
     }
 
     fn walk_closure(&self, _: &'ast Closure<'arena>, _: &mut ThrowPointCollector<'_, '_, 'arena, A>) {}

@@ -3341,6 +3341,11 @@ test_case!(
 );
 test_case!(instanceof_subclass_of_excluded_class);
 test_case!(type_assertion_on_call_result);
+test_case!(unused_throws_type, {
+    let mut s = crate::framework::default_test_settings();
+    s.find_unused_throws_types = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]
