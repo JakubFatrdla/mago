@@ -823,6 +823,7 @@ test_case!(trait_usage_errors);
 test_case!(trait_method_closure_self);
 test_case!(trait_method_satisfies_pseudo_method);
 test_case!(method_signature_parameter_count);
+test_case!(method_signature_callable_declaring_parameters);
 test_case!(method_signature_param_types);
 test_case!(method_signature_reports_every_incompatible_parameter);
 test_case!(method_signature_return_types);
