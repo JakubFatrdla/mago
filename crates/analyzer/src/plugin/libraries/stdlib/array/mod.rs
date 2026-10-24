@@ -2,6 +2,7 @@
 
 mod array_all;
 mod array_column;
+mod array_fill_keys;
 mod array_filter;
 mod array_flip;
 mod array_is_list;
@@ -14,6 +15,7 @@ mod range;
 
 pub use array_all::ArrayAllAssertionProvider;
 pub use array_column::ArrayColumnProvider;
+pub use array_fill_keys::ArrayFillKeysProvider;
 pub use array_filter::ArrayFilterProvider;
 pub use array_flip::ArrayFlipProvider;
 pub use array_is_list::ArrayIsListProvider;

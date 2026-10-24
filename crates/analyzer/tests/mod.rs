@@ -3394,6 +3394,11 @@ test_case!(read_offset_null_does_not_open_written_shape, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(array_fill_keys_over_literal_keys_is_a_shape, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

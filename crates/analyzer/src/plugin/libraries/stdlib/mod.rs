@@ -48,6 +48,7 @@ impl Plugin for StdlibPlugin {
         registry.register_function_provider(spl::IteratorToArrayProvider);
         registry.register_function_provider(array::ArrayColumnProvider);
         registry.register_function_provider(array::ArrayFilterProvider);
+        registry.register_function_provider(array::ArrayFillKeysProvider);
         registry.register_function_provider(array::ArrayFlipProvider);
         registry.register_function_provider(array::ArrayIsListProvider);
         registry.register_function_provider(array::ArrayKeyExistsProvider);
