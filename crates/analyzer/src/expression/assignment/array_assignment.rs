@@ -113,6 +113,7 @@ where
     let mut current_type = Rc::clone(&root_array_type);
 
     let root_var_id = get_block_expression_id(root_array_expression, context, block_context);
+    let writes_root_offset = array_target_expressions.len() == 1;
     let written_ids_under_mixed_root = root_array_type.is_mixed().then(|| {
         array_target_expressions
             .iter()
@@ -140,8 +141,6 @@ where
         target_was_narrowed,
     )?;
 
-    let root_is_string = root_array_type.has_string();
-
     let mut key_values = Vec::new();
 
     let index_type = current_index.map(|current_index| {
@@ -156,22 +155,17 @@ where
         }
     }
 
-    let root_array_type = Rc::unwrap_or_clone(root_array_type);
-    let root_array_type = if !key_values.is_empty() {
-        update_type_with_key_values(context, root_array_type, &current_type, &key_values, index_type.as_ref())
-    } else if !root_is_string {
-        update_array_assignment_child_type(
-            context,
-            block_context,
-            index_type.as_ref(),
-            &current_type,
-            root_array_type,
-            array_target.span(),
-            root_var_id.is_none_or(|id| !block_context.references_in_scope.contains_key(&id)),
-        )
-    } else {
-        root_array_type
+    let root_offset_write = RootOffsetWrite {
+        key_values,
+        index_type,
+        value_type: current_type,
+        target_span: array_target.span(),
+        mark_non_empty: root_var_id.is_none_or(|id| !block_context.references_in_scope.contains_key(&id)),
     };
+    let root_array_type = root_offset_write.apply(context, block_context, Rc::unwrap_or_clone(root_array_type));
+    let remembered_root_write = (writes_root_offset
+        && root_var_id.is_some_and(|id| block_context.locals.contains_key(&id)))
+    .then_some(&root_offset_write);
 
     if let Expression::Access(Access::Property(property_access)) = &root_array_expression {
         property_assignment::analyze(
@@ -186,6 +180,7 @@ where
             } else {
                 PropertyWriteKind::OffsetWrite
             },
+            remembered_root_write.filter(|_| !root_is_array_access_object),
         )?;
     } else if let Expression::Access(Access::StaticProperty(property_access)) = &root_array_expression
         && !root_is_array_access_object
@@ -197,6 +192,7 @@ where
             property_access,
             &root_array_type,
             root_var_id,
+            remembered_root_write,
         )?;
     }
 
@@ -285,6 +281,50 @@ where
     }
 
     Ok(())
+}
+
+/// The change an offset write makes to the array at its root. PHPStan checks a write under a property
+/// against the declared type of the property with this change, not against the value a write remembered.
+pub(crate) struct RootOffsetWrite {
+    key_values: Vec<TAtomic>,
+    index_type: Option<Rc<TUnion>>,
+    value_type: Rc<TUnion>,
+    target_span: mago_span::Span,
+    mark_non_empty: bool,
+}
+
+impl RootOffsetWrite {
+    pub(crate) fn apply<'ctx, A>(
+        &self,
+        context: &mut Context<'ctx, '_, A>,
+        block_context: &BlockContext<'ctx>,
+        root_type: TUnion,
+    ) -> TUnion
+    where
+        A: Arena,
+    {
+        if !self.key_values.is_empty() {
+            update_type_with_key_values(
+                context,
+                root_type,
+                &self.value_type,
+                &self.key_values,
+                self.index_type.as_ref(),
+            )
+        } else if root_type.has_string() {
+            root_type
+        } else {
+            update_array_assignment_child_type(
+                context,
+                block_context,
+                self.index_type.as_ref(),
+                &self.value_type,
+                root_type,
+                self.target_span,
+                self.mark_non_empty,
+            )
+        }
+    }
 }
 
 pub(crate) fn update_type_with_key_values<A>(

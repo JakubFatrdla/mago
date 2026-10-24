@@ -715,6 +715,7 @@ where
             &source_type,
             source_expression.map(mago_span::HasSpan::span),
             property_write_kind,
+            None,
         )?,
         Expression::Access(Access::StaticProperty(property_access)) => static_property_assignment::analyze(
             context,
@@ -723,6 +724,7 @@ where
             property_access,
             &source_type,
             target_expression_id,
+            None,
         )?,
         Expression::ArrayAccess(array_access) => {
             array_assignment::analyze(

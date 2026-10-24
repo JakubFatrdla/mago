@@ -3360,6 +3360,7 @@ test_case!(native_types_of_preg_subject_without_strict_types, {
     s
 });
 test_case!(callable_parameters_like_phpstan);
+test_case!(offset_write_checks_declared_property_type);
 
 #[test]
 #[cfg_attr(miri, ignore)]

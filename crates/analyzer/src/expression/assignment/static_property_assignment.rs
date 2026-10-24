@@ -21,6 +21,7 @@ use crate::code::IssueCode;
 use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
+use crate::expression::assignment::array_assignment::RootOffsetWrite;
 use crate::resolver::static_property::resolve_static_properties;
 use crate::utils::get_type_diff;
 
@@ -31,6 +32,7 @@ pub(crate) fn analyze<'ctx, 'arena, A>(
     property_access: &StaticPropertyAccess<'arena>,
     assigned_value_type: &TUnion,
     property_access_id: Option<Word>,
+    remembered_root_write: Option<&RootOffsetWrite>,
 ) -> Result<(), AnalysisError>
 where
     A: Arena,
@@ -68,13 +70,17 @@ where
         }
 
         let mut union_comparison_result = ComparisonResult::ignoring_shape_tails();
+        let checked_value_type = match remembered_root_write {
+            Some(root_write) => root_write.apply(context, block_context, resolved_property.property_type.clone()),
+            None => assigned_value_type.clone(),
+        };
 
         let type_match_found = union_comparator::is_contained_by(
             context.codebase,
-            assigned_value_type,
+            &checked_value_type,
             &resolved_property.property_type,
-            assigned_value_type.ignore_nullable_issues(),
-            assigned_value_type.ignore_falsable_issues(),
+            checked_value_type.ignore_nullable_issues(),
+            checked_value_type.ignore_falsable_issues(),
             false,
             &mut union_comparison_result,
         );
@@ -90,11 +96,11 @@ where
                     declaring_class_display,
                     resolved_property.property_name,
                     resolved_property.property_type.get_id(),
-                    assigned_value_type.get_id(),
+                    checked_value_type.get_id(),
                 )),
             );
 
-            if let Some(type_diff) = get_type_diff(context, &resolved_property.property_type, assigned_value_type) {
+            if let Some(type_diff) = get_type_diff(context, &resolved_property.property_type, &checked_value_type) {
                 issue = issue.with_note(type_diff);
             }
 
@@ -110,7 +116,7 @@ where
                             "{} expects {}, parent type {} provided",
                             property_access_id.map_or_else(|| "This property".to_string(), |a| a.to_string()),
                             resolved_property.property_type.get_id(),
-                            assigned_value_type.get_id(),
+                            checked_value_type.get_id(),
                         )),
                     ),
                 );
@@ -122,14 +128,17 @@ where
                             "{} expects {}, parent type {} provided",
                             property_access_id.map_or_else(|| "This property".to_string(), |a| a.to_string()),
                             resolved_property.property_type.get_id(),
-                            assigned_value_type.get_id(),
+                            checked_value_type.get_id(),
                         )),
                     ),
                 );
             }
         }
 
-        if type_match_found && let Some(replacement) = union_comparison_result.replacement_union_type {
+        if type_match_found
+            && remembered_root_write.is_none()
+            && let Some(replacement) = union_comparison_result.replacement_union_type
+        {
             widened_assigned_type = Some(match widened_assigned_type {
                 Some(existing) => add_union_type(existing, &replacement, context.codebase, CombinerOptions::default()),
                 None => replacement,

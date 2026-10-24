@@ -27,6 +27,7 @@ use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
 use crate::expression::assignment::PropertyWriteKind;
+use crate::expression::assignment::array_assignment::RootOffsetWrite;
 use crate::resolver::property::resolve_instance_properties;
 use crate::utils::expression::get_property_access_expression_id;
 use crate::utils::get_type_diff;
@@ -40,6 +41,7 @@ pub fn analyze<'ctx, 'arena, A>(
     assigned_value_type: &TUnion,
     assigned_value_span: Option<Span>,
     write_kind: PropertyWriteKind,
+    remembered_root_write: Option<&RootOffsetWrite>,
 ) -> Result<(), AnalysisError>
 where
     A: Arena,
@@ -84,19 +86,28 @@ where
         write_kind,
         PropertyWriteKind::OffsetWrite | PropertyWriteKind::Mutation | PropertyWriteKind::ArrayAccessMutation
     );
-    let accepted_by_receiver_union = assigned_value_reads_every_receiver
-        && resolution_result.properties.len() > 1
-        && union_comparator::is_contained_by(
-            context.codebase,
+    let accepted_by_receiver_union = assigned_value_reads_every_receiver && resolution_result.properties.len() > 1 && {
+        let receiver_union_type = resolution_result.properties.iter().fold(get_never(), |union, property| {
+            add_union_type(union, &property.property_type, context.codebase, CombinerOptions::default())
+        });
+        let checked_value_type = checked_offset_write(
+            context,
+            block_context,
+            remembered_root_write,
+            &receiver_union_type,
             assigned_value_type,
-            &resolution_result.properties.iter().fold(get_never(), |union, property| {
-                add_union_type(union, &property.property_type, context.codebase, CombinerOptions::default())
-            }),
-            assigned_value_type.ignore_nullable_issues(),
-            assigned_value_type.ignore_falsable_issues(),
+        );
+
+        union_comparator::is_contained_by(
+            context.codebase,
+            &checked_value_type,
+            &receiver_union_type,
+            checked_value_type.ignore_nullable_issues(),
+            checked_value_type.ignore_falsable_issues(),
             false,
             &mut ComparisonResult::ignoring_shape_tails(),
-        );
+        )
+    };
 
     for resolved_property in resolution_result.properties {
         has_read_clamp |= resolved_property.read_type.is_some();
@@ -127,19 +138,29 @@ where
         }
 
         let mut union_comparison_result = ComparisonResult::ignoring_shape_tails();
+        let checked_value_type = checked_offset_write(
+            context,
+            block_context,
+            remembered_root_write,
+            &resolved_property.property_type,
+            assigned_value_type,
+        );
 
         let type_match_found = accepted_by_receiver_union
             || union_comparator::is_contained_by(
                 context.codebase,
-                assigned_value_type,
+                &checked_value_type,
                 &resolved_property.property_type,
-                assigned_value_type.ignore_nullable_issues(),
-                assigned_value_type.ignore_falsable_issues(),
+                checked_value_type.ignore_nullable_issues(),
+                checked_value_type.ignore_falsable_issues(),
                 false,
                 &mut union_comparison_result,
             );
 
-        if type_match_found && let Some(replacement) = union_comparison_result.replacement_union_type {
+        if type_match_found
+            && remembered_root_write.is_none()
+            && let Some(replacement) = union_comparison_result.replacement_union_type
+        {
             widened_assigned_type = Some(match widened_assigned_type {
                 Some(existing) => add_union_type(existing, &replacement, context.codebase, CombinerOptions::default()),
                 None => replacement,
@@ -149,7 +170,7 @@ where
         if !type_match_found {
             let property_name = resolved_property.property_name;
             let property_type_str = resolved_property.property_type.get_id();
-            let assigned_type_str = assigned_value_type.get_id();
+            let assigned_type_str = checked_value_type.get_id();
 
             let mut issue;
 
@@ -188,7 +209,7 @@ where
                     )));
                 }
 
-                if let Some(type_diff) = get_type_diff(context, &resolved_property.property_type, assigned_value_type) {
+                if let Some(type_diff) = get_type_diff(context, &resolved_property.property_type, &checked_value_type) {
                     issue = issue.with_note(type_diff);
                 }
 
@@ -223,7 +244,7 @@ where
                     )));
                 }
 
-                if let Some(type_diff) = get_type_diff(context, &resolved_property.property_type, assigned_value_type) {
+                if let Some(type_diff) = get_type_diff(context, &resolved_property.property_type, &checked_value_type) {
                     issue = issue.with_note(type_diff);
                 }
 
@@ -321,6 +342,24 @@ where
     }
 
     Ok(())
+}
+
+/// The value an offset write checks: the declared type with the write applied when the root was
+/// remembered, else the assigned value.
+fn checked_offset_write<'ctx, A>(
+    context: &mut Context<'ctx, '_, A>,
+    block_context: &BlockContext<'ctx>,
+    remembered_root_write: Option<&RootOffsetWrite>,
+    declared_type: &TUnion,
+    assigned_value_type: &TUnion,
+) -> TUnion
+where
+    A: Arena,
+{
+    match remembered_root_write {
+        Some(root_write) => root_write.apply(context, block_context, declared_type.clone()),
+        None => assigned_value_type.clone(),
+    }
 }
 
 #[cfg(test)]
