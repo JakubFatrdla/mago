@@ -829,6 +829,7 @@ test_case!(non_object_property_access_per_name);
 test_case!(non_object_property_read_after_isset_per_name);
 test_case!(mixed_property_selector_reports_dynamic_name);
 test_case!(method_signature_reports_every_incompatible_parameter);
+test_case!(callback_beside_mixed_array_takes_mixed);
 test_case!(method_signature_return_types);
 test_case!(return_type_override_native_vs_docblock);
 test_case!(conditional_return_with_default_parameters);

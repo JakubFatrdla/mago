@@ -337,6 +337,13 @@ where
         }
     }
 
+    bind_templates_of_mixed_arrays_beside_callback(
+        &invocation.target,
+        &non_closure_arguments,
+        &analyzed_argument_types,
+        template_result,
+    );
+
     for (argument_offset, parameter) in &non_closure_arguments {
         let Some(argument) = invocation.arguments_source.get_argument(*argument_offset) else {
             continue;
@@ -2316,6 +2323,53 @@ fn extract_class_name_from_atomic(atomic: &TAtomic) -> Option<Word> {
         TAtomic::Object(TObject::Named(named)) => Some(named.name),
         TAtomic::Object(TObject::Enum(enum_obj)) => Some(enum_obj.name),
         _ => None,
+    }
+}
+
+fn bind_templates_of_mixed_arrays_beside_callback(
+    target: &InvocationTarget<'_>,
+    non_closure_arguments: &[(usize, Option<(usize, InvocationTargetParameter<'_>)>)],
+    analyzed_argument_types: &[Option<(Rc<TUnion>, Span)>],
+    template_result: &mut TemplateResult,
+) {
+    let types_callback_by_arrays = target.get_function_like_identifier().is_some_and(|id| {
+        matches!(id, FunctionLikeIdentifier::Function(name)
+            if name.as_bytes().eq_ignore_ascii_case(b"array_filter") || name.as_bytes().eq_ignore_ascii_case(b"array_map"))
+    });
+
+    if !types_callback_by_arrays {
+        return;
+    }
+
+    for (argument_offset, parameter) in non_closure_arguments {
+        let Some((_, parameter)) = parameter else {
+            continue;
+        };
+        let Some(parameter_type) = parameter.get_type() else {
+            continue;
+        };
+        if !parameter_type.is_array()
+            || !analyzed_argument_types
+                .get(*argument_offset)
+                .and_then(Option::as_ref)
+                .is_some_and(|(argument_type, _)| argument_type.is_mixed())
+        {
+            continue;
+        }
+
+        for template in parameter_type.get_template_types() {
+            let TAtomic::GenericParameter(template) = template else {
+                continue;
+            };
+
+            if !template_result.has_lower_bound(template.parameter_name, &template.defining_entity) {
+                template_result.add_lower_bound(
+                    template.parameter_name,
+                    template.defining_entity,
+                    (*template.constraint).clone(),
+                );
+            }
+        }
     }
 }
 

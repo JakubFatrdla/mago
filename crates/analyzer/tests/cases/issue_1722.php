@@ -7,7 +7,7 @@ $items = json_decode('[]', associative: true);
 
 $r = array_filter(
     $items, // @mago-expect analysis:mixed-argument
-    static fn(array $x): bool => !empty($x['name']),
+    static fn(array $x): bool => !empty($x['name']), // @mago-expect analysis:invalid-argument
 );
 
 var_dump($r);
