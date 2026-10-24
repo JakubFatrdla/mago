@@ -214,6 +214,7 @@ where
         result.reported_non_object_receiver = receiver_has_reported_non_object_part(object_type, reports_null);
 
         let mut object_atomics = object_type.types.iter().collect::<Vec<_>>();
+        let mut non_object_atomics = Vec::new();
 
         while let Some(object_atomic) = object_atomics.pop() {
             if let TAtomic::GenericParameter(TGenericParameter { constraint, .. }) = object_atomic {
@@ -263,7 +264,7 @@ where
                         result.has_invalid_target = true;
                     }
 
-                    report_call_on_non_object(context, object_atomic, object.span(), selector);
+                    non_object_atomics.push(object_atomic);
                     continue;
                 }
             };
@@ -392,10 +393,14 @@ where
                 result.resolved_methods.extend(resolved_methods);
             }
         }
+
+        if !non_object_atomics.is_empty() {
+            report_call_on_non_object(context, &non_object_atomics, object.span(), selector);
+        }
     } else {
         result.has_invalid_target = true;
         result.encountered_mixed = true;
-        report_call_on_non_object(context, &TAtomic::Mixed(TMixed::new()), object.span(), selector);
+        report_call_on_non_object(context, &[&TAtomic::Mixed(TMixed::new())], object.span(), selector);
     }
 
     crate::utils::casing::check_method_call_casing(context, &result.resolved_methods, selector);
@@ -974,13 +979,14 @@ where
 
 fn report_call_on_non_object<A>(
     context: &mut Context<'_, '_, A>,
-    atomic_type: &TAtomic,
+    atomic_types: &[&TAtomic],
     obj_span: Span,
     selector: &ClassLikeMemberSelector,
 ) where
     A: Arena,
 {
-    let type_str = atomic_type.get_id();
+    let type_str =
+        atomic_types.iter().rev().map(|atomic_type| atomic_type.get_id().to_string()).collect::<Vec<_>>().join("|");
     let issue_msg = match selector {
         ClassLikeMemberSelector::Identifier(id) => {
             format!("Attempting to call method `{}()` on a non-object type (`{type_str}`).", BytesDisplay(id.value))
@@ -989,7 +995,11 @@ fn report_call_on_non_object<A>(
     };
 
     context.collector.report_with_code(
-        if atomic_type.is_mixed() { IssueCode::MixedMethodAccess } else { IssueCode::InvalidMethodAccess },
+        if atomic_types.iter().all(|atomic_type| atomic_type.is_mixed()) {
+            IssueCode::MixedMethodAccess
+        } else {
+            IssueCode::InvalidMethodAccess
+        },
         Issue::error(issue_msg)
             .with_annotation(Annotation::primary(selector.span()).with_message("Cannot call method here"))
             .with_annotation(

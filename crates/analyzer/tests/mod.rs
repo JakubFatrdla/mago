@@ -3388,6 +3388,7 @@ test_case!(union_offset_reports_missing_index_once, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(non_object_receiver_reported_once_per_call);
 
 #[test]
 #[cfg_attr(miri, ignore)]
