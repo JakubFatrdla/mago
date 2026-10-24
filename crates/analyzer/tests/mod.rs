@@ -3389,6 +3389,11 @@ test_case!(union_offset_reports_missing_index_once, {
     s
 });
 test_case!(non_object_receiver_reported_once_per_call);
+test_case!(read_offset_null_does_not_open_written_shape, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

@@ -306,7 +306,7 @@ impl RootOffsetWrite {
         if !self.key_values.is_empty() {
             update_type_with_key_values(
                 context,
-                root_type,
+                without_error_path_null(root_type),
                 &self.value_type,
                 &self.key_values,
                 self.index_type.as_ref(),
@@ -325,6 +325,15 @@ impl RootOffsetWrite {
             )
         }
     }
+}
+
+fn without_error_path_null(mut root_type: TUnion) -> TUnion {
+    if root_type.has_error_path_null() && root_type.types.iter().any(|atomic_type| !atomic_type.is_null()) {
+        root_type.types.to_mut().retain(|atomic_type| !atomic_type.is_null());
+        root_type.set_error_path_null(false);
+    }
+
+    root_type
 }
 
 pub(crate) fn update_type_with_key_values<A>(
