@@ -1708,9 +1708,7 @@ mod tests {
             }
         "#},
         issues = [
-            IssueCode::ImpossibleCondition, // `if ($a > $b)` is never executed
             IssueCode::RedundantComparison, // `$a > $b` is always false
-            IssueCode::RedundantCondition, // `if ($a < $b)` is always executed
             IssueCode::RedundantComparison, // `$a < $b` is always true
         ],
     }
@@ -1766,7 +1764,6 @@ mod tests {
         "},
         issues = [
             IssueCode::RedundantComparison,
-            IssueCode::ImpossibleCondition,
             IssueCode::NoValue,
         ],
     }
@@ -2009,7 +2006,6 @@ mod tests {
         "},
         issues = [
             IssueCode::RedundantComparison, // `$input === 'text'` is always true
-            IssueCode::ImpossibleCondition, // `if ($input === 'text')` is never executed
             IssueCode::NoValue, // `takes_string($input)` is called with 'never' type
         ]
     }
@@ -2196,7 +2192,6 @@ mod tests {
         "#},
         issues = [
             IssueCode::RedundantComparison, // `$input === null` is always false in the else block
-            IssueCode::ImpossibleCondition, // `if ($input === null)` in the else block is never executed
         ]
     }
 

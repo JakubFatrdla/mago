@@ -11,14 +11,14 @@ enum MyEnum: int
     private const int PI = 3;
 }
 
-// @mago-expect analysis:redundant-comparison,redundant-condition
+// @mago-expect analysis:redundant-comparison
 if (MyEnum::TwoPi->value === 6) {
 }
 
-// @mago-expect analysis:redundant-comparison,redundant-condition
+// @mago-expect analysis:redundant-comparison
 if (MyEnum::Pi->value === 3) {
 }
 
-// @mago-expect analysis:redundant-comparison,redundant-condition
+// @mago-expect analysis:redundant-comparison
 if (MyEnum::PiMod2->value === 1) {
 }

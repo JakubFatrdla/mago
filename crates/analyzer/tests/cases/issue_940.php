@@ -13,7 +13,7 @@ function foo(array $contracts): array
     return array_filter($contracts, function (array $contract) {
         $validFromTimestamp = strtotime($contract['validFrom']);
         $validTo = $contract['validTo'] ?? 'foo';
-        // @mago-expect analysis:redundant-comparison,impossible-condition
+        // @mago-expect analysis:redundant-comparison
         if ($validTo === null) {
             return false;
         }

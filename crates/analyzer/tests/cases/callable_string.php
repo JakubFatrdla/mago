@@ -149,7 +149,6 @@ function test_callable_string_is_truthy(string $str): void
 
         // callable-string is always non-empty
         /** @mago-expect analysis:redundant-comparison */
-        /** @mago-expect analysis:redundant-condition */
         if ($str !== '') {
             echo 'always here too';
         }

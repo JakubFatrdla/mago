@@ -4,7 +4,7 @@ function postSort(): void
 {
     $a = ['b', 'a'];
 
-    if ($a[0] === 'a') { // @mago-expect analysis:redundant-comparison,impossible-condition
+    if ($a[0] === 'a') { // @mago-expect analysis:redundant-comparison
     }
 
     sort($a);
@@ -22,13 +22,13 @@ function multipleSorts(): void
 {
     $arr = [1, 2, 3];
 
-    if ($arr[0] === 2) { // @mago-expect analysis:redundant-comparison,impossible-condition
+    if ($arr[0] === 2) { // @mago-expect analysis:redundant-comparison
     }
 
-    if ($arr[1] === 3) { // @mago-expect analysis:redundant-comparison,impossible-condition
+    if ($arr[1] === 3) { // @mago-expect analysis:redundant-comparison
     }
 
-    if ($arr[2] === 1) { // @mago-expect analysis:redundant-comparison,impossible-condition
+    if ($arr[2] === 1) { // @mago-expect analysis:redundant-comparison
     }
 
     shuffle($arr);

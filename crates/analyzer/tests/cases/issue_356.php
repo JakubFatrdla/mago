@@ -12,7 +12,6 @@ enum Foo
 class Example
 {
     /**
-     * @mago-expect analysis:redundant-condition - the last elseif
      * @mago-expect analysis:redundant-comparison - `Foo::C === $foo`
      * @mago-expect analysis:unreachable-else-clause - the else block
      *
@@ -32,7 +31,6 @@ class Example
     }
 
     /**
-     * @mago-expect analysis:redundant-condition - the last if
      * @mago-expect analysis:redundant-comparison - `Foo::C === $foo`
      * @mago-expect analysis:unreachable-else-clause - the else block
      *
@@ -58,7 +56,6 @@ class Example
     /**
      * Two-case enum should also work.
      *
-     * @mago-expect analysis:redundant-condition - the elseif
      * @mago-expect analysis:redundant-comparison - `TwoCase::B === $val`
      * @mago-expect analysis:unreachable-else-clause - the else block
      *
@@ -78,7 +75,6 @@ class Example
     /**
      * No else clause - should not trigger the unreachable-else-clause error.
      *
-     * @mago-expect analysis:redundant-condition - the last elseif
      * @mago-expect analysis:redundant-comparison - `Foo::C === $foo`
      */
     public function processWithoutElse(Foo $foo): void

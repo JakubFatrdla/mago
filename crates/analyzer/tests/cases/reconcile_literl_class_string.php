@@ -31,7 +31,6 @@ final class D
 
 /**
  * @mago-expect analysis:redundant-comparison
- * @mago-expect analysis:impossible-condition
  */
 function reconcile_literl_class_string(A|B|C $aOrBOrC): C
 {

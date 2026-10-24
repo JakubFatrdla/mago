@@ -8,7 +8,6 @@ function not_okay(): void
         $a = [mt_rand(0, max: 57)];
         foreach ($a as $k => $v) {
             /** @mago-expect analysis:redundant-comparison */
-            /** @mago-expect analysis:impossible-condition */
             if ($v === false) {
                 unset($a[$k]);
             }

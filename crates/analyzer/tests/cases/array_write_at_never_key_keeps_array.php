@@ -8,7 +8,7 @@ function never_written(): array
     $rows = [];
     $key = null;
 
-    /** @mago-expect analysis:redundant-comparison,impossible-condition */
+    /** @mago-expect analysis:redundant-comparison */
     if ($key !== null) {
         $rows[$key]['to'] = 'x';
     }

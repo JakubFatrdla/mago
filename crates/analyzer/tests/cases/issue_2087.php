@@ -7,19 +7,19 @@ declare(strict_types=1);
  */
 function pos(int $i): void
 {
-    // @mago-expect analysis:redundant-comparison,redundant-condition
+    // @mago-expect analysis:redundant-comparison
     if ($i > 0) {
     }
-    // @mago-expect analysis:redundant-comparison,impossible-condition
+    // @mago-expect analysis:redundant-comparison
     if ($i === -1) {
     }
-    // @mago-expect analysis:redundant-comparison,redundant-condition
+    // @mago-expect analysis:redundant-comparison
     if ($i >= 1) {
     }
-    // @mago-expect analysis:redundant-comparison,redundant-condition
+    // @mago-expect analysis:redundant-comparison
     if ($i !== -1) {
     }
-    // @mago-expect analysis:redundant-comparison,redundant-condition
+    // @mago-expect analysis:redundant-comparison
     if ($i !== -1) {
     }
 }
@@ -29,19 +29,19 @@ function pos(int $i): void
  */
 function neg(int $i): void
 {
-    // @mago-expect analysis:redundant-comparison,redundant-condition
+    // @mago-expect analysis:redundant-comparison
     if ($i < 0) {
     }
-    // @mago-expect analysis:redundant-comparison,impossible-condition
+    // @mago-expect analysis:redundant-comparison
     if ($i === 1) {
     }
-    // @mago-expect analysis:redundant-comparison,redundant-condition
+    // @mago-expect analysis:redundant-comparison
     if ($i <= 1) {
     }
-    // @mago-expect analysis:redundant-comparison,redundant-condition
+    // @mago-expect analysis:redundant-comparison
     if ($i !== 1) {
     }
-    // @mago-expect analysis:redundant-comparison,redundant-condition
+    // @mago-expect analysis:redundant-comparison
     if ($i !== 1) {
     }
 }

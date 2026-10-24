@@ -10,7 +10,6 @@ function test(): string
     }
 
     /** @mago-expect analysis:redundant-comparison */
-    /** @mago-expect analysis:impossible-condition */
     if (0 == $c) {
         $ti = 'leer';
     }
@@ -26,7 +25,6 @@ function test_swapped(): string
     }
 
     /** @mago-expect analysis:redundant-comparison */
-    /** @mago-expect analysis:impossible-condition */
     if ($c == 0) {
         $ti = 'leer';
     }
@@ -42,7 +40,6 @@ function test_not_equal(): string
     }
 
     /** @mago-expect analysis:redundant-comparison */
-    /** @mago-expect analysis:redundant-condition */
     if ($c != 0) {
         return 'nonzero';
     }
@@ -58,7 +55,6 @@ function test_not_equal_ang(): string
     }
 
     /** @mago-expect analysis:redundant-comparison */
-    /** @mago-expect analysis:redundant-condition */
     if ($c <> 0) {
         return 'nonzero';
     }

@@ -170,7 +170,10 @@ where
         if_body_context
     };
 
-    if check_for_paradoxes && let Some(condition_type) = artifacts.get_rc_expression_type(condition) {
+    if check_for_paradoxes
+        && !is_reported_as_comparison(condition)
+        && let Some(condition_type) = artifacts.get_rc_expression_type(condition)
+    {
         handle_paradoxical_condition(context, condition, condition_type);
     }
 
@@ -292,6 +295,16 @@ fn get_definitely_evaluated_expression_inside_if<'ast, 'arena>(
     }
 
     condition
+}
+
+fn is_reported_as_comparison(condition: &Expression<'_>) -> bool {
+    match condition {
+        Expression::Parenthesized(parenthesized) => is_reported_as_comparison(parenthesized.expression),
+        Expression::Binary(binary) => {
+            binary.operator.is_comparison() && !matches!(binary.operator, BinaryOperator::Spaceship(_))
+        }
+        _ => false,
+    }
 }
 
 pub fn handle_paradoxical_condition<T, A>(context: &mut Context<'_, '_, A>, expression: &T, expression_type: &TUnion)

@@ -30,12 +30,10 @@ function test(): void
         $y = (int) $row['year'];
 
         /** @mago-expect analysis:redundant-comparison */
-        /** @mago-expect analysis:redundant-condition */
         if ($r !== false) {
             echo "{$oid} in {$r}\n";
         }
         /** @mago-expect analysis:redundant-comparison */
-        /** @mago-expect analysis:redundant-condition */
         if ($s !== null) {
             echo "{$oid} in {$r}\n";
         }

@@ -2,30 +2,30 @@
 
 declare(strict_types=1);
 
-// @mago-expect analysis:redundant-comparison,redundant-condition
+// @mago-expect analysis:redundant-comparison
 if ([1] === [1]) {
 }
 
-// @mago-expect analysis:redundant-comparison,redundant-condition
+// @mago-expect analysis:redundant-comparison
 if (['a' => 'b'] === ['a' => 'b']) {
 }
 
-// @mago-expect analysis:redundant-comparison,redundant-condition
+// @mago-expect analysis:redundant-comparison
 if ([] === []) {
 }
 
-// @mago-expect analysis:redundant-comparison,redundant-condition
+// @mago-expect analysis:redundant-comparison
 if ([1, 2, [3]] === [1, 2, [3]]) {
 }
 
-// @mago-expect analysis:redundant-comparison,redundant-condition
+// @mago-expect analysis:redundant-comparison
 if (['a' => 1, 'b' => ['c' => 2, 'd' => 3]] === ['a' => 1, 'b' => ['c' => 2, 'd' => 3]]) {
 }
 
 $left = [1];
 $right = [1];
 
-// @mago-expect analysis:redundant-comparison,redundant-condition
+// @mago-expect analysis:redundant-comparison
 if ($left === $right) {
 }
 

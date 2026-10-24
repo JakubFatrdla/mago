@@ -34,7 +34,7 @@ final class UntypedPropertyMinifier
     public function typedIsStillReported(): void
     {
         $this->typed = "\n";
-        if ($this->typed !== null) { // @mago-expect analysis:redundant-comparison,redundant-condition
+        if ($this->typed !== null) { // @mago-expect analysis:redundant-comparison
             $this->step();
         }
     }
