@@ -1709,28 +1709,6 @@ where
         return Ok((false, get_arraykey(), get_never()));
     }
 
-    if iterator_type.is_nullable() && !iterator_type.ignore_nullable_issues() && !iterator_type.has_error_path_null() {
-        context.collector.report_with_code(
-            IssueCode::PossiblyNullIterator,
-            Issue::warning(format!("Expression being iterated (type `{}`) might be `null` at runtime.", iterator_type.get_id()))
-                .with_annotation(Annotation::primary(iterator.span()).with_message("This might be `null`"))
-                .with_annotation(Annotation::secondary(foreach.span()).with_message("This `foreach` might not be executed"))
-                .with_note("If this expression is `null`, it will be treated as an empty array, and the loop body will not execute.")
-                .with_help("Consider checking for `null` before the loop if this is not intended."),
-        );
-    }
-
-    if iterator_type.is_falsable() && !iterator_type.ignore_falsable_issues() {
-        context.collector.report_with_code(
-            IssueCode::PossiblyFalseIterator,
-            Issue::warning(format!("Expression being iterated (type `{}`) might be `false` at runtime.", iterator_type.get_id()))
-                .with_annotation(Annotation::primary(iterator.span()).with_message("This might be `false`"))
-                .with_annotation(Annotation::secondary(foreach.span()).with_message("This `foreach` might not be executed"))
-                .with_note("If this expression is `false`, it will be treated as an empty array, and the loop body will not execute.")
-                .with_help("Consider checking for `false` or truthiness before the loop if this is not intended."),
-        );
-    }
-
     let mut always_enters_loop = true;
     let mut key_type = None;
     let mut value_type = None;
@@ -1930,7 +1908,28 @@ where
 
         return Ok((false, key_type.unwrap_or_else(get_mixed), value_type.unwrap_or_else(get_mixed)));
     }
-    // every atomic in the iterator type is iterable; no diagnostic needed
+    // every atomic in the iterator type is iterable
+    if iterator_type.is_nullable() && !iterator_type.ignore_nullable_issues() && !iterator_type.has_error_path_null() {
+        context.collector.report_with_code(
+            IssueCode::PossiblyNullIterator,
+            Issue::warning(format!("Expression being iterated (type `{}`) might be `null` at runtime.", iterator_type.get_id()))
+                .with_annotation(Annotation::primary(iterator.span()).with_message("This might be `null`"))
+                .with_annotation(Annotation::secondary(foreach.span()).with_message("This `foreach` might not be executed"))
+                .with_note("If this expression is `null`, it will be treated as an empty array, and the loop body will not execute.")
+                .with_help("Consider checking for `null` before the loop if this is not intended."),
+        );
+    }
+
+    if iterator_type.is_falsable() && !iterator_type.ignore_falsable_issues() {
+        context.collector.report_with_code(
+            IssueCode::PossiblyFalseIterator,
+            Issue::warning(format!("Expression being iterated (type `{}`) might be `false` at runtime.", iterator_type.get_id()))
+                .with_annotation(Annotation::primary(iterator.span()).with_message("This might be `false`"))
+                .with_annotation(Annotation::secondary(foreach.span()).with_message("This `foreach` might not be executed"))
+                .with_note("If this expression is `false`, it will be treated as an empty array, and the loop body will not execute.")
+                .with_help("Consider checking for `false` or truthiness before the loop if this is not intended."),
+        );
+    }
 
     Ok((always_enters_loop, key_type.unwrap_or_else(get_mixed), value_type.unwrap_or_else(get_mixed)))
 }

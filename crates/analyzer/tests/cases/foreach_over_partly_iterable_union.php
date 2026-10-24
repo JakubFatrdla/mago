@@ -10,7 +10,7 @@ namespace ForeachOverPartlyIterableUnion;
 function keys($values): int
 {
     $sum = 0;
-    // @mago-expect analysis:possibly-null-iterator,possibly-invalid-iterator
+    // @mago-expect analysis:possibly-invalid-iterator
     foreach ($values as $key => $value) {
         $sum += strlen($key) + $value;
     }
