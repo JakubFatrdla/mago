@@ -367,7 +367,7 @@ fn report_memoized_receiver<'ctx, 'ast, 'arena, A>(
     let receiver_type = match artifacts.read_memoized_property_receivers.get(&property_access_id) {
         Some(recorded_type) if !block_context.flags.inside_isset() => Rc::clone(recorded_type),
         Some(_) => return,
-        None if !is_null_safe && matches!(property_selector, ClassLikeMemberSelector::Identifier(_)) => {
+        None if !is_null_safe && !property_names.is_empty() => {
             let Some(current_type) = current_receiver_type else {
                 return;
             };
