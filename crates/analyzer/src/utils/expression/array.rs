@@ -1,5 +1,6 @@
 //! TODO(azjezz): this whole file needs a re-write. it is a mess (ref #1569)
 
+use foldhash::HashSet;
 use mago_allocator::Arena;
 use std::borrow::Cow;
 
@@ -51,6 +52,7 @@ use mago_codex::ttype::template::inferred_type_replacer;
 use mago_codex::ttype::union::TUnion;
 use mago_reporting::Annotation;
 use mago_reporting::Issue;
+use mago_reporting::IssueCollection;
 use mago_span::HasSpan;
 use mago_span::Span;
 use mago_syntax::cst::ArrayAccess;
@@ -218,6 +220,7 @@ where
     let mut reported_undefined_key = false;
     let mut has_null_or_false_container = false;
     let mut string_value_rejecting_write = None;
+    context.collector.start_recording();
     while let Some(atomic_var_type) = array_atomic_types.pop() {
         if let TAtomic::Derived(TDerived::Intersection(intersection)) = atomic_var_type {
             array_atomic_types.extend(intersection.get_base_type().types.iter());
@@ -666,7 +669,25 @@ where
         None => get_mixed(),
     };
 
+    let issues = context.collector.finish_recording().unwrap_or_default();
+    context.collector.extend(one_possibly_undefined_index_per_access(issues));
+
     (access_type, reports_invalid_index || string_rejects_write)
+}
+
+fn one_possibly_undefined_index_per_access(issues: IssueCollection) -> impl Iterator<Item = Issue> {
+    let mut reported_spans = HashSet::default();
+
+    issues.into_iter().filter(move |issue| {
+        !is_possibly_undefined_index(issue) || issue.primary_span().is_none_or(|span| reported_spans.insert(span))
+    })
+}
+
+fn is_possibly_undefined_index(issue: &Issue) -> bool {
+    issue.code.as_deref().is_some_and(|code| {
+        code == IssueCode::PossiblyUndefinedIntArrayIndex.as_str()
+            || code == IssueCode::PossiblyUndefinedStringArrayIndex.as_str()
+    })
 }
 
 fn check_index_of_auto_vivified_array<A>(

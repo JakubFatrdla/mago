@@ -3383,6 +3383,11 @@ test_case!(keyed_offset_finding_starts_at_the_access, {
     s
 });
 test_case!(coalesce_throw_reports_left_side_once);
+test_case!(union_offset_reports_missing_index_once, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]
