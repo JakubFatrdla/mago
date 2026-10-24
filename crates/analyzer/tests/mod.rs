@@ -3366,6 +3366,12 @@ test_case!(negated_comparison_with_unknown_value_keeps_offset_read, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(unreachable_else_by_docblock_is_analyzed, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s.treat_docblock_types_as_certain = false;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

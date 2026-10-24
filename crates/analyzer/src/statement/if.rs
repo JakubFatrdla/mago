@@ -1,6 +1,7 @@
 use mago_allocator::Arena;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::str::FromStr;
 
 use foldhash::HashSet;
 
@@ -1028,6 +1029,15 @@ where
     Ok(())
 }
 
+/// PHPStan checks nothing on the `never` a condition narrows a variable to.
+fn is_issue_on_never_value(issue: &Issue) -> bool {
+    match issue.code.as_deref().and_then(|code| IssueCode::from_str(code).ok()) {
+        Some(IssueCode::NoValue | IssueCode::ImpossibleAssignment) => true,
+        Some(IssueCode::InvalidClassStringExpression) => issue.message.starts_with("Expression of type `never`"),
+        _ => false,
+    }
+}
+
 fn analyze_else_statements<'ctx, 'arena, A>(
     context: &mut Context<'ctx, 'arena, A>,
     if_scope: &mut IfScope<'ctx>,
@@ -1140,6 +1150,16 @@ where
                     )
                     .with_help("Remove this `else` clause or adjust the preceding conditions."),
             );
+        }
+
+        if let Some(statements) = else_statements
+            && context.analyzes_unreachable_else(else_span)
+        {
+            let (result, issues) = context.record(|context| {
+                analyze_body_statements(statements, context, &mut else_block_context.clone(), artifacts)
+            });
+            result?;
+            context.collector.extend(issues.into_iter().filter(|issue| !is_issue_on_never_value(issue)));
         }
 
         if_scope.final_actions.insert(ControlAction::None);

@@ -75,7 +75,8 @@ where
     /// Types come from native declarations only, like PHPStan's scope with promoted native types.
     pub(super) native_types_only: bool,
     pub(super) strict_types: bool,
-    /// `if` conditions the native pass found always false; `None` when docblock types are certain.
+    /// `if` conditions and `else` clauses the native pass found always false or unreachable; `None` when
+    /// docblock types are certain.
     pub(crate) natively_false_conditions: Option<HashSet<Span>>,
     class_initializers: WordMap<WordSet>,
     pub(crate) constructor_initialized_properties: WordMap<WordSet>,
@@ -160,6 +161,19 @@ where
             }
             Some(conditions) => conditions.contains(&condition_span),
             None => true,
+        }
+    }
+
+    /// PHPStan analyses an `else` the docblock types make unreachable; under `treatPhpDocTypesAsCertain:
+    /// false` Mago does so when the native types leave it reachable.
+    pub(crate) fn analyzes_unreachable_else(&mut self, else_span: Span) -> bool {
+        match self.natively_false_conditions.as_mut() {
+            Some(clauses) if self.native_types_only => {
+                clauses.insert(else_span);
+                false
+            }
+            Some(clauses) => !clauses.contains(&else_span),
+            None => false,
         }
     }
 
