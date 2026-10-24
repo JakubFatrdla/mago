@@ -51,6 +51,7 @@ use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
 use crate::external::PropertyAccessKind;
 use crate::resolver::class_name::report_non_existent_class_like;
+use crate::resolver::selector::ResolvedSelector;
 use crate::resolver::selector::resolve_member_selector;
 use crate::utils::deprecation::report_deprecated_property;
 use crate::utils::names::display_class_like_name;
@@ -161,6 +162,22 @@ where
     })
 }
 
+fn report_mixed_member_selector<A>(context: &mut Context<'_, '_, A>, selector_span: Span)
+where
+    A: Arena,
+{
+    context.collector.report_with_code(
+        IssueCode::StringMemberSelector,
+        Issue::warning(
+            "This member selector uses a `mixed` value; its specific value cannot be statically determined.",
+        )
+        .with_annotation(
+            Annotation::primary(selector_span).with_message("This expression (type `mixed`) provides the member name"),
+        )
+        .with_note("While this may work at runtime, its existence and type cannot be checked statically."),
+    );
+}
+
 /// Resolves all possible instance properties from an object expression and a member selector.
 pub fn resolve_instance_properties<'ctx, 'ast, 'arena, A>(
     context: &mut Context<'ctx, 'arena, A>,
@@ -189,6 +206,9 @@ where
             .is_some_and(|object_type| is_universal_object_crate(context, object_type));
     let selectors =
         resolve_member_selector(context, block_context, artifacts, property_selector, true, reports_string_selector)?;
+    if reports_string_selector && selectors.contains(&ResolvedSelector::Mixed) {
+        report_mixed_member_selector(context, property_selector.span());
+    }
 
     let Some(object_type) = artifacts.get_rc_expression_type(object_expression).cloned() else {
         return Ok(result);

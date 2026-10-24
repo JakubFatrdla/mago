@@ -964,6 +964,7 @@ mod tests {
         issues = [
             IssueCode::UndefinedVariable,
             IssueCode::InvalidMemberSelector,
+            IssueCode::StringMemberSelector,
             IssueCode::MixedReturnStatement,
         ]
     }

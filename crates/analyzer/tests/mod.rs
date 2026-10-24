@@ -825,6 +825,7 @@ test_case!(trait_method_satisfies_pseudo_method);
 test_case!(method_signature_parameter_count);
 test_case!(method_signature_callable_declaring_parameters);
 test_case!(method_signature_param_types);
+test_case!(mixed_property_selector_reports_dynamic_name);
 test_case!(method_signature_reports_every_incompatible_parameter);
 test_case!(method_signature_return_types);
 test_case!(return_type_override_native_vs_docblock);
