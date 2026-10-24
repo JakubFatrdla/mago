@@ -1,6 +1,4 @@
-use std::borrow::Cow;
 use std::rc::Rc;
-use std::slice::from_ref;
 
 use mago_allocator::Arena;
 use mago_codex::assertion::Assertion;
@@ -12,6 +10,7 @@ use mago_codex::ttype::expander::expand_union;
 use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::get_never;
 use mago_codex::ttype::get_null;
+use mago_codex::ttype::union::TUnion;
 use mago_span::HasSpan;
 use mago_span::Span;
 use mago_syntax::cst::Access;
@@ -360,6 +359,10 @@ fn report_memoized_receiver<'ctx, 'ast, 'arena, A>(
         );
     }
 
+    let property_names = memoized_property_names(
+        property_selector,
+        memoized_selector_type(context, block_context, artifacts, property_selector).as_deref(),
+    );
     let current_receiver_type = block_context.locals.get(&object_id);
     let receiver_type = match artifacts.read_memoized_property_receivers.get(&property_access_id) {
         Some(recorded_type) if !block_context.flags.inside_isset() => Rc::clone(recorded_type),
@@ -399,8 +402,45 @@ fn report_memoized_receiver<'ctx, 'ast, 'arena, A>(
                 }
             }
             TAtomic::Object(_) | TAtomic::GenericParameter(_) | TAtomic::Callable(_) => {}
-            _ => report_access_on_non_object(context, atomic, property_selector, object.span()),
+            _ => report_access_on_non_object(context, atomic, &property_names, property_selector, object.span()),
         }
+    }
+}
+
+fn memoized_selector_type<A>(
+    context: &Context<'_, '_, A>,
+    block_context: &BlockContext<'_>,
+    artifacts: &AnalysisArtifacts,
+    property_selector: &ClassLikeMemberSelector<'_>,
+) -> Option<Rc<TUnion>>
+where
+    A: Arena,
+{
+    match property_selector {
+        ClassLikeMemberSelector::Variable(variable) => {
+            get_variable_id(variable).and_then(|id| block_context.locals.get(&word(id)).cloned())
+        }
+        ClassLikeMemberSelector::Expression(selector) => {
+            artifacts.get_rc_expression_type(selector.expression).cloned().or_else(|| {
+                get_block_expression_id(selector.expression, context, block_context)
+                    .and_then(|id| block_context.locals.get(&id).cloned())
+            })
+        }
+        _ => None,
+    }
+}
+
+fn memoized_property_names(
+    property_selector: &ClassLikeMemberSelector<'_>,
+    selector_type: Option<&TUnion>,
+) -> Vec<Word> {
+    match property_selector {
+        ClassLikeMemberSelector::Identifier(ident) => vec![concat_word!(b"$", ident.value)],
+        _ => selector_type
+            .iter()
+            .flat_map(|union| union.types.iter())
+            .filter_map(|atomic| atomic.get_literal_string_value().map(|name| concat_word!(b"$", name)))
+            .collect(),
     }
 }
 
@@ -427,34 +467,8 @@ where
         }
     }
 
-    let selector_type = match property_selector {
-        ClassLikeMemberSelector::Variable(variable) => {
-            get_variable_id(variable).and_then(|id| block_context.locals.get(&word(id)).cloned())
-        }
-        ClassLikeMemberSelector::Expression(selector) => {
-            artifacts.get_rc_expression_type(selector.expression).cloned().or_else(|| {
-                get_block_expression_id(selector.expression, context, block_context)
-                    .and_then(|id| block_context.locals.get(&id).cloned())
-            })
-        }
-        _ => None,
-    };
-
-    let direct_name = match property_selector {
-        ClassLikeMemberSelector::Identifier(ident) => Some(concat_word!(b"$", ident.value)),
-        _ => None,
-    };
-
-    let names: Cow<'_, [Word]> = match direct_name.as_ref() {
-        Some(name) => Cow::Borrowed(from_ref(name)),
-        None => Cow::Owned(
-            selector_type
-                .iter()
-                .flat_map(|union| union.types.iter())
-                .filter_map(|atomic| atomic.get_literal_string_value().map(|name| concat_word!(b"$", name)))
-                .collect(),
-        ),
-    };
+    let selector_type = memoized_selector_type(context, block_context, artifacts, property_selector);
+    let names = memoized_property_names(property_selector, selector_type.as_deref());
 
     if artifacts.editor.is_some() {
         let receiver_type = super::saved_receiver_type(context, block_context, artifacts, object);

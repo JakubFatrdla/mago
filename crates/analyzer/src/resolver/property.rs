@@ -3,7 +3,6 @@ use std::borrow::Cow;
 use foldhash::HashMap;
 use indexmap::IndexMap;
 use mago_allocator::Arena;
-use mago_bytes::BytesDisplay;
 use mago_bytes::trim_start_byte;
 use mago_codex::identifier::method::MethodIdentifier;
 use mago_codex::metadata::CodebaseMetadata;
@@ -286,7 +285,13 @@ where
                 }
 
                 if checks_receiver {
-                    report_access_on_non_object(context, object_atomic, property_selector, object_expression.span());
+                    report_access_on_non_object(
+                        context,
+                        object_atomic,
+                        &property_names,
+                        property_selector,
+                        object_expression.span(),
+                    );
                 }
 
                 continue;
@@ -1782,26 +1787,25 @@ pub(crate) fn report_redundant_nullsafe<'arena, A>(
 pub(crate) fn report_access_on_non_object<A>(
     context: &mut Context<'_, '_, A>,
     atomic_type: &TAtomic,
+    property_names: &[Word],
     selector: &ClassLikeMemberSelector,
     object_span: Span,
 ) where
     A: Arena,
 {
     let type_str = atomic_type.get_id();
-    let issue_msg = match selector {
-        ClassLikeMemberSelector::Identifier(id) => {
-            format!("Attempting to access property `${}` on a non-object type (`{type_str}`).", BytesDisplay(id.value))
-        }
-        _ => format!("Attempting to access a property on a non-object type (`{type_str}`)."),
-    };
-    context.collector.report_with_code(
-        if atomic_type.is_mixed() { IssueCode::MixedPropertyAccess } else { IssueCode::InvalidPropertyAccess },
-        Issue::error(issue_msg)
+    for property_name in property_names {
+        context.collector.report_with_code(
+            if atomic_type.is_mixed() { IssueCode::MixedPropertyAccess } else { IssueCode::InvalidPropertyAccess },
+            Issue::error(format!(
+                "Attempting to access property `{property_name}` on a non-object type (`{type_str}`)."
+            ))
             .with_annotation(Annotation::primary(selector.span()).with_message("Cannot access property here"))
             .with_annotation(
                 Annotation::secondary(object_span).with_message(format!("This expression has type `{type_str}`")),
             ),
-    );
+        );
+    }
 }
 
 fn report_ambiguous_access<A>(
