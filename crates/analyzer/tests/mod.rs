@@ -3361,6 +3361,11 @@ test_case!(native_types_of_preg_subject_without_strict_types, {
 });
 test_case!(callable_parameters_like_phpstan);
 test_case!(offset_write_checks_declared_property_type);
+test_case!(negated_comparison_with_unknown_value_keeps_offset_read, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

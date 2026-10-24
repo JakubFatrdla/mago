@@ -21,6 +21,7 @@ use mago_codex::ttype::atomic::array::list::TList;
 use mago_codex::ttype::atomic::generic::TGenericParameter;
 use mago_codex::ttype::atomic::mixed::TMixed;
 use mago_codex::ttype::atomic::object::TObject;
+use mago_codex::ttype::atomic::object::r#enum::TEnum;
 use mago_codex::ttype::atomic::scalar::TScalar;
 use mago_codex::ttype::combiner::CombinerOptions;
 use mago_codex::ttype::expander;
@@ -445,9 +446,12 @@ pub fn reconcile_keyed_types<'ctx, A>(
             changed_var_ids.insert(*key);
         }
 
+        let leaves_type_as_is = leaves_type_unspecified(new_type_parts, before_adjustment.as_deref())
+            && (!type_changed
+                || before_adjustment.as_deref().is_some_and(|before| drops_only_error_path_null(before, &result_type)));
         if has_inverted_isset && is_offset_of_mixed_or_call(block_context, key_str) {
             block_context.locals.remove(key);
-        } else if !has_object_array_access {
+        } else if !has_object_array_access && !leaves_type_as_is {
             block_context.locals.insert(*key, Rc::new(result_type));
         }
 
@@ -1625,6 +1629,34 @@ where
     );
 
     Some(property_type)
+}
+
+/// Like PHPStan, which specifies no type for `$x` in these conditions, so a remembered offset read
+/// of `$x` stays unnarrowed: `$x !== $y`, `$x != $y` and `!in_array($x, $list)` where `$y` or the
+/// list values have no finite type, and `$x === $y` where `$x` has only finite types and `$y` none.
+fn leaves_type_unspecified(assertions: &AssertionSet, before: Option<&TUnion>) -> bool {
+    assertions.iter().flatten().all(|assertion| match assertion {
+        Assertion::IsNotIdentical(atomic) | Assertion::IsNotEqual(atomic) => !is_finite_atomic(atomic),
+        Assertion::NotInArray(values) => !values.types.iter().any(is_finite_atomic),
+        Assertion::IsIdentical(atomic) => {
+            !is_finite_atomic(atomic) && before.is_some_and(|before| before.types.iter().all(is_finite_atomic))
+        }
+        _ => false,
+    })
+}
+
+fn drops_only_error_path_null(before: &TUnion, after: &TUnion) -> bool {
+    before.has_error_path_null()
+        && after.types.len() + 1 == before.types.len()
+        && before.types.iter().all(|atomic| atomic.is_null() || after.types.contains(atomic))
+}
+
+fn is_finite_atomic(atomic: &TAtomic) -> bool {
+    atomic.is_literal()
+        || matches!(
+            atomic,
+            TAtomic::Scalar(TScalar::Bool(_)) | TAtomic::Object(TObject::Enum(TEnum { case: Some(_), .. }))
+        )
 }
 
 fn is_null_assertion(assertion: &Assertion) -> bool {
