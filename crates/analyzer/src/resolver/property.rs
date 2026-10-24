@@ -572,7 +572,7 @@ fn declared_properties<'codebase>(
 }
 
 /// The type PHPStan's native scope reads: the property's declaration, `mixed` for an untyped or magic property.
-fn get_native_property_type(codebase: &CodebaseMetadata, resolved_property: &ResolvedProperty) -> TUnion {
+pub(crate) fn get_native_property_type(codebase: &CodebaseMetadata, resolved_property: &ResolvedProperty) -> TUnion {
     let declaration = resolved_property
         .declaring_class_id
         .filter(|_| !resolved_property.is_magic)

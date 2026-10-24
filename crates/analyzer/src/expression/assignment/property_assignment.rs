@@ -28,6 +28,8 @@ use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
 use crate::expression::assignment::PropertyWriteKind;
 use crate::expression::assignment::array_assignment::RootOffsetWrite;
+use crate::resolver::property::ResolvedProperty;
+use crate::resolver::property::get_native_property_type;
 use crate::resolver::property::resolve_instance_properties;
 use crate::utils::expression::get_property_access_expression_id;
 use crate::utils::get_type_diff;
@@ -75,6 +77,8 @@ where
     let mut has_read_clamp = false;
     let mut matched_all_properties = true;
     let mut widened_assigned_type: Option<TUnion> = None;
+    let mut natively_assigned_type: Option<TUnion> = None;
+    let mut every_property_has_native_assignment = true;
     let receiver_is_plain_mixed = artifacts
         .get_expression_type(property_access.object)
         .is_some_and(|receiver| matches!(receiver.types.as_ref(), [TAtomic::Mixed(mixed)] if mixed.is_vanilla()));
@@ -257,6 +261,19 @@ where
             }
         }
 
+        let natively_assigned = if type_match_found {
+            Some(checked_value_type.clone())
+        } else {
+            natively_assigned_value_type(context, &resolved_property, &checked_value_type)
+        };
+        match natively_assigned {
+            Some(assigned) => {
+                natively_assigned_type =
+                    Some(add_optional_union_type(assigned, natively_assigned_type.as_ref(), context.codebase));
+            }
+            None => every_property_has_native_assignment = false,
+        }
+
         // The type a read yields for this property: the distinct read type when writes and reads
         // diverge — a magic property (writes go through `__set`, reads through `__get`) or a hook
         // property with a wider `set` parameter (writes go through `set`, reads through `get`) —
@@ -276,6 +293,8 @@ where
 
     let mut resulting_type = if matched_all_properties && context.settings.memoize_properties {
         Some(widened_assigned_type.unwrap_or_else(|| assigned_value_type.clone()))
+    } else if context.settings.memoize_properties && every_property_has_native_assignment {
+        natively_assigned_type.or(resolved_property_type)
     } else {
         resolved_property_type
     };
@@ -342,6 +361,37 @@ where
     }
 
     Ok(())
+}
+
+/// The type PHPStan's scope gives a property after a write its declared type rejects: the written
+/// value when the native type accepts it, else the part of it the native type allows.
+fn natively_assigned_value_type<A>(
+    context: &Context<'_, '_, A>,
+    resolved_property: &ResolvedProperty,
+    assigned_value_type: &TUnion,
+) -> Option<TUnion>
+where
+    A: Arena,
+{
+    if resolved_property.is_magic || resolved_property.read_type.is_some() {
+        return None;
+    }
+
+    let native_type = get_native_property_type(context.codebase, resolved_property);
+    if union_comparator::is_contained_by(
+        context.codebase,
+        assigned_value_type,
+        &native_type,
+        false,
+        false,
+        false,
+        &mut ComparisonResult::new(),
+    ) {
+        return Some(assigned_value_type.clone());
+    }
+
+    intersect_union_types(assigned_value_type, &native_type, context.codebase)
+        .filter(|intersection| !intersection.is_never())
 }
 
 /// The value an offset write checks: the declared type with the write applied when the root was

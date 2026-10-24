@@ -3372,6 +3372,11 @@ test_case!(unreachable_else_by_docblock_is_analyzed, {
     s.treat_docblock_types_as_certain = false;
     s
 });
+test_case!(property_after_rejected_write_has_native_type, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]
