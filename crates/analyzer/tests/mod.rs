@@ -3377,6 +3377,11 @@ test_case!(property_after_rejected_write_has_native_type, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(keyed_offset_finding_starts_at_the_access, {
+    let mut s = crate::framework::default_test_settings();
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

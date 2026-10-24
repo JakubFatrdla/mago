@@ -252,7 +252,7 @@ where
                 let mut new_type = handle_array_access_on_keyed_array(
                     context,
                     block_context,
-                    access_index_span,
+                    access_span,
                     atomic_var_type,
                     index_type,
                     in_assignment,
@@ -630,7 +630,7 @@ where
                             array_like_type.get_id()
                         ))
                         .with_annotation(
-                            Annotation::primary(access_index_span)
+                            Annotation::primary(access_span)
                                 .with_message("Key might not exist.")
                         )
                         .with_note(
@@ -648,7 +648,7 @@ where
                             array_like_type.get_id()
                         ))
                         .with_annotation(
-                            Annotation::primary(access_index_span)
+                            Annotation::primary(access_span)
                                 .with_message("Index might not exist.")
                         )
                         .with_note(
