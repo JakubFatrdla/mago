@@ -3382,6 +3382,7 @@ test_case!(keyed_offset_finding_starts_at_the_access, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(coalesce_throw_reports_left_side_once);
 
 #[test]
 #[cfg_attr(miri, ignore)]

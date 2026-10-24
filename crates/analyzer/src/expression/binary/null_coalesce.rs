@@ -237,8 +237,12 @@ where
         let mut if_scope = IfScope::new();
         let mut inner_block_context = block_context.clone();
         inner_block_context.flags.set_inside_isset(true);
-        let if_conditional_scope =
-            conditional::analyze(context, &mut inner_block_context, artifacts, &mut if_scope, binary.lhs, false)?;
+        let pending_readonly_writes = artifacts.pending_readonly_property_writes.len();
+        let (if_conditional_scope, _) = context.record(|context| {
+            conditional::analyze(context, &mut inner_block_context, artifacts, &mut if_scope, binary.lhs, false)
+        });
+        artifacts.pending_readonly_property_writes.truncate(pending_readonly_writes);
+        let if_conditional_scope = if_conditional_scope?;
         let mut conditionally_referenced_variable_ids = if_conditional_scope.conditionally_referenced_variable_ids;
 
         let (reconcilable_if_types, active_if_types) = find_satisfying_assignments(

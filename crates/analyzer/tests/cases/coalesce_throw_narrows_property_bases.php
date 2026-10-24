@@ -35,7 +35,7 @@ final class Document
      */
     public function countryThroughMethod(): ?string
     {
-        echo $this->profile->getCountry() ?? throw new LogicException(); // @mago-expect analysis:possible-method-access-on-null(2)
+        echo $this->profile->getCountry() ?? throw new LogicException(); // @mago-expect analysis:possible-method-access-on-null
 
         return $this->profile->lang; // @mago-expect analysis:possibly-null-property-access
     }
