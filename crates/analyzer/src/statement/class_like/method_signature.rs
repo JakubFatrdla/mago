@@ -188,9 +188,11 @@ pub fn validate_method_signature_compatibility(
                 child_type: expanded_child_param_type.get_id(),
                 parent_type: expanded_parent_param_type.get_id(),
             });
-
-            return issues;
         }
+    }
+
+    if !issues.is_empty() {
+        return issues;
     }
 
     for (index, parent_param) in parent_method.parameters.iter().enumerate() {
