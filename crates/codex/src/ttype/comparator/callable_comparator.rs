@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use crate::metadata::CodebaseMetadata;
 use crate::ttype::atomic::TAtomic;
 use crate::ttype::atomic::callable::TCallable;
+use crate::ttype::atomic::callable::TCallableSignature;
 use crate::ttype::cast::can_atomic_be_callable;
 use crate::ttype::cast::cast_atomic_to_callable;
 use crate::ttype::comparator::ComparisonResult;
@@ -65,6 +66,10 @@ pub(crate) fn is_contained_by(
         }
     }
 
+    if accepts_any_callable(container_signature) {
+        return true;
+    }
+
     for (i, input_parameter) in input_params.iter().enumerate() {
         let container_parameter;
         if let Some(inner) = container_params.get(i) {
@@ -82,10 +87,6 @@ pub(crate) fn is_contained_by(
         let Some(container_parameter_type) = container_parameter.get_type_signature() else {
             continue;
         };
-
-        if container_parameter_type.is_mixed() {
-            continue;
-        }
 
         let Some(input_parameter_type) = input_parameter.get_type_signature() else {
             continue;
@@ -115,10 +116,16 @@ pub(crate) fn is_contained_by(
         return true;
     };
 
-    if container_return_type.is_void()
-        || container_return_type.is_vanilla_mixed()
-        || container_return_type.is_templated_as_vanilla_mixed()
-    {
+    if container_return_type.is_void() {
+        return input_signature.get_return_type().is_none_or(|input_return_type| {
+            input_return_type
+                .types
+                .iter()
+                .all(|atomic| matches!(atomic, TAtomic::Void | TAtomic::Null | TAtomic::Never))
+        });
+    }
+
+    if container_return_type.is_vanilla_mixed() || container_return_type.is_templated_as_vanilla_mixed() {
         return true;
     }
 
@@ -136,4 +143,18 @@ pub(crate) fn is_contained_by(
         input_return_type.ignore_falsable_issues(),
         atomic_comparison_result,
     )
+}
+
+/// `callable` and `Closure` written without a signature accept any callable, like PHPStan's common callable,
+/// and so does a signature with an untyped parameter, which PHPStan cannot parse.
+fn accepts_any_callable(signature: &TCallableSignature) -> bool {
+    let parameters = signature.get_parameters();
+    if parameters.iter().any(|parameter| parameter.get_type_signature().is_none()) {
+        return true;
+    }
+
+    matches!(
+        parameters,
+        [parameter] if parameter.is_variadic() && parameter.get_type_signature().is_some_and(|parameter_type| parameter_type.is_mixed())
+    ) && signature.get_return_type().is_none_or(|return_type| return_type.is_mixed())
 }

@@ -821,15 +821,16 @@ fn get_callable_from_type(
 
     if let Some(specification) = &callable.specification {
         for parameter_ast in &specification.parameters.entries {
-            let parameter_type = if let Some(parameter_type) = &parameter_ast.parameter_type {
-                get_union_from_type(parameter_type, scope, type_context, classname)?
-            } else {
-                get_mixed()
+            let parameter_type = match &parameter_ast.parameter_type {
+                Some(parameter_type) => {
+                    Some(Arc::new(get_union_from_type(parameter_type, scope, type_context, classname)?))
+                }
+                None => None,
             };
 
             parameters.push(
                 TCallableParameter::new(
-                    Some(Arc::new(parameter_type)),
+                    parameter_type,
                     parameter_ast.is_by_reference(),
                     parameter_ast.is_variadic(),
                     parameter_ast.is_optional(),

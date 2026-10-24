@@ -3359,6 +3359,7 @@ test_case!(native_types_of_preg_subject_without_strict_types, {
     s.treat_docblock_types_as_certain = false;
     s
 });
+test_case!(callable_parameters_like_phpstan);
 
 #[test]
 #[cfg_attr(miri, ignore)]
