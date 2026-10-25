@@ -3424,6 +3424,7 @@ test_case!(overwrite_with_unspecified_template_arguments, {
     s.check_variable_type_overwrite = true;
     s
 });
+test_case!(array_rand_needs_non_empty_array);
 test_case!(imprecise_docblock_types_like_phpstan, {
     let mut s = crate::framework::default_test_settings();
     s.check_missing_type_hints = true;

@@ -3736,8 +3736,8 @@ function array_change_key_case(array $array, int $case = CASE_LOWER): array {}
 /**
  * @template K as array-key
  *
- * @param array<K, mixed> $array
- * @param int<0, max> $num
+ * @param non-empty-array<K, mixed> $array
+ * @param positive-int $num
  *
  * @return ($num is 1 ? K : array<K>)
  *
