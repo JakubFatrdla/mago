@@ -394,8 +394,7 @@ fn report_memoized_receiver<'ctx, 'ast, 'arena, A>(
     );
     let current_receiver_type = block_context.locals.get(&object_id);
     let receiver_type = match artifacts.read_memoized_property_receivers.get(&property_access_id) {
-        Some(recorded_type) if !block_context.flags.inside_isset() => Rc::clone(recorded_type),
-        Some(_) => return,
+        Some(recorded_type) => Rc::clone(recorded_type),
         None if !is_null_safe && !property_names.is_empty() => {
             let Some(current_type) = current_receiver_type else {
                 return;
@@ -406,7 +405,7 @@ fn report_memoized_receiver<'ctx, 'ast, 'arena, A>(
         None => return,
     };
 
-    if current_receiver_type.is_none_or(|current_type| *current_type != receiver_type)
+    if current_receiver_type.is_some_and(|current_type| *current_type != receiver_type)
         || (!context.collector.is_recording() && !artifacts.reported_receiver_offsets.insert(arrow_span.start.offset))
     {
         return;
