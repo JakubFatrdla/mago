@@ -356,7 +356,9 @@ where
             }
         }
 
-        self.artifacts.fully_matched_switch_offsets.insert(switch.start_position().offset);
+        if is_exhaustive {
+            self.artifacts.fully_matched_switch_offsets.insert(switch.start_position().offset);
+        }
         self.block_context.assigned_variable_ids.extend(self.new_assigned_variable_ids);
         self.block_context.flags.set_has_returned(all_options_exit && is_exhaustive);
 
@@ -432,6 +434,7 @@ where
         let mut result = None;
 
         let case_actions = &self.case_actions[&case_index];
+        let case_actions_before_analysis = case_actions.clone();
         let case_exit_type = self.case_exit_types[&case_index];
 
         let has_ending_statements = case_actions.len() == 1 && case_actions.contains(ControlAction::End);
@@ -785,6 +788,14 @@ where
             self.case_exit_types.insert(case_index, ControlAction::Return);
 
             ControlAction::Return
+        } else if case_block_context.flags.has_returned()
+            && !case_actions_before_analysis.contains(ControlAction::None)
+            && let Some(analyzed_actions) = self.get_case_actions_leaving_function(switch_case)
+        {
+            self.case_exit_types.insert(case_index, ControlAction::Return);
+            self.case_actions.insert(case_index, analyzed_actions);
+
+            ControlAction::Return
         } else {
             case_exit_type
         };
@@ -1096,7 +1107,7 @@ where
         }
     }
 
-    fn update_case_exit_map(&mut self, case: &SwitchCase, case_index: usize) {
+    fn get_case_actions(&self, case: &SwitchCase) -> ControlActionSet {
         let mut break_types = self
             .block_context
             .break_types
@@ -1105,12 +1116,26 @@ where
             .collect::<Vec<_>>();
         break_types.push(BreakType::Switch);
 
-        let actions_set = ControlAction::from_switch_case_statements(
+        ControlAction::from_switch_case_statements(
             case.statements().iter().collect(),
             break_types,
             Some(self.artifacts),
             true,
-        );
+        )
+    }
+
+    /// The actions of an analyzed case that only returns or ends, which the actions known before the analysis can
+    /// miss: a nested switch that every value of its subject matches is only known to be exhaustive once analyzed.
+    fn get_case_actions_leaving_function(&self, case: &SwitchCase) -> Option<ControlActionSet> {
+        let actions = self.get_case_actions(case);
+
+        (!actions.is_empty()
+            && actions.iter().all(|action| matches!(action, ControlAction::Return | ControlAction::End)))
+        .then_some(actions)
+    }
+
+    fn update_case_exit_map(&mut self, case: &SwitchCase, case_index: usize) {
+        let actions_set = self.get_case_actions(case);
 
         let effective_action = if actions_set.contains(ControlAction::None)
             && matches!(self.last_case_exit_type, ControlAction::Return)
