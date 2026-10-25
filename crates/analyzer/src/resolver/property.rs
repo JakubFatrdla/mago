@@ -1668,7 +1668,7 @@ fn update_template_types<A>(
 }
 
 /// Reports an error for a property access on a `null` or `void` value.
-fn receiver_has_reported_non_object_part(object_type: &TUnion, reports_null: bool) -> bool {
+pub(crate) fn receiver_has_reported_non_object_part(object_type: &TUnion, reports_null: bool) -> bool {
     let mut atomics = object_type.types.iter().collect::<Vec<_>>();
     while let Some(atomic) = atomics.pop() {
         match atomic {

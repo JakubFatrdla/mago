@@ -336,6 +336,7 @@ where
         };
 
         block_context.locals.insert(property_access_id, memoized_type);
+        artifacts.read_memoized_undeclared_properties.remove(&property_access_id);
     }
 
     artifacts.set_rc_expression_type(property_access, resulting_type);

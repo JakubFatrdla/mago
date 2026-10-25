@@ -30,6 +30,7 @@ use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
 use crate::expression::array_access::report_index_types_of_array_access;
+use crate::resolver::property::receiver_has_reported_non_object_part;
 use crate::resolver::property::report_non_object_receiver;
 use crate::resolver::property::report_redundant_nullsafe;
 use crate::resolver::property::report_undeclared_property;
@@ -157,7 +158,8 @@ where
 
         if let Some((read_type, undeclared_properties)) =
             artifacts.read_memoized_undeclared_properties.get(property_access_id)
-            && Rc::ptr_eq(read_type, &existing_type)
+            && (Rc::ptr_eq(read_type, &existing_type) || is_plain_mixed(&existing_type))
+            && !has_non_object_receiver(context, block_context, artifacts, *property_access_id, object, is_null_safe)
         {
             for undeclared in undeclared_properties.clone() {
                 report_undeclared_property(context, undeclared, property_selector.span(), object.span());
@@ -321,6 +323,35 @@ where
     artifacts.set_rc_expression_type(&span, resulting_type);
 
     Ok(())
+}
+
+fn is_plain_mixed(union: &TUnion) -> bool {
+    matches!(union.types.as_ref(), [TAtomic::Mixed(mixed)] if mixed.is_vanilla())
+}
+
+fn has_non_object_receiver<A>(
+    context: &Context<'_, '_, A>,
+    block_context: &BlockContext<'_>,
+    artifacts: &AnalysisArtifacts,
+    property_access_id: Word,
+    object: &Expression<'_>,
+    is_null_safe: bool,
+) -> bool
+where
+    A: Arena,
+{
+    let receiver_type = get_block_expression_id(object, context, block_context)
+        .and_then(|object_id| block_context.locals.get(&object_id))
+        .or_else(|| artifacts.read_memoized_property_receivers.get(&property_access_id));
+
+    receiver_type.is_some_and(|receiver_type| {
+        let reports_null = !is_null_safe
+            && !receiver_type.has_nullsafe_null()
+            && !receiver_type.has_error_path_null()
+            && (receiver_type.is_null() || receiver_type.is_void() || !block_context.flags.inside_isset());
+
+        receiver_has_reported_non_object_part(receiver_type, reports_null)
+    })
 }
 
 fn record_memoized_receiver<A>(
