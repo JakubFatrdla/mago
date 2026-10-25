@@ -3430,6 +3430,7 @@ test_case!(imprecise_docblock_types_like_phpstan, {
     s.check_missing_type_hints = true;
     s
 });
+test_case!(negated_assertion_stores_no_offset_read);
 
 #[test]
 #[cfg_attr(miri, ignore)]

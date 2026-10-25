@@ -448,6 +448,7 @@ pub fn reconcile_keyed_types<'ctx, A>(
 
         let leaves_type_as_is = leaves_type_unspecified(new_type_parts, before_adjustment.as_deref())
             && (!type_changed
+                || before_adjustment.is_none()
                 || before_adjustment.as_deref().is_some_and(|before| drops_only_error_path_null(before, &result_type)));
         if has_inverted_isset && is_offset_of_mixed_or_call(block_context, key_str) {
             block_context.locals.remove(key);
