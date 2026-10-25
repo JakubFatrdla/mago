@@ -14,7 +14,9 @@ use mago_codex::ttype::wrap_atomic;
 use mago_reporting::Annotation;
 use mago_reporting::Issue;
 use mago_span::HasSpan;
+use mago_syntax::cst::Expression;
 use mago_syntax::cst::HookedProperty;
+use mago_syntax::cst::Literal;
 use mago_syntax::cst::PlainProperty;
 use mago_syntax::cst::Property;
 use mago_syntax::cst::PropertyConcreteItem;
@@ -131,6 +133,8 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for PropertyConcreteItem<'arena> {
             && !declared_type_metadata.type_union.is_generic_parameter()
             && let Some(value_type) = artifacts.get_expression_type(&self.value)
             && !value_type.is_never()
+            && (property_metadata.type_declaration_metadata.is_some()
+                || !matches!(self.value, Expression::Literal(Literal::Null(_))))
         {
             let mut declared_type = declared_type_metadata.type_union.clone();
             expand_union(
@@ -148,8 +152,8 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for PropertyConcreteItem<'arena> {
                 context.codebase,
                 value_type,
                 &declared_type,
-                true,
-                true,
+                false,
+                false,
                 false,
                 &mut comparison_result,
             ) {
