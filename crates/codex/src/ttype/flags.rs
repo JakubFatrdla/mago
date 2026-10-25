@@ -31,6 +31,8 @@ impl UnionFlags {
     pub const FROM_UNSPECIFIED_TEMPLATE: UnionFlags = UnionFlags(1 << 10);
     /// Indicates the null in this union exists only because an access already reported as an error fell through.
     pub const ERROR_PATH_NULL: UnionFlags = UnionFlags(1 << 11);
+    /// Indicates this `mixed` was not written: it fills the value type a bare `array`, `list` or `iterable` leaves out.
+    pub const IMPLICIT_MIXED: UnionFlags = UnionFlags(1 << 12);
 }
 
 impl UnionFlags {

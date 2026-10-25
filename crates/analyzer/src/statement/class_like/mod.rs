@@ -1065,7 +1065,7 @@ where
         check_unused_template_parameters(context, class_like_metadata);
     }
     check_class_like_properties(context, class_like_metadata);
-    check_docblock_declared_members(context, class_like_metadata, declaration_span);
+    check_docblock_declared_members(context, class_like_metadata, declaration_span, name_span);
 
     let mut scope = ScopeContext::new(ReferenceOrigin::Symbol((class_like_metadata.name, mago_word::empty_word())));
     scope.set_class_like(Some(class_like_metadata));
@@ -3079,9 +3079,12 @@ fn check_docblock_declared_members<A>(
     context: &mut Context<'_, '_, A>,
     class_like_metadata: &ClassLikeMetadata,
     declaration_span: Span,
+    name_span: Option<Span>,
 ) where
     A: Arena,
 {
+    let declaration = name_span.map_or(declaration_span, |name_span| Span::between(declaration_span, name_span));
+
     for pseudo_method_name in &class_like_metadata.pseudo_methods {
         let Some(metadata) = context.codebase.function_likes.get(&(class_like_metadata.name, *pseudo_method_name))
         else {
@@ -3101,6 +3104,25 @@ fn check_docblock_declared_members<A>(
         let function_label =
             format!("docblock method `{}::{}()`", class_like_metadata.original_name, metadata.original_name);
         missing_type_hints::check_function_like_callable_signatures(context, metadata, metadata.span, &function_label);
+
+        if context.settings.check_missing_type_hints {
+            for parameter in &metadata.parameters {
+                if let Some(parameter_type) = &parameter.type_metadata {
+                    let location = format!("parameter `{}` of {function_label}", parameter.name.0);
+                    missing_type_hints::report_implicit_iterable_values(
+                        context,
+                        parameter_type,
+                        &location,
+                        Some(declaration),
+                    );
+                }
+            }
+
+            if let Some(return_type) = &metadata.return_type_metadata {
+                let location = format!("return type of {function_label}");
+                missing_type_hints::report_implicit_iterable_values(context, return_type, &location, Some(declaration));
+            }
+        }
     }
 
     for (alias_name, alias_type) in &class_like_metadata.type_aliases {
@@ -3120,6 +3142,24 @@ fn check_docblock_declared_members<A>(
             let subject = format!("Docblock property `{}::{property_name}`", class_like_metadata.original_name);
             missing_type_hints::check_callable_signatures(context, Some(type_metadata), type_metadata.span, &subject);
             missing_type_hints::check_template_arguments(context, Some(type_metadata), type_metadata.span, &subject);
+        }
+
+        if context.settings.check_missing_type_hints {
+            let location = format!("docblock property `{}::{property_name}`", class_like_metadata.original_name);
+            let write_type = property_metadata.write_type_metadata.as_ref().filter(|write_type| {
+                property_metadata
+                    .type_metadata
+                    .as_ref()
+                    .is_none_or(|read_type| read_type.type_union != write_type.type_union)
+            });
+            for type_metadata in [property_metadata.type_metadata.as_ref(), write_type].into_iter().flatten() {
+                missing_type_hints::report_implicit_iterable_values(
+                    context,
+                    type_metadata,
+                    &location,
+                    Some(declaration),
+                );
+            }
         }
     }
 

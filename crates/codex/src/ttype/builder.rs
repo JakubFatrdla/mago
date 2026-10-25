@@ -423,7 +423,7 @@ pub fn get_union_from_type(
         },
         Type::Iterable(iterable) => match iterable.parameters.as_ref() {
             Some(parameters) => match parameters.entries.len() {
-                0 => wrap_atomic(TAtomic::Iterable(TIterable::mixed())),
+                0 => wrap_atomic(TAtomic::Iterable(TIterable::of_value(Arc::new(get_implicit_mixed())))),
                 1 => {
                     let value_type = get_union_from_type(&parameters.entries[0].inner, scope, type_context, classname)?;
 
@@ -444,7 +444,7 @@ pub fn get_union_from_type(
                     ));
                 }
             },
-            None => wrap_atomic(TAtomic::Iterable(TIterable::mixed())),
+            None => wrap_atomic(TAtomic::Iterable(TIterable::of_value(Arc::new(get_implicit_mixed())))),
         },
         Type::PositiveInt(_) => get_positive_int(),
         Type::NegativeInt(_) => get_negative_int(),
@@ -1035,7 +1035,7 @@ fn get_array_type<'src>(
         Arc::new(if let Some(v) = value {
             get_union_from_type(v, scope, type_context, classname)?
         } else {
-            get_mixed()
+            get_implicit_mixed()
         }),
     );
 
@@ -1056,7 +1056,7 @@ fn get_list_type(
         element_type: Arc::new(if let Some(v) = value {
             get_union_from_type(v, scope, type_context, classname)?
         } else {
-            get_mixed()
+            get_implicit_mixed()
         }),
         known_count: None,
         known_elements: None,

@@ -229,6 +229,12 @@ impl TUnion {
 
     #[inline]
     #[must_use]
+    pub const fn is_implicit_mixed(&self) -> bool {
+        self.flags.contains(UnionFlags::IMPLICIT_MIXED)
+    }
+
+    #[inline]
+    #[must_use]
     pub const fn from_template_fallback(&self) -> bool {
         self.from_template_default() || self.from_unspecified_template()
     }

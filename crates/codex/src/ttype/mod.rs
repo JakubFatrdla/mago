@@ -590,6 +590,15 @@ pub fn get_mixed() -> TUnion {
     TUnion::from_single(Cow::Borrowed(MIXED_ATOMIC))
 }
 
+/// The value type of a bare `array`, `list` or `iterable`, like PHPStan's mixed that is not explicit.
+#[inline]
+#[must_use]
+pub fn get_implicit_mixed() -> TUnion {
+    let mut mixed = get_mixed();
+    mixed.flags.insert(UnionFlags::IMPLICIT_MIXED);
+    mixed
+}
+
 #[inline]
 #[must_use]
 pub fn get_truthy_mixed() -> TUnion {

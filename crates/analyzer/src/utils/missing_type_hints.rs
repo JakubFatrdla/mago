@@ -1,4 +1,7 @@
 use mago_allocator::Arena;
+use std::borrow::Cow;
+use std::sync::Arc;
+
 use mago_codex::metadata::CodebaseMetadata;
 use mago_codex::metadata::class_like::ClassLikeMetadata;
 use mago_codex::metadata::function_like::FunctionLikeKind;
@@ -8,11 +11,16 @@ use mago_codex::metadata::ttype::TypeMetadata;
 use mago_codex::ttype::TType;
 use mago_codex::ttype::TypeRef;
 use mago_codex::ttype::atomic::TAtomic;
+use mago_codex::ttype::atomic::array::TArray;
+use mago_codex::ttype::atomic::array::keyed::TKeyedArray;
 use mago_codex::ttype::atomic::callable::TCallable;
 use mago_codex::ttype::atomic::callable::TCallableSignature;
 use mago_codex::ttype::atomic::object::TObject;
+use mago_codex::ttype::comparator::ComparisonResult;
+use mago_codex::ttype::comparator::union_comparator::is_contained_by_with_erased_template_arguments;
 use mago_codex::ttype::expander::TypeExpansionOptions;
 use mago_codex::ttype::expander::expand_union;
+use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::union::TUnion;
 use mago_php_version::PHPVersion;
 use mago_php_version::feature::Feature;
@@ -293,23 +301,23 @@ pub fn check_imprecise_return_type_hint<'arena, A>(
         return;
     }
 
+    let function_name = BytesDisplay(function_name);
+    let location = format!("return type of `{function_name}`");
+    if let Some(docblock_type) = effective_docblock_type(
+        context.codebase,
+        function_like_metadata.return_type_metadata.as_ref(),
+        function_like_metadata.return_type_declaration_metadata.as_ref(),
+    ) {
+        report_implicit_iterable_values(context, docblock_type, &location, declaration);
+        return;
+    }
+
     let Some(return_type_hint) = return_type_hint else {
         return;
     };
 
-    if function_like_metadata.return_type_metadata.as_ref().is_some_and(|m| m.from_docblock) {
-        return;
-    }
-
-    let function_name = BytesDisplay(function_name);
     for (type_name, span) in collect_imprecise_hints(&return_type_hint.hint) {
-        report_imprecise_signature_type(
-            context,
-            type_name,
-            span,
-            &format!("return type of `{function_name}`"),
-            declaration,
-        );
+        report_imprecise_signature_type(context, type_name, span, &location, declaration);
     }
 }
 
@@ -340,26 +348,23 @@ pub fn check_imprecise_parameter_type_hint<'arena, A>(
         return;
     }
 
+    let location = format!("parameter `{}`", BytesDisplay(parameter.variable.name));
+    let parameter_metadata = function_like_metadata.parameters.get(parameter_index);
+    if let Some(docblock_type) = effective_docblock_type(
+        context.codebase,
+        parameter_metadata.and_then(|param_meta| param_meta.type_metadata.as_ref()),
+        parameter_metadata.and_then(|param_meta| param_meta.type_declaration_metadata.as_ref()),
+    ) {
+        report_implicit_iterable_values(context, docblock_type, &location, declaration);
+        return;
+    }
+
     let Some(hint) = &parameter.hint else {
         return;
     };
 
-    // If the docblock provides a more specific type, skip
-    if let Some(param_meta) = function_like_metadata.parameters.get(parameter_index)
-        && param_meta.type_metadata.as_ref().is_some_and(|m| m.from_docblock)
-    {
-        return;
-    }
-
-    let parameter_name = BytesDisplay(parameter.variable.name);
     for (type_name, span) in collect_imprecise_hints(hint) {
-        report_imprecise_signature_type(
-            context,
-            type_name,
-            span,
-            &format!("parameter `{parameter_name}`"),
-            declaration,
-        );
+        report_imprecise_signature_type(context, type_name, span, &location, declaration);
     }
 }
 
@@ -376,16 +381,22 @@ pub fn check_imprecise_property_type_hint<'arena, A>(
         return;
     }
 
+    if let Some(docblock_type) = effective_docblock_type(
+        context.codebase,
+        property_metadata.and_then(|prop_meta| prop_meta.type_metadata.as_ref()),
+        property_metadata.and_then(|prop_meta| prop_meta.type_declaration_metadata.as_ref()),
+    ) {
+        for variable in property.variables() {
+            let location = format!("property `{}`", BytesDisplay(variable.name));
+            report_implicit_iterable_values(context, docblock_type, &location, Some(variable.span()));
+        }
+
+        return;
+    }
+
     let Some(hint) = property.hint() else {
         return;
     };
-
-    // If the docblock provides a more specific type, skip
-    if let Some(prop_meta) = property_metadata
-        && prop_meta.type_metadata.as_ref().is_some_and(|m| m.from_docblock)
-    {
-        return;
-    }
 
     let imprecise = collect_imprecise_hints(hint);
     if imprecise.is_empty() {
@@ -649,6 +660,105 @@ fn collect_imprecise_hints_inner(hint: &Hint<'_>, results: &mut Vec<(&'static st
         }
         _ => {}
     }
+}
+
+/// The docblock type PHPStan's `TypehintHelper::decideType()` keeps: one the native type accepts, a native
+/// `array` being `array<mixed, mixed>` there.
+fn effective_docblock_type<'metadata>(
+    codebase: &CodebaseMetadata,
+    type_metadata: Option<&'metadata TypeMetadata>,
+    native: Option<&TypeMetadata>,
+) -> Option<&'metadata TypeMetadata> {
+    let docblock_type = type_metadata.filter(|type_metadata| type_metadata.from_docblock)?;
+    let Some(native) = native else {
+        return Some(docblock_type);
+    };
+
+    let docblock_union = if !native.type_union.accepts_null() && docblock_type.type_union.has_null() {
+        Cow::Owned(docblock_type.type_union.to_non_nullable())
+    } else {
+        Cow::Borrowed(&docblock_type.type_union)
+    };
+
+    let native_union = TUnion::from_vec(
+        native
+            .type_union
+            .types
+            .iter()
+            .map(|atomic| match atomic {
+                TAtomic::Array(_) => TAtomic::Array(TArray::Keyed(TKeyedArray::new_with_parameters(
+                    Arc::new(get_mixed()),
+                    Arc::new(get_mixed()),
+                ))),
+                _ => atomic.clone(),
+            })
+            .collect(),
+    );
+
+    is_contained_by_with_erased_template_arguments(
+        codebase,
+        &docblock_union,
+        &native_union,
+        &mut ComparisonResult::default(),
+    )
+    .then_some(docblock_type)
+}
+
+/// Reports each bare `array`, `list` or `iterable` in a docblock type, own or inherited, on the declaration
+/// where PHPStan reports `missingType.iterableValue`.
+pub(crate) fn report_implicit_iterable_values<A>(
+    context: &mut Context<'_, '_, A>,
+    docblock_type: &TypeMetadata,
+    location: &str,
+    declaration: Option<Span>,
+) where
+    A: Arena,
+{
+    for type_name in collect_implicit_iterable_values(&docblock_type.type_union) {
+        match declaration {
+            Some(declaration) if docblock_type.inferred => {
+                let issue = imprecise_type_issue(type_name, location).with_annotation(
+                    Annotation::primary(declaration).with_message(format!("inherits an imprecise `{type_name}` type")),
+                );
+                context.collector.report_with_code(IssueCode::ImpreciseType, issue);
+            }
+            _ => report_imprecise_signature_type(context, type_name, docblock_type.span, location, declaration),
+        }
+    }
+}
+
+/// Finds bare iterables by their implicit `mixed` value, like PHPStan's `getIterableTypesWithMissingValueTypehint()`,
+/// where `mixed` absorbs the other members of its union.
+fn collect_implicit_iterable_values(type_union: &TUnion) -> Vec<&'static str> {
+    let mut type_names = Vec::new();
+    let mut nodes = vec![TypeRef::Union(type_union)];
+
+    while let Some(node) = nodes.pop() {
+        let atomic = match node {
+            TypeRef::Union(union) if union.types.iter().any(|atomic| matches!(atomic, TAtomic::Mixed(_))) => continue,
+            TypeRef::Union(union) => {
+                union.append_child_nodes(&mut nodes);
+                continue;
+            }
+            TypeRef::Atomic(TAtomic::GenericParameter(_)) => continue,
+            TypeRef::Atomic(atomic) => atomic,
+        };
+
+        match atomic {
+            TAtomic::Array(TArray::Keyed(TKeyedArray { parameters: Some((_, value)), .. }))
+                if value.is_implicit_mixed() =>
+            {
+                type_names.push("array");
+            }
+            TAtomic::Array(TArray::List(list)) if list.element_type.is_implicit_mixed() => type_names.push("list"),
+            TAtomic::Iterable(iterable) if iterable.value_type.is_implicit_mixed() => type_names.push("iterable"),
+            _ => {}
+        }
+
+        atomic.append_child_nodes(&mut nodes);
+    }
+
+    type_names
 }
 
 /// A function or method signature is reported from its first line, where PHPStan reports `missingType.iterableValue`.
