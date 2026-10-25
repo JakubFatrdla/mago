@@ -31,6 +31,7 @@ use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
 use crate::expression::array_access::report_index_types_of_array_access;
 use crate::resolver::property::report_non_object_receiver;
+use crate::resolver::property::report_redundant_nullsafe;
 use crate::resolver::property::report_undeclared_property;
 use crate::resolver::property::resolve_declared_property;
 use crate::resolver::property::resolve_instance_properties;
@@ -148,6 +149,10 @@ where
             property_selector,
             is_null_safe,
         );
+
+        if is_null_safe {
+            report_redundant_memoized_nullsafe(context, block_context, object, arrow_span);
+        }
 
         if let Some((read_type, undeclared_properties)) =
             artifacts.read_memoized_undeclared_properties.get(property_access_id)
@@ -327,6 +332,31 @@ fn record_memoized_receiver<A>(
         Some(receiver_type) => artifacts.read_memoized_property_receivers.insert(property_access_id, receiver_type),
         None => artifacts.read_memoized_property_receivers.remove(&property_access_id),
     };
+}
+
+/// A remembered nullsafe read skips the property resolution, so the receiver is checked here.
+fn report_redundant_memoized_nullsafe<'ctx, 'arena, A>(
+    context: &mut Context<'ctx, 'arena, A>,
+    block_context: &BlockContext<'ctx>,
+    object: &Expression<'arena>,
+    arrow_span: Span,
+) where
+    A: Arena,
+{
+    let Some(object_type) = get_block_expression_id(object, context, block_context)
+        .and_then(|object_id| block_context.locals.get(&object_id).cloned())
+    else {
+        return;
+    };
+
+    if !object_type.can_be_null()
+        && !object_type.possibly_undefined()
+        && !object_type.is_null()
+        && !object_type.is_void()
+        && !object_type.has_nullsafe_null()
+    {
+        report_redundant_nullsafe(context, arrow_span, object, &object_type, false);
+    }
 }
 
 fn report_memoized_receiver<'ctx, 'ast, 'arena, A>(
