@@ -29,6 +29,7 @@ impl BlockContextFlags {
     pub const INSIDE_FOREACH_VALUE: u32 = 1 << 20;
     pub const INSIDE_CONCAT_ASSIGNMENT: u32 = 1 << 21;
     pub const INSIDE_DEPRECATED_SCOPE: u32 = 1 << 22;
+    pub const INSIDE_STATIC_METHOD: u32 = 1 << 23;
 
     #[inline]
     pub const fn new() -> Self {
@@ -163,6 +164,11 @@ impl BlockContextFlags {
     }
 
     #[inline(always)]
+    pub const fn inside_static_method(&self) -> bool {
+        self.contains(Self::INSIDE_STATIC_METHOD)
+    }
+
+    #[inline(always)]
     pub const fn inside_class_like_attribute(&self) -> bool {
         self.contains(Self::INSIDE_CLASS_LIKE_ATTRIBUTE)
     }
@@ -285,5 +291,10 @@ impl BlockContextFlags {
     #[inline(always)]
     pub fn set_inside_deprecated_scope(&mut self, value: bool) {
         self.set(Self::INSIDE_DEPRECATED_SCOPE, value);
+    }
+
+    #[inline(always)]
+    pub fn set_inside_static_method(&mut self, value: bool) {
+        self.set(Self::INSIDE_STATIC_METHOD, value);
     }
 }

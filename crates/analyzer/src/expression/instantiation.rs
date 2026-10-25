@@ -275,6 +275,24 @@ where
         );
 
         is_impossible = true;
+    } else if classname.is_static()
+        && let Some(class_like) = block_context.scope.get_class_like()
+        && class_like.flags.is_abstract()
+        && block_context.is_enclosing_method_static()
+    {
+        let abstract_class = class_like.original_name;
+
+        context.collector.report_with_code(
+            IssueCode::AbstractInstantiation,
+            Issue::error(format!("Unsafe `new static()` in a static method of abstract class `{abstract_class}`."))
+                .with_annotation(
+                    Annotation::primary(class_expression_span)
+                        .with_message("`static` is the abstract class itself here"),
+                )
+                .with_help(format!(
+                    "A direct static call on `{abstract_class}` fails, because an abstract class cannot be instantiated."
+                )),
+        );
     }
 
     if metadata.flags.is_deprecated()

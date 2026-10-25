@@ -16,7 +16,7 @@ namespace DateTime {
     {
         public static function monotonic(): static
         {
-            return new static();
+            return new static(); // @mago-expect analysis:abstract-instantiation
         }
     }
 

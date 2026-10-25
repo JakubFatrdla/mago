@@ -269,6 +269,12 @@ impl<'ctx> BlockContext<'ctx> {
         self.scope.get_class_like().is_some_and(|class_like| class_like.flags.is_deprecated())
     }
 
+    pub fn is_enclosing_method_static(&self) -> bool {
+        self.flags.inside_static_method()
+            || (self.scope.is_static()
+                && self.scope.get_function_like().is_some_and(|function_like| function_like.get_kind().is_method()))
+    }
+
     pub fn update_references_possibly_from_confusing_scope(&mut self, confusing_scope_context: &BlockContext<'ctx>) {
         let references = confusing_scope_context
             .references_in_scope
