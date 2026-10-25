@@ -61,6 +61,10 @@ pub fn validate_method_signature_compatibility(
         return Vec::new();
     }
 
+    if parent_method.flags.is_magic_method() {
+        return Vec::new();
+    }
+
     let mut issues = Vec::new();
 
     let Some(child_method_meta) = child_method.method_metadata.as_ref() else {

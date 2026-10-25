@@ -323,10 +323,18 @@ fn collect_inheritance_work(
             continue;
         }
 
+        let declares_real_method = |class: &Word| {
+            method_ids.contains_key(class)
+                && codebase
+                    .function_likes
+                    .get(&(*class, *method_name))
+                    .is_none_or(|parent| !parent.flags.is_magic_method())
+        };
+
         let mut parent_method_id = None;
         let mut current_class = class_metadata.direct_parent_class;
         while let Some(parent_name) = current_class {
-            if method_ids.contains_key(&parent_name) {
+            if declares_real_method(&parent_name) {
                 parent_method_id = Some((parent_name, *method_name));
                 break;
             }
@@ -336,7 +344,7 @@ fn collect_inheritance_work(
 
         if parent_method_id.is_none() {
             for interface in &class_metadata.all_parent_interfaces {
-                if method_ids.contains_key(interface) {
+                if declares_real_method(interface) {
                     parent_method_id = Some((*interface, *method_name));
                     break;
                 }
@@ -345,7 +353,7 @@ fn collect_inheritance_work(
 
         if parent_method_id.is_none() {
             for trait_name in &class_metadata.used_traits {
-                if method_ids.contains_key(trait_name) {
+                if declares_real_method(trait_name) {
                     parent_method_id = Some((*trait_name, *method_name));
                     break;
                 }
@@ -353,7 +361,7 @@ fn collect_inheritance_work(
         }
 
         if parent_method_id.is_none()
-            && let Some((declaring_class, method_id)) = method_ids.first()
+            && let Some((declaring_class, method_id)) = method_ids.iter().find(|(class, _)| declares_real_method(class))
         {
             parent_method_id = Some((*declaring_class, method_id.get_method_name()));
         }
