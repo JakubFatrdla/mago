@@ -992,12 +992,18 @@ fn should_use_static_type_params(named: &TNamedObject, static_obj: &TNamedObject
     };
 
     let templates = &class_metadata.template_types;
+    // `static<T>` on a receiver written without type arguments gives the bound as an explicit argument.
+    let receiver_params_are_fallbacks = static_obj
+        .type_parameters
+        .as_deref()
+        .is_some_and(|static_params| static_params.iter().all(TUnion::from_template_fallback));
 
     current_params.len() == templates.len()
         && current_params.iter().zip(templates.values()).all(|(current, template)| {
             current.from_template_fallback()
-                || current == &template.constraint
-                || template.default.as_ref().is_some_and(|default| current == default)
+                || (!receiver_params_are_fallbacks
+                    && (current == &template.constraint
+                        || template.default.as_ref().is_some_and(|default| current == default)))
         })
 }
 
