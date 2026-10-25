@@ -1124,7 +1124,11 @@ where
     if !does_always_break {
         for (variable_id, variable_type) in loop_parent_context.locals.clone() {
             if let Some(continue_context_type) = continue_context.locals.get_mut(&variable_id) {
-                if continue_context_type.is_mixed() {
+                if continue_context_type
+                    .types
+                    .iter()
+                    .all(|atomic| matches!(atomic, TAtomic::Mixed(mixed) if mixed.is_vanilla()))
+                {
                     loop_parent_context.locals.insert(variable_id, Rc::clone(continue_context_type));
                     loop_parent_context.remove_variable_from_conflicting_clauses(context, variable_id, None);
                 } else if continue_context_type != &variable_type {
