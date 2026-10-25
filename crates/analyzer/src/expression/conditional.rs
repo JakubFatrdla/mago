@@ -394,6 +394,7 @@ where
 
     let mut is_condition_truthy = false;
     let mut is_condition_falsy = false;
+    let reports_condition = !conditional::is_reported_as_comparison(condition);
     if let Some(condition_type) = condition_type.as_ref() {
         if condition_type.is_always_truthy() {
             is_condition_truthy = true;
@@ -434,22 +435,24 @@ where
                     .with_help("Consider removing the `?:` operator and the right-hand side expression.")
                 };
 
-            context.collector.propose_with_code(IssueCode::RedundantCondition, issue, |edits| {
-                if let Some(then_expr) = then {
-                    // Ternary: `$a ? $b : $c` where $a is always truthy
-                    // Delete `$a ?` and `: $c`, keep `$b`
-                    let before_then = condition.span().to_end(then_expr.start_position());
-                    let after_then = r#else.span().from_start(then_expr.end_position());
+            if reports_condition {
+                context.collector.propose_with_code(IssueCode::RedundantCondition, issue, |edits| {
+                    if let Some(then_expr) = then {
+                        // Ternary: `$a ? $b : $c` where $a is always truthy
+                        // Delete `$a ?` and `: $c`, keep `$b`
+                        let before_then = condition.span().to_end(then_expr.start_position());
+                        let after_then = r#else.span().from_start(then_expr.end_position());
 
-                    edits.push(TextEdit::delete(before_then).with_safety(Safety::PotentiallyUnsafe));
-                    edits.push(TextEdit::delete(after_then).with_safety(Safety::PotentiallyUnsafe));
-                } else {
-                    // Elvis: `$a ?: $c` where $a is always truthy
-                    // Delete `?: $c`, keep `$a`
-                    let to_remove = r#else.span().from_start(condition.end_position());
-                    edits.push(TextEdit::delete(to_remove).with_safety(Safety::PotentiallyUnsafe));
-                }
-            });
+                        edits.push(TextEdit::delete(before_then).with_safety(Safety::PotentiallyUnsafe));
+                        edits.push(TextEdit::delete(after_then).with_safety(Safety::PotentiallyUnsafe));
+                    } else {
+                        // Elvis: `$a ?: $c` where $a is always truthy
+                        // Delete `?: $c`, keep `$a`
+                        let to_remove = r#else.span().from_start(condition.end_position());
+                        edits.push(TextEdit::delete(to_remove).with_safety(Safety::PotentiallyUnsafe));
+                    }
+                });
+            }
         } else if condition_type.is_always_falsy() {
             is_condition_falsy = true;
 
@@ -489,14 +492,16 @@ where
                     .with_help("Consider replacing the entire expression with just the right-hand side.")
                 };
 
-            context.collector.propose_with_code(IssueCode::ImpossibleCondition, issue, |edits| {
-                // For always-falsy conditions, delete everything before the else expression
-                // This works for both ternary (`$a ? $b : $c`) and elvis (`$a ?: $c`)
-                edits.push(
-                    TextEdit::delete(condition.span().to_end(r#else.start_position()))
-                        .with_safety(Safety::PotentiallyUnsafe),
-                );
-            });
+            if reports_condition {
+                context.collector.propose_with_code(IssueCode::ImpossibleCondition, issue, |edits| {
+                    // For always-falsy conditions, delete everything before the else expression
+                    // This works for both ternary (`$a ? $b : $c`) and elvis (`$a ?: $c`)
+                    edits.push(
+                        TextEdit::delete(condition.span().to_end(r#else.start_position()))
+                            .with_safety(Safety::PotentiallyUnsafe),
+                    );
+                });
+            }
         }
     }
 

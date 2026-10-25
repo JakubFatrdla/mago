@@ -3406,6 +3406,7 @@ test_case!(array_fill_keys_over_literal_keys_is_a_shape, {
     s
 });
 test_case!(null_named_beside_other_non_object_parts);
+test_case!(ternary_comparison_condition_left_to_redundant_comparison);
 
 #[test]
 #[cfg_attr(miri, ignore)]

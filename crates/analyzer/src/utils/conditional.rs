@@ -297,7 +297,7 @@ fn get_definitely_evaluated_expression_inside_if<'ast, 'arena>(
     condition
 }
 
-fn is_reported_as_comparison(condition: &Expression<'_>) -> bool {
+pub(crate) fn is_reported_as_comparison(condition: &Expression<'_>) -> bool {
     match condition {
         Expression::Parenthesized(parenthesized) => is_reported_as_comparison(parenthesized.expression),
         Expression::Binary(binary) => {
