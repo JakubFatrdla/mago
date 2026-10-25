@@ -26,7 +26,9 @@ class U {
 
     public function test(): void {
         echo self::CONSTANT;
+        // @mago-expect analysis:mixed-argument
         echo static::CONSTANT;
+        // @mago-expect analysis:mixed-argument
         echo $this::CONSTANT;
     }
 }

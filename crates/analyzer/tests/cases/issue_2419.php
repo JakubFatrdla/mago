@@ -179,7 +179,7 @@ function dynamic(Base $object): int
     echo $class::PRIVATE_VALUE;
     // @mago-expect analysis:invalid-constant-access
     echo Base::{$constant};
-    // @mago-expect analysis:invalid-constant-access
+    // @mago-expect analysis:invalid-constant-access,mixed-return-statement
     return $object::PROTECTED_VALUE;
 }
 

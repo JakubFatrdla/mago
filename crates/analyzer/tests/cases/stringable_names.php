@@ -49,6 +49,7 @@ function readProperties(Foo $foo): void
     takeString($foo->{new Stringy()});
     takeString($foo->$name);
     takeString($foo->{new ChildStringy()});
+    // @mago-expect analysis:mixed-argument
     takeOne($foo::{'doFoo'});
     takeString(StaticFoo::${new Stringy()});
     takeString(StaticFoo::$$name);

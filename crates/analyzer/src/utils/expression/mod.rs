@@ -310,13 +310,19 @@ fn get_extended_expression_id<'ast, 'arena>(
                 codebase,
             )?,
             Access::ClassConstant(class_constant_access) => {
-                let class = get_extended_expression_id(
-                    class_constant_access.class,
-                    this_class_name,
-                    resolved_names,
-                    codebase,
-                    true,
-                )?;
+                let class = if matches!(unwrap_expression(class_constant_access.class), Expression::Static(_))
+                    && !is_final_class(this_class_name, codebase)
+                {
+                    word(b"static")
+                } else {
+                    get_extended_expression_id(
+                        class_constant_access.class,
+                        this_class_name,
+                        resolved_names,
+                        codebase,
+                        true,
+                    )?
+                };
 
                 let constant = get_constant_selector_id(
                     &class_constant_access.constant,
@@ -678,6 +684,13 @@ fn get_literal_enum_value_index_id(
     let (enum_name, case_name) = get_class_constant_target(case_access, this_class_name, resolved_names)?;
 
     get_literal_index_id(codebase.get_enum_case(enum_name.as_bytes(), case_name)?.value_type.as_ref()?)
+}
+
+fn is_final_class(class_name: Option<Word>, codebase: Option<&CodebaseMetadata>) -> bool {
+    class_name
+        .zip(codebase)
+        .and_then(|(class_name, codebase)| codebase.get_class_like(class_name.as_bytes()))
+        .is_some_and(|metadata| metadata.flags.is_final() || metadata.kind.is_enum())
 }
 
 fn get_class_constant_target<'ast>(

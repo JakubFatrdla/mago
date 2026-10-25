@@ -3431,6 +3431,7 @@ test_case!(imprecise_docblock_types_like_phpstan, {
     s
 });
 test_case!(negated_assertion_stores_no_offset_read);
+test_case!(late_static_constant_declared_type);
 
 #[test]
 #[cfg_attr(miri, ignore)]

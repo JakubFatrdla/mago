@@ -2,6 +2,7 @@ use mago_allocator::Arena;
 use mago_word::Word;
 
 use mago_codex::metadata::class_like::ClassLikeMetadata;
+use mago_codex::metadata::class_like_constant::ClassLikeConstantMetadata;
 use mago_codex::ttype::atomic::TAtomic;
 use mago_codex::ttype::atomic::generic::TGenericParameter;
 use mago_codex::ttype::atomic::object::TObject;
@@ -375,7 +376,9 @@ where
         // Prefer the docblock type (@var) when it exists, as it reflects the user's
         // intended type. When type_metadata was merely copied from the type declaration
         // (they are equal), fall back to the more specific inferred type.
-        let mut const_type = if let Some(type_metadata) = &constant_metadata.type_metadata
+        let mut const_type = if is_overridable_by_late_static_binding(metadata, constant_metadata, resolution_origin) {
+            constant_metadata.type_metadata.clone().map_or_else(get_mixed, |type_metadata| type_metadata.type_union)
+        } else if let Some(type_metadata) = &constant_metadata.type_metadata
             && type_metadata.from_docblock
         {
             type_metadata.type_union.clone()
@@ -515,6 +518,22 @@ where
     // Not found, report error.
     report_non_existent_constant(context, metadata, const_name, class_span, const_span);
     None
+}
+
+fn is_overridable_by_late_static_binding(
+    metadata: &ClassLikeMetadata,
+    constant_metadata: &ClassLikeConstantMetadata,
+    resolution_origin: &ResolutionOrigin,
+) -> bool {
+    matches!(
+        resolution_origin,
+        ResolutionOrigin::Static { .. }
+            | ResolutionOrigin::Object { .. }
+            | ResolutionOrigin::SpecificClassLikeString(_)
+    ) && !metadata.flags.is_final()
+        && !metadata.kind.is_enum()
+        && !metadata.kind.is_trait()
+        && !constant_metadata.flags.is_final()
 }
 
 /// Reports an error for a class-like that cannot be found in the codebase.
