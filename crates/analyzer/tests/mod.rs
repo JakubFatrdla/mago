@@ -3416,6 +3416,7 @@ test_case!(non_null_mixed_compared_with_null);
 test_case!(truthy_mixed_array_is_non_empty);
 test_case!(remembered_nullsafe_read_on_non_null_receiver);
 test_case!(nested_exhaustive_switch_returns);
+test_case!(always_false_branch_leaves_no_exit);
 test_case!(imprecise_docblock_types_like_phpstan, {
     let mut s = crate::framework::default_test_settings();
     s.check_missing_type_hints = true;

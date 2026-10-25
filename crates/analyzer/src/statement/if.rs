@@ -586,10 +586,16 @@ where
     let assigned_variable_ids = std::mem::take(&mut if_block_context.assigned_variable_ids);
     let possibly_assigned_variable_ids = std::mem::take(&mut if_block_context.possibly_assigned_variable_ids);
 
+    let condition_type = artifacts.get_expression_type(if_statement.condition);
+    let exit_scopes = context
+        .skips_false_branch(if_statement.condition.span(), condition_type)
+        .then(|| (artifacts.loop_scope.clone(), artifacts.case_scopes.clone()));
+
     analyze_body_statements(if_statement.body.statements(), context, &mut if_block_context, artifacts)?;
 
-    let condition_type = artifacts.get_expression_type(if_statement.condition);
-    if context.skips_false_branch(if_statement.condition.span(), condition_type) {
+    if let Some((loop_scope, case_scopes)) = exit_scopes {
+        artifacts.loop_scope = loop_scope;
+        artifacts.case_scopes = case_scopes;
         if_block_context.locals.clone_from(&old_if_locals);
         if_block_context.assigned_variable_ids.clear();
         if_block_context.possibly_assigned_variable_ids.clear();
