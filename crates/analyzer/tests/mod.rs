@@ -3419,6 +3419,11 @@ test_case!(nested_exhaustive_switch_returns);
 test_case!(always_false_branch_leaves_no_exit);
 test_case!(empty_array_keeps_keyed_array_beside_list);
 test_case!(magic_property_keeps_rejected_write);
+test_case!(overwrite_with_unspecified_template_arguments, {
+    let mut s = crate::framework::default_test_settings();
+    s.check_variable_type_overwrite = true;
+    s
+});
 test_case!(imprecise_docblock_types_like_phpstan, {
     let mut s = crate::framework::default_test_settings();
     s.check_missing_type_hints = true;

@@ -147,7 +147,8 @@ fn generalize_atomic(atomic: &TAtomic, codebase: &CodebaseMetadata) -> TAtomic {
             named.is_static = false;
             named.is_this = false;
             if let Some(type_parameters) = named.type_parameters.as_mut() {
-                for type_parameter in type_parameters.iter_mut() {
+                for type_parameter in type_parameters.iter_mut().filter(|parameter| !parameter.from_template_fallback())
+                {
                     *type_parameter = generalize(type_parameter, codebase);
                 }
             }
