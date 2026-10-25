@@ -251,7 +251,8 @@ where
             self.plugin_registry,
             self.external_analysis_session,
             self.additional_symbol_references,
-        );
+        )
+        .with_last_conditions(program);
         if let Some(conditions) = natively_false_conditions {
             context = context.with_natively_false_conditions(conditions);
         }
@@ -371,7 +372,8 @@ where
             None,
         )
         .with_native_types_only()
-        .with_strict_types(program);
+        .with_strict_types(program)
+        .with_last_conditions(program);
 
         let mut block_context = BlockContext::new(
             ScopeContext::new(ReferenceOrigin::File(word(context.source_file.name.as_ref()))),

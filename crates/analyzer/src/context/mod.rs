@@ -41,6 +41,7 @@ use crate::external::ExternalAnalysisSession;
 use crate::plugin::PluginRegistry;
 use crate::resolver::function::resolve_function_name;
 use crate::settings::Settings;
+use crate::utils::last_condition::collect_last_conditions;
 
 type PropertyTypes = Vec<(Word, Rc<TUnion>)>;
 
@@ -78,6 +79,8 @@ where
     /// `if` conditions and `else` clauses the native pass found always false or unreachable; `None` when
     /// docblock types are certain.
     pub(crate) natively_false_conditions: Option<HashSet<Span>>,
+    /// Conditions PHPStan's `LastConditionVisitor` marks as last, where it reports no always-true check.
+    pub(crate) last_conditions: HashSet<Span>,
     class_initializers: WordMap<WordSet>,
     pub(crate) constructor_initialized_properties: WordMap<WordSet>,
 }
@@ -118,6 +121,7 @@ where
             native_types_only: false,
             strict_types: false,
             natively_false_conditions: None,
+            last_conditions: HashSet::default(),
             class_initializers: WordMap::default(),
             constructor_initialized_properties: WordMap::default(),
         }
@@ -138,6 +142,12 @@ where
                     && matches!(item.value, Expression::Literal(Literal::Integer(LiteralInteger { value: Some(1), .. })))
             }))
         });
+        self
+    }
+
+    #[must_use]
+    pub(crate) fn with_last_conditions(mut self, program: &Program<'_>) -> Self {
+        self.last_conditions = collect_last_conditions(program);
         self
     }
 

@@ -3410,6 +3410,7 @@ test_case!(ternary_comparison_condition_left_to_redundant_comparison);
 test_case!(built_in_false_returns_reported_like_phpstan);
 test_case!(method_tag_is_no_parent_method);
 test_case!(parameter_keeps_inherited_docblock_type);
+test_case!(in_array_always_true_like_phpstan);
 test_case!(imprecise_docblock_types_like_phpstan, {
     let mut s = crate::framework::default_test_settings();
     s.check_missing_type_hints = true;

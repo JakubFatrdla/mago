@@ -47,6 +47,7 @@ use crate::utils::expression::get_non_nullsafe_expression_id;
 use crate::utils::names::display_function_like_identifier;
 
 pub mod function_call;
+mod in_array;
 pub mod method_call;
 pub mod pipe;
 pub mod static_method_call;
