@@ -924,7 +924,16 @@ where
             Rc::make_mut(&mut array_expression_type).types.to_mut().retain(|atomic| !atomic.is_string());
         }
 
-        let array_expr_type = Rc::new(if is_last { assign_value_type.clone() } else { array_expr_type });
+        let array_expr_type = Rc::new(if is_last {
+            assign_value_type.clone()
+        } else if !target_is_narrowed && is_optional_shape_item(&array_expression_type, &new_index_type) {
+            let mut array_expr_type =
+                add_union_type(array_expr_type, &get_empty_keyed_array(), context.codebase, CombinerOptions::default());
+            array_expr_type.set_possibly_undefined(false, None);
+            array_expr_type
+        } else {
+            array_expr_type
+        });
         artifacts.set_rc_expression_type(&array_target, Rc::clone(&array_expr_type));
 
         artifacts.set_rc_expression_type(array_target.get_array(), Rc::clone(&array_expression_type));
@@ -1025,6 +1034,20 @@ where
     }
 
     Ok(last_array_expression_index)
+}
+
+fn is_optional_shape_item(container_type: &TUnion, index_type: &TUnion) -> bool {
+    let Some(key) = index_type.get_single_array_key() else {
+        return false;
+    };
+
+    container_type.types.iter().any(|atomic| {
+        matches!(
+            atomic,
+            TAtomic::Array(TArray::Keyed(keyed))
+                if keyed.get_known_items().and_then(|items| items.get(&key)).is_some_and(|(optional, _)| *optional)
+        )
+    })
 }
 
 fn get_written_array_key_type<A>(context: &Context<'_, '_, A>, key_type: &TUnion) -> TUnion
