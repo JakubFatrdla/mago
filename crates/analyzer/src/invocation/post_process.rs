@@ -711,6 +711,26 @@ fn clear_object_property_narrowings<'ctx, 'arena, A>(
     }
 
     let invalidated = get_invalidated_expressions(context, block_context, artifacts, invocation, receiver_variable);
+    forget_invalidated_expressions(context, block_context, &invalidated);
+}
+
+pub(crate) fn forget_expressions_below_object<A>(
+    context: &Context<'_, '_, A>,
+    block_context: &mut BlockContext<'_>,
+    root: Word,
+) where
+    A: Arena,
+{
+    forget_invalidated_expressions(context, block_context, &[InvalidatedExpression { root, invalidating_class: None }]);
+}
+
+fn forget_invalidated_expressions<A>(
+    context: &Context<'_, '_, A>,
+    block_context: &mut BlockContext<'_>,
+    invalidated: &[InvalidatedExpression],
+) where
+    A: Arena,
+{
     if invalidated.is_empty() {
         block_context.retain_valid_class_type_relations();
 

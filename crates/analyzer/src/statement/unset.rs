@@ -28,6 +28,7 @@ use crate::code::IssueCode;
 use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
+use crate::invocation::post_process::forget_expressions_below_object;
 use crate::utils::expression::get_block_expression_id;
 use mago_word::concat_word;
 
@@ -62,6 +63,7 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Unset<'arena> {
 
             check_property_unset(context, artifacts, self.unset.span, value);
             record_property_offset_unset(context, block_context, artifacts, value);
+            forget_narrowings_below_unset_object_offset(context, block_context, artifacts, value);
 
             'array_access: {
                 let Expression::ArrayAccess(array_access) = value else {
@@ -339,6 +341,41 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Unset<'arena> {
         block_context.flags.set_inside_unset(was_inside_unset);
 
         Ok(())
+    }
+}
+
+fn forget_narrowings_below_unset_object_offset<'arena, A>(
+    context: &Context<'_, 'arena, A>,
+    block_context: &mut BlockContext<'_>,
+    artifacts: &AnalysisArtifacts,
+    value: &Expression<'arena>,
+) where
+    A: Arena,
+{
+    let Expression::ArrayAccess(array_access) = value else {
+        return;
+    };
+
+    let mut root = array_access.array;
+    while let Expression::ArrayAccess(inner_access) = root {
+        root = inner_access.array;
+    }
+
+    if !matches!(root, Expression::Variable(_)) {
+        return;
+    }
+
+    let Some(root_id) = get_block_expression_id(root, context, block_context) else {
+        return;
+    };
+
+    let holds_object = artifacts
+        .get_expression_type(root)
+        .or_else(|| block_context.locals.get(&root_id).map(Rc::as_ref))
+        .is_some_and(TUnion::has_object_type);
+
+    if holds_object {
+        forget_expressions_below_object(context, block_context, root_id);
     }
 }
 

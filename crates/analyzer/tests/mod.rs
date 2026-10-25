@@ -3432,6 +3432,7 @@ test_case!(imprecise_docblock_types_like_phpstan, {
 });
 test_case!(negated_assertion_stores_no_offset_read);
 test_case!(late_static_constant_declared_type);
+test_case!(unset_object_offset_forgets_narrowings);
 
 #[test]
 #[cfg_attr(miri, ignore)]
