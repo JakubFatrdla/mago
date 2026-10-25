@@ -136,6 +136,32 @@ where
     ))
 }
 
+pub fn report_variable_method_name<A>(
+    context: &mut Context<'_, '_, A>,
+    selector: &ClassLikeMemberSelector<'_>,
+    resolved_selectors: &[ResolvedSelector],
+) where
+    A: Arena,
+{
+    let names = resolved_selectors
+        .iter()
+        .map(|resolved_selector| match resolved_selector {
+            ResolvedSelector::LiteralString(name) => Some(format!("`{name}`")),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>();
+    let Some(names) = names.filter(|names| !names.is_empty()) else {
+        return;
+    };
+
+    context.collector.report_with_code(
+        IssueCode::StringMemberSelector,
+        Issue::warning(format!("This method is called by a dynamic name that resolves to {}.", names.join(" or ")))
+            .with_annotation(Annotation::primary(selector.span()).with_message("The method name is computed here"))
+            .with_help("Call the method by its name, so its existence and signature are checked where it is called."),
+    );
+}
+
 /// Resolves the selector part of a class constant access.
 ///
 /// This handles selectors in expressions like `ClassName::CONSTANT` or `ClassName::{$var}`.

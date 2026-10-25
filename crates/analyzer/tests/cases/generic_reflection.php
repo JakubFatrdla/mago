@@ -32,7 +32,7 @@ function one(Foo $foo): void
     $reflection = new ReflectionClass(Foo::class);
     $method = $reflection->getMethod('greet');
     $method_name = $method->getName();
-    echo $foo->{$method_name}();
+    echo $foo->{$method_name}(); // @mago-expect analysis:string-member-selector
 }
 
 /**
@@ -46,7 +46,7 @@ function two(Foo $foo, Box $handler): ?string
 {
     $reflection = new ReflectionClass(Foo::class);
     if ($reflection->hasMethod($handler->value)) {
-        return $foo->{$handler->value}();
+        return $foo->{$handler->value}(); // @mago-expect analysis:string-member-selector
     } else {
         return null;
     }
@@ -63,7 +63,7 @@ function three(Foo $foo, Box $handler): ?string
 {
     $reflection = new ReflectionClass(Foo::class);
     foreach ($reflection->getMethods() as $method) {
-        return $foo->{$method->getName()}();
+        return $foo->{$method->getName()}(); // @mago-expect analysis:string-member-selector
     }
 
     return null;

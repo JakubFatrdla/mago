@@ -39,6 +39,7 @@ use crate::resolver::method::UnresolvedMethod;
 use crate::resolver::method::report_magic_call_without_call_method;
 use crate::resolver::method::report_non_existent_method;
 use crate::resolver::method::report_possibly_missing_magic_call;
+use crate::resolver::selector::report_variable_method_name;
 use crate::resolver::selector::resolve_member_selector;
 use crate::utils::names::display_class_like_name;
 use crate::utils::names::display_method_name;
@@ -73,6 +74,7 @@ where
     }
     let selector_resolutions =
         resolve_member_selector(context, block_context, artifacts, method_selector, false, true)?;
+    report_variable_method_name(context, method_selector, &selector_resolutions);
 
     let mut method_names = vec![];
     for selector in &selector_resolutions {

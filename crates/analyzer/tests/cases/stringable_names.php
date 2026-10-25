@@ -44,7 +44,7 @@ function readProperties(Foo $foo): void
 {
     $name = new Stringy();
 
-    $foo->{'doFoo'}();
+    $foo->{'doFoo'}(); // @mago-expect analysis:string-member-selector
     takeString($foo->{'doFoo'});
     takeString($foo->{new Stringy()});
     takeString($foo->$name);

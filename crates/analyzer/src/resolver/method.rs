@@ -40,6 +40,7 @@ use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
 use crate::resolver::class_name::report_non_existent_class_like;
 use crate::resolver::property::report_redundant_nullsafe;
+use crate::resolver::selector::report_variable_method_name;
 use crate::resolver::selector::resolve_member_selector;
 use crate::utils::names::display_class_like_name;
 use crate::utils::names::display_method_name;
@@ -185,6 +186,8 @@ where
     block_context.flags.set_inside_general_use(was_inside_general_use);
 
     let resolved_selectors = resolve_member_selector(context, block_context, artifacts, selector, false, true)?;
+    report_variable_method_name(context, selector, &resolved_selectors);
+
     let mut method_names = Vec::new();
 
     for resolved_selector in resolved_selectors {

@@ -99,9 +99,9 @@ class MultiMixin
     public function __call(string $name, array $_arguments): mixed
     {
         if ($name === 'doA') {
-            return (new A())->$name();
+            return (new A())->$name(); // @mago-expect analysis:string-member-selector
         } elseif ($name === 'doC') {
-            return (new C())->$name();
+            return (new C())->$name(); // @mago-expect analysis:string-member-selector
         }
 
         return null;
@@ -214,7 +214,7 @@ class LimitedMixin
     public function __call(string $name, array $_args): mixed
     {
         if ($name === 'doA') {
-            return (new A())->$name();
+            return (new A())->$name(); // @mago-expect analysis:string-member-selector
         }
 
         return null;

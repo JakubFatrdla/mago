@@ -313,7 +313,7 @@ class RecursiveMethod
 
     public function start(): int
     {
-        return $this->{'recurse'}(10);
+        return $this->{'recurse'}(10); // @mago-expect analysis:string-member-selector
     }
 }
 
@@ -341,7 +341,7 @@ class Stock
      */
     public function do(string $action, int $q): void
     {
-        $this->$action($q);
+        $this->$action($q); // @mago-expect analysis:string-member-selector
     }
 
     private function sell(int $_q): void

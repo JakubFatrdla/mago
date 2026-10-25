@@ -333,7 +333,9 @@ mod tests {
             $closure = $obj->{$method}(...);
             call_it($closure);
         "#},
-        issues = []
+        issues = [
+            IssueCode::StringMemberSelector,
+        ]
     }
 
     test_analysis! {
@@ -431,6 +433,9 @@ mod tests {
 
             $_closure = $obj->{$methodName}(...);
         "#},
+        issues = [
+            IssueCode::StringMemberSelector,
+        ]
     }
 
     test_analysis! {
