@@ -885,24 +885,24 @@ fn scrape_type_properties(
 
                     if non_empty {
                         combination.flags.insert(CombinationFlags::KEYED_ARRAY_SOMETIMES_FILLED);
-                    } else {
-                        combination.flags.remove(CombinationFlags::KEYED_ARRAY_ALWAYS_FILLED);
+                    } else if parameters.is_none()
+                        && known_items.as_ref().is_none_or(|items| items.is_empty())
+                        && combination.list_array_parameter.is_some()
+                    {
+                        combination.flags.remove(CombinationFlags::LIST_ARRAY_ALWAYS_FILLED);
+                        for (is_optional, _) in combination.list_array_entries.values_mut() {
+                            *is_optional = true;
+                        }
 
-                        if parameters.is_none()
-                            && known_items.as_ref().is_none_or(|items| items.is_empty())
-                            && combination.list_array_parameter.is_some()
-                        {
-                            combination.flags.remove(CombinationFlags::LIST_ARRAY_ALWAYS_FILLED);
-                            for (is_optional, _) in combination.list_array_entries.values_mut() {
-                                *is_optional = true;
-                            }
-
-                            had_previous_keyed_array = false;
+                        if !had_previous_keyed_array {
+                            combination.flags.remove(CombinationFlags::KEYED_ARRAY_ALWAYS_FILLED);
                             combination.flags.remove(CombinationFlags::HAS_KEYED_ARRAY);
                             combination.flags.remove(CombinationFlags::KEYED_ARRAY_KNOWN_NON_LIST);
-
-                            continue;
                         }
+
+                        continue;
+                    } else {
+                        combination.flags.remove(CombinationFlags::KEYED_ARRAY_ALWAYS_FILLED);
                     }
 
                     if let Some(known_items) = known_items {
