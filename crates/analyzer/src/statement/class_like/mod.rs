@@ -1172,6 +1172,7 @@ where
 
     if has_complete_hierarchy {
         crate::readonly::finalize_class_writes(context, artifacts, class_like_metadata);
+        initialization::report_initialized_property_checks(context, artifacts, class_like_metadata);
         initialization::check_property_initialization(
             context,
             artifacts,

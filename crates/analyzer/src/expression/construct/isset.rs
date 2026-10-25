@@ -24,6 +24,8 @@ use crate::code::IssueCode;
 use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
+use crate::statement::class_like::initialization::InitializedPropertyCheckKind;
+use crate::statement::class_like::initialization::record_initialized_property_check;
 use crate::utils::expression::get_block_expression_id;
 use crate::utils::misc::unwrap_expression;
 
@@ -170,16 +172,27 @@ fn narrow_chain_of_unnamed_expression<A>(
 fn report_redundant_isset<A>(
     context: &mut Context<'_, '_, A>,
     block_context: &BlockContext<'_>,
-    artifacts: &AnalysisArtifacts,
+    artifacts: &mut AnalysisArtifacts,
     value: &Expression<'_>,
 ) where
     A: Arena,
 {
-    if artifacts.get_expression_type(value).is_none_or(|value_type| value_type.is_never() || value_type.has_nullish()) {
+    let Some(value_type) = artifacts.get_expression_type(value) else {
+        return;
+    };
+    if value_type.is_never() || value_type.has_nullish() {
         return;
     }
 
     let Some(subject) = describe_always_set(context, block_context, artifacts, value) else {
+        let value_type = value_type.clone();
+        record_initialized_property_check(
+            block_context,
+            artifacts,
+            value,
+            &value_type,
+            InitializedPropertyCheckKind::Isset,
+        );
         return;
     };
 

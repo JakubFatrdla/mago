@@ -36,6 +36,8 @@ use crate::error::AnalysisError;
 use crate::formula::get_formula;
 use crate::reconciler::reconcile_keyed_types;
 use crate::resolver::property::declares_property;
+use crate::statement::class_like::initialization::InitializedPropertyCheckKind;
+use crate::statement::class_like::initialization::record_initialized_property_check;
 use crate::utils::conditional;
 use crate::utils::expression::get_block_expression_id;
 use crate::utils::misc::unwrap_expression;
@@ -146,6 +148,20 @@ where
         binary.rhs.analyze(context, &mut dead_rhs_context, artifacts)?;
     } else {
         let non_null_lhs_type = lhs_type.to_non_nullable();
+        let lhs_type = Rc::clone(lhs_type);
+        if !is_static_var && !reads_undeclared_property(context, block_context, artifacts, binary.lhs) {
+            record_initialized_property_check(
+                block_context,
+                artifacts,
+                binary.lhs,
+                &lhs_type,
+                InitializedPropertyCheckKind::NullCoalesce {
+                    right_hand_side: binary.rhs.span(),
+                    removal: binary.operator.span().join(binary.rhs.span()),
+                },
+            );
+        }
+
         let has_returned = block_context.flags.has_returned();
         block_context.flags.set_has_returned(false);
         let mut access_paths_before: WordMap<Rc<TUnion>> = block_context

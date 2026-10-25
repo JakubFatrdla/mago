@@ -3436,6 +3436,7 @@ test_case!(unset_object_offset_forgets_narrowings);
 test_case!(nested_offset_write_checks_declared_property_type);
 test_case!(nested_write_through_optional_shape_key);
 test_case!(static_generic_return_on_raw_receiver);
+test_case!(redundant_check_on_constructor_initialized_property);
 
 #[test]
 #[cfg_attr(miri, ignore)]

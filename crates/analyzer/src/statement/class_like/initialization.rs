@@ -7,13 +7,20 @@ use mago_word::WordSet;
 use mago_codex::identifier::function_like::FunctionLikeIdentifier;
 use mago_codex::identifier::method::MethodIdentifier;
 use mago_codex::metadata::class_like::ClassLikeMetadata;
+use mago_codex::metadata::function_like::FunctionLikeKind;
 use mago_codex::metadata::property::PropertyMetadata;
+use mago_codex::ttype::TType;
+use mago_codex::ttype::union::TUnion;
 use mago_reporting::Annotation;
 use mago_reporting::Issue;
+use mago_span::HasSpan;
 use mago_span::Span;
+use mago_syntax::cst::Access;
 use mago_syntax::cst::ClassLikeMemberSelector;
 use mago_syntax::cst::Expression;
 use mago_syntax::cst::Variable;
+use mago_text_edit::Safety;
+use mago_text_edit::TextEdit;
 use mago_word::Word;
 use mago_word::concat_word;
 use mago_word::word;
@@ -23,6 +30,7 @@ use crate::code::IssueCode;
 use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
+use crate::utils::misc::unwrap_expression;
 
 /// Check property initialization for a class-like.
 pub fn check_property_initialization<'ctx, A>(
@@ -1020,4 +1028,177 @@ fn report_uninitialized_property<A>(
     issue = issue.with_help(help);
 
     context.collector.report_with_code(IssueCode::UninitializedProperty, issue);
+}
+
+/// A `??` or `isset()` on `$this->property` that only the property's possible lack of initialization keeps from
+/// being redundant. It is reported once the class is analyzed, if the constructor initializes the property.
+#[derive(Debug, Clone)]
+pub(crate) struct InitializedPropertyCheck {
+    class_name: Word,
+    property_name: Word,
+    kind: InitializedPropertyCheckKind,
+    span: Span,
+    type_id: Word,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum InitializedPropertyCheckKind {
+    NullCoalesce { right_hand_side: Span, removal: Span },
+    Isset,
+}
+
+/// Records a `??` or `isset()` on a non-nullable native property of `$this`, as PHPStan's `IssetCheck` reports it
+/// when the property is initialized: promoted or always assigned by the class's own constructor.
+pub(crate) fn record_initialized_property_check(
+    block_context: &BlockContext<'_>,
+    artifacts: &mut AnalysisArtifacts,
+    expression: &Expression<'_>,
+    value_type: &TUnion,
+    kind: InitializedPropertyCheckKind,
+) {
+    if value_type.has_nullish() || !value_type.possibly_undefined() || value_type.possibly_undefined_from_try() {
+        return;
+    }
+
+    let Expression::Access(Access::Property(access)) = unwrap_expression(expression) else {
+        return;
+    };
+    let (Expression::Variable(Variable::Direct(object)), ClassLikeMemberSelector::Identifier(identifier)) =
+        (access.object, &access.property)
+    else {
+        return;
+    };
+    if object.name != b"$this" || block_context.scope.is_static() {
+        return;
+    }
+
+    let (Some(class_like_metadata), Some(function_like_metadata)) =
+        (block_context.scope.get_class_like(), block_context.scope.get_function_like())
+    else {
+        return;
+    };
+    // An arrow function keeps the scope of its method, a closure starts without it.
+    if !class_like_metadata.kind.is_class()
+        || !matches!(function_like_metadata.kind, FunctionLikeKind::Method | FunctionLikeKind::ArrowFunction)
+    {
+        return;
+    }
+
+    let property_name = concat_word!(b"$", identifier.value);
+    let Some(property) = declared_native_non_null_property(class_like_metadata, property_name) else {
+        return;
+    };
+
+    let in_constructor = function_like_metadata.name.as_bytes().eq_ignore_ascii_case(b"__construct");
+    if in_constructor && !property.flags.is_promoted_property() {
+        return;
+    }
+
+    artifacts.initialized_property_checks.push(InitializedPropertyCheck {
+        class_name: class_like_metadata.name,
+        property_name,
+        kind,
+        span: expression.span(),
+        type_id: value_type.get_id(),
+    });
+}
+
+fn declared_native_non_null_property(
+    class_like_metadata: &ClassLikeMetadata,
+    property_name: Word,
+) -> Option<&PropertyMetadata> {
+    if class_like_metadata.declaring_property_ids.get(&property_name) != Some(&class_like_metadata.name) {
+        return None;
+    }
+
+    let property = class_like_metadata.properties.get(&property_name)?;
+    let native_type = &property.type_declaration_metadata.as_ref()?.type_union;
+
+    (!property.flags.is_static() && property.hooks.is_empty() && !native_type.is_mixed() && !native_type.can_be_null())
+        .then_some(property)
+}
+
+/// Reports the recorded checks on properties of `class_like_metadata` that are promoted or that its own
+/// constructor initializes, directly or through the methods it calls on `$this`.
+pub(crate) fn report_initialized_property_checks<A>(
+    context: &mut Context<'_, '_, A>,
+    artifacts: &mut AnalysisArtifacts,
+    class_like_metadata: &ClassLikeMetadata,
+) where
+    A: Arena,
+{
+    let (checks, others): (Vec<_>, Vec<_>) = std::mem::take(&mut artifacts.initialized_property_checks)
+        .into_iter()
+        .partition(|check| check.class_name == class_like_metadata.name);
+    artifacts.initialized_property_checks = others;
+    if checks.is_empty() {
+        return;
+    }
+
+    let mut initialized: WordSet = class_like_metadata
+        .properties
+        .iter()
+        .filter(|(_, property)| property.flags.is_promoted_property())
+        .map(|(name, _)| *name)
+        .collect();
+
+    if let Some(constructor_id) = class_like_metadata.declaring_method_ids.get(&word("__construct"))
+        && context
+            .codebase
+            .get_class_like(constructor_id.get_class_name().as_bytes())
+            .is_some_and(|declaring| declaring.name == class_like_metadata.name || declaring.kind.is_trait())
+    {
+        initialized.extend(compute_transitive_initializations(
+            artifacts,
+            context,
+            constructor_id.get_class_name(),
+            word("__construct"),
+            class_like_metadata.flags.is_final(),
+            false,
+        ));
+    }
+
+    let mut reported = HashSet::new();
+    for check in checks {
+        if !initialized.contains(&check.property_name) || !reported.insert(check.span) {
+            continue;
+        }
+
+        match check.kind {
+            InitializedPropertyCheckKind::NullCoalesce { right_hand_side, removal } => {
+                context.collector.propose_with_code(
+                    IssueCode::RedundantNullCoalesce,
+                    Issue::help("Redundant null coalesce: left-hand side can never be `null` or undefined.")
+                        .with_annotation(Annotation::primary(check.span).with_message(format!(
+                            "This expression (type `{}`) is never `null` or undefined",
+                            check.type_id
+                        )))
+                        .with_annotation(
+                            Annotation::secondary(right_hand_side)
+                                .with_message("This right-hand side will never be evaluated"),
+                        )
+                        .with_note("The constructor initializes this property, so it is set in every other method.")
+                        .with_help("Consider removing the `??` operator and the right-hand side expression."),
+                    |edits| {
+                        edits.push(TextEdit::delete(removal).with_safety(Safety::PotentiallyUnsafe));
+                    },
+                );
+            }
+            InitializedPropertyCheckKind::Isset => {
+                context.collector.confirm_code_at(IssueCode::RedundantIssetCheck.as_str(), check.span);
+                context.collector.report_with_code(
+                    IssueCode::RedundantIssetCheck,
+                    Issue::warning(format!(
+                        "Property `{}::{}` (`{}`) in `isset()` is not nullable.",
+                        class_like_metadata.original_name, check.property_name, check.type_id
+                    ))
+                    .with_annotation(
+                        Annotation::primary(check.span).with_message("This is always set and never `null`"),
+                    )
+                    .with_note("The constructor initializes this property, so it is set in every other method.")
+                    .with_help("Remove the `isset()` check or compare the value directly."),
+                );
+            }
+        }
+    }
 }

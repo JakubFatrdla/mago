@@ -410,6 +410,7 @@ where
     }
     parent_artifacts.symbol_references.extend(std::mem::take(&mut artifacts.symbol_references));
     parent_artifacts.pending_readonly_property_writes.append(&mut artifacts.pending_readonly_property_writes);
+    parent_artifacts.initialized_property_checks.append(&mut artifacts.initialized_property_checks);
     for (method_key, called_methods) in std::mem::take(&mut artifacts.method_possibly_calls_this_methods) {
         parent_artifacts.method_possibly_calls_this_methods.entry(method_key).or_default().extend(called_methods);
     }

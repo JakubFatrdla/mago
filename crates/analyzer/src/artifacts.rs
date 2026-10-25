@@ -26,6 +26,7 @@ use crate::context::scope::case_scope::CaseScope;
 use crate::context::scope::loop_scope::LoopScope;
 use crate::readonly::PendingReadonlyPropertyWrite;
 use crate::resolver::property::UndeclaredProperty;
+use crate::statement::class_like::initialization::InitializedPropertyCheck;
 use crate::statement::class_like::unused_property_type::AssignedPropertyTypes;
 
 pub(crate) use self::expression_types::CheckpointAction;
@@ -124,6 +125,7 @@ pub struct AnalysisArtifacts {
     pub(crate) variable_definedness: HashMap<(u32, u32), WordMap<VariableDefinedness>>,
     variable_definedness_targets: Option<Arc<[bool; u8::MAX as usize + 1]>>,
     pub(crate) pending_readonly_property_writes: Vec<PendingReadonlyPropertyWrite>,
+    pub(crate) initialized_property_checks: Vec<InitializedPropertyCheck>,
     pub(crate) assigned_property_types: AssignedPropertyTypes,
     pub(crate) static_local_types: Option<WordMap<Rc<TUnion>>>,
     expression_type_checkpoints: ExpressionTypeCheckpoints,
@@ -173,6 +175,7 @@ impl AnalysisArtifacts {
             variable_definedness: HashMap::default(),
             variable_definedness_targets: None,
             pending_readonly_property_writes: Vec::new(),
+            initialized_property_checks: Vec::new(),
             assigned_property_types: AssignedPropertyTypes::default(),
             static_local_types: None,
             expression_type_checkpoints: ExpressionTypeCheckpoints::default(),
