@@ -33,7 +33,7 @@ use crate::ttype::union::TUnion;
 ///
 /// This function implements smart type inheritance that respects intentional variance:
 /// - For return types (covariant): Child can narrow the type
-/// - For parameters (contravariant): Child can widen the type
+/// - For parameters: the docblock type stays while the child's native type accepts it, like PHPStan
 ///
 /// # Arguments
 ///
@@ -117,17 +117,7 @@ fn should_inherit_docblock_type(
             );
         }
 
-        let parent_docblock_contained_in_child = union_comparator::is_contained_by(
-            codebase,
-            parent_docblock_type,
-            child_native,
-            false,
-            false,
-            false,
-            &mut ComparisonResult::new(),
-        );
-
-        return !parent_docblock_contained_in_child;
+        return native_parameter_accepts_docblock(codebase, child_native, parent_docblock_type);
     };
 
     if covariant {
@@ -192,29 +182,74 @@ fn should_inherit_docblock_type(
 
         false
     } else {
-        let parent_contained_in_child = union_comparator::is_contained_by(
-            codebase,
-            parent_native,
-            child_native,
-            false,
-            false,
-            false,
-            &mut ComparisonResult::new(),
-        );
-
-        let types_equal = parent_contained_in_child
-            && union_comparator::is_contained_by(
-                codebase,
-                child_native,
-                parent_native,
-                false,
-                false,
-                false,
-                &mut ComparisonResult::new(),
-            );
-
-        types_equal || !parent_contained_in_child
+        parent_docblock.is_some_and(|parent_docblock| {
+            native_parameter_accepts_docblock(codebase, child_native, &parent_docblock.type_union)
+        })
     }
+}
+
+/// PHPStan's `TypehintHelper::decideType()` adds the members of a native union that share no value with the docblock type.
+fn with_disjoint_native_members(
+    codebase: &CodebaseMetadata,
+    docblock: TUnion,
+    native: Option<&TypeMetadata>,
+) -> TUnion {
+    let Some(native) = native.filter(|native| native.type_union.types.len() > 1) else {
+        return docblock;
+    };
+
+    let disjoint_members: Vec<TAtomic> = native
+        .type_union
+        .types
+        .iter()
+        .filter(|member| {
+            let member_union = TUnion::from_atomic((*member).clone());
+            let contains = |input: &TUnion, container: &TUnion| {
+                union_comparator::is_contained_by(
+                    codebase,
+                    input,
+                    container,
+                    false,
+                    false,
+                    false,
+                    &mut ComparisonResult::new(),
+                )
+            };
+
+            !contains(&member_union, &docblock)
+                && !docblock.types.iter().any(|atomic| contains(&TUnion::from_atomic(atomic.clone()), &member_union))
+        })
+        .cloned()
+        .collect();
+
+    if disjoint_members.is_empty() {
+        return docblock;
+    }
+
+    TUnion::from_vec(docblock.types.iter().cloned().chain(disjoint_members).collect())
+}
+
+/// PHPStan's `TypehintHelper::decideType()` keeps a parameter's docblock type whenever the native type accepts it.
+fn native_parameter_accepts_docblock(
+    codebase: &CodebaseMetadata,
+    child_native: &TUnion,
+    parent_docblock: &TUnion,
+) -> bool {
+    let docblock_type = if !child_native.accepts_null() && parent_docblock.has_null() {
+        Cow::Owned(parent_docblock.to_non_nullable())
+    } else {
+        Cow::Borrowed(parent_docblock)
+    };
+
+    union_comparator::is_contained_by(
+        codebase,
+        &docblock_type,
+        child_native,
+        false,
+        false,
+        false,
+        &mut ComparisonResult::new(),
+    )
 }
 
 /// Performs docblock inheritance for methods that need it.
@@ -772,15 +807,23 @@ fn resolve_method_inheritance(
         (metadata.type_union, metadata.span, metadata.from_docblock)
     });
 
+    let child_parameters = codebase.function_likes.get(&child_method_id).map(|child| child.parameters.as_slice());
     let substituted_param_types: Vec<Option<(TUnion, Span, bool)>> = parent_parameters
         .iter()
         .zip(&params_to_inherit)
-        .map(|(parameter, inherit)| {
-            parameter
-                .type_metadata
-                .as_ref()
-                .filter(|_| *inherit)
-                .map(|metadata| (substitute_type(metadata), metadata.span, metadata.from_docblock))
+        .enumerate()
+        .map(|(i, (parameter, inherit))| {
+            parameter.type_metadata.as_ref().filter(|_| *inherit).map(|metadata| {
+                let child_native = child_parameters
+                    .and_then(|parameters| parameters.get(i))
+                    .and_then(|child| child.type_declaration_metadata.as_ref());
+
+                (
+                    with_disjoint_native_members(codebase, substitute_type(metadata), child_native),
+                    metadata.span,
+                    metadata.from_docblock,
+                )
+            })
         })
         .collect();
 

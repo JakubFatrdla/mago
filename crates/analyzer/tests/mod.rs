@@ -3409,6 +3409,7 @@ test_case!(null_named_beside_other_non_object_parts);
 test_case!(ternary_comparison_condition_left_to_redundant_comparison);
 test_case!(built_in_false_returns_reported_like_phpstan);
 test_case!(method_tag_is_no_parent_method);
+test_case!(parameter_keeps_inherited_docblock_type);
 
 #[test]
 #[cfg_attr(miri, ignore)]
