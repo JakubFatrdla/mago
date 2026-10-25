@@ -114,7 +114,7 @@ where
     };
 
     for resolved_property in resolution_result.properties {
-        has_read_clamp |= resolved_property.read_type.is_some();
+        has_read_clamp |= resolved_property.read_type.is_some() && !keeps_written_value(&resolved_property);
 
         // A magic-governed write goes through `__set()`, never through the real property of the
         // same name that may exist on the declaring class (e.g. a `readonly` backing property).
@@ -373,6 +373,10 @@ fn natively_assigned_value_type<A>(
 where
     A: Arena,
 {
+    if keeps_written_value(resolved_property) {
+        return Some(assigned_value_type.clone());
+    }
+
     if resolved_property.is_magic || resolved_property.read_type.is_some() {
         return None;
     }
@@ -392,6 +396,12 @@ where
 
     intersect_union_types(assigned_value_type, &native_type, context.codebase)
         .filter(|intersection| !intersection.is_never())
+}
+
+fn keeps_written_value(resolved_property: &ResolvedProperty) -> bool {
+    resolved_property.is_magic
+        && resolved_property.declaring_class_id.is_some()
+        && resolved_property.read_type.as_ref() == Some(&resolved_property.property_type)
 }
 
 /// The value an offset write checks: the declared type with the write applied when the root was
