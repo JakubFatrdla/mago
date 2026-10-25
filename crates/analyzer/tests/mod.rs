@@ -3407,6 +3407,7 @@ test_case!(array_fill_keys_over_literal_keys_is_a_shape, {
 });
 test_case!(null_named_beside_other_non_object_parts);
 test_case!(ternary_comparison_condition_left_to_redundant_comparison);
+test_case!(built_in_false_returns_reported_like_phpstan);
 
 #[test]
 #[cfg_attr(miri, ignore)]

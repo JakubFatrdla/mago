@@ -278,9 +278,6 @@ function imageloadfont(string $filename): GdFont|false {}
 
 function imagesetstyle(GdImage $image, array $style): bool {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreatetruecolor(int $width, int $height): GdImage|false {}
 
 function imageistruecolor(GdImage $image): bool {}
@@ -334,88 +331,45 @@ function imagecopyresampled(
     int $src_height,
 ): bool {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagerotate(GdImage $image, float $angle, int $background_color): GdImage|false {}
 
 function imagesettile(GdImage $image, GdImage $tile): bool {}
 
 function imagesetbrush(GdImage $image, GdImage $brush): bool {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreate(int $width, int $height): GdImage|false {}
 
 function imagetypes(): int {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreatefromstring(string $data): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 #[Mago\AvailableSince(80100)]
 function imagecreatefromavif(string $filename): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreatefromgif(string $filename): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreatefromjpeg(string $filename): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreatefrompng(string $filename): GdImage|false {}
 
 /**
  * @param string $filename
  * @return GdImage|false
- * @psalm-ignore-falsable-return
  */
 function imagecreatefromwebp(string $filename): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreatefromxbm(string $filename): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreatefromwbmp(string $filename): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreatefromgd(string $filename): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreatefromgd2(string $filename): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreatefromgd2part(string $filename, int $x, int $y, int $width, int $height): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecreatefrombmp(string $filename): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 #[Mago\AvailableSince(80400)]
 function imagecreatefromtga(string $filename): GdImage|false {}
 
@@ -620,24 +574,12 @@ function imageflip(GdImage $image, int $mode): bool {}
 
 function imageantialias(GdImage $image, bool $enable): bool {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecrop(GdImage $image, array $rectangle): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagecropauto(GdImage $image, int $mode = 0, float $threshold = 0.5, int $color = -1): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imagescale(GdImage $image, int $width, int $height = -1, int $mode = 3): GdImage|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function imageaffine(GdImage $image, array $affine, ?array $clip = null): GdImage|false {}
 
 function imageaffinematrixget(int $type, $options): array|false {}

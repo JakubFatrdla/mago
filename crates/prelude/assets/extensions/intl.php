@@ -429,22 +429,16 @@ class IntlDateFormatter
     ): ?IntlDateFormatter {}
 
     /**
-     * @ignore-falsable-return
-     *
      * @pure
      */
     public function getDateType(): int|false {}
 
     /**
-     * @ignore-falsable-return
-     *
      * @pure
      */
     public function getTimeType(): int|false {}
 
     /**
-     * @ignore-falsable-return
-     *
      * @pure
      */
     public function getCalendar(): int|false {}
@@ -452,22 +446,16 @@ class IntlDateFormatter
     public function setCalendar(IntlCalendar|int|null $calendar): bool {}
 
     /**
-     * @ignore-falsable-return
-     *
      * @pure
      */
     public function getTimeZoneId(): string|false {}
 
     /**
-     * @ignore-falsable-return
-     *
      * @pure
      */
     public function getCalendarObject(): IntlCalendar|false|null {}
 
     /**
-     * @ignore-falsable-return
-     *
      * @pure
      */
     public function getTimeZone(): IntlTimeZone|false {}
@@ -480,15 +468,11 @@ class IntlDateFormatter
     public function setPattern(string $pattern): bool {}
 
     /**
-     * @ignore-falsable-return
-     *
      * @pure
      */
     public function getPattern(): string|false {}
 
     /**
-     * @ignore-falsable-return
-     *
      * @pure
      */
     public function getLocale(int $type = 0): string|false {}
@@ -521,30 +505,22 @@ class IntlDateFormatter
      *   tm_yday?: int,
      *   tm_year?: int,
      * }|float|int|string $datetime
-     *
-     * @ignore-falsable-return
      */
     public function format(IntlCalendar|DateTimeInterface|array|string|int|float $datetime): string|false {}
 
     /**
      * @param IntlCalendar|DateTimeInterface $datetime
      * @param null|int|string|array<string|int> $format
-     *
-     * @ignore-falsable-return
      */
     public static function formatObject($datetime, $format = null, ?string $locale = null): string|false {}
 
     /**
      * @param-out int $offset
-     *
-     * @ignore-falsable-return
      */
     public function parse(string $string, &$offset = null): int|float|false {}
 
     /**
      * @param-out int $offset
-     *
-     * @ignore-falsable-return
      */
     public function localtime(string $string, &$offset = null): array|false {}
 
@@ -558,9 +534,6 @@ class IntlDateFormatter
      */
     public function getErrorMessage(): string {}
 
-    /**
-     * @ignore-falsable-return
-     */
     public function parseToCalendar(string $string, &$offset = null): int|float|false {}
 }
 

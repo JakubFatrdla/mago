@@ -32,14 +32,8 @@ class CURLFile
     public function __wakeup() {}
 }
 
-/**
- * @psalm-ignore-falsable-return
- */
 function curl_init(?string $url = null): CurlHandle|false {}
 
-/**
- * @psalm-ignore-falsable-return
- */
 function curl_copy_handle(CurlHandle $handle): CurlHandle|false {}
 
 #[ArrayShape([

@@ -18,6 +18,7 @@ class Cache
             $this->prop = 'empty';
         }
 
+        // @mago-expect analysis:possibly-false-argument
         imagesetthickness($_im, thickness: 1);
 
         return $this->prop;

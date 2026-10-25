@@ -6,6 +6,6 @@ function probe(): string
 {
     $r = fopen('/dev/null', 'r');
 
-    /** @mago-expect analysis:implicit-resource-to-string-cast */
+    /** @mago-expect analysis:implicit-resource-to-string-cast,possibly-false-operand */
     return 'foo' . $r;
 }
