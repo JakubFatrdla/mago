@@ -71,6 +71,8 @@ where
     pub(super) body_block_span: Option<Span>,
     pub(super) plugin_registry: &'ctx PluginRegistry,
     pub(super) external_analysis_session: Option<&'ctx ExternalAnalysisSession>,
+    /// The registry and worker session the native pass asks for the by-reference out types of a call.
+    native_signature_source: Option<(&'ctx PluginRegistry, &'ctx ExternalAnalysisSession)>,
     pub(super) additional_symbol_references: Option<&'ctx SymbolReferences>,
     pub(super) property_types: HashMap<(Word, bool), PropertyTypes>,
     /// Types come from native declarations only, like PHPStan's scope with promoted native types.
@@ -116,6 +118,7 @@ where
             collector,
             plugin_registry,
             external_analysis_session,
+            native_signature_source: None,
             additional_symbol_references,
             property_types: HashMap::default(),
             native_types_only: false,
@@ -132,6 +135,22 @@ where
         self.native_types_only = true;
         self.natively_false_conditions = Some(HashSet::default());
         self
+    }
+
+    #[must_use]
+    pub(crate) fn with_native_signature_source(
+        mut self,
+        plugin_registry: &'ctx PluginRegistry,
+        external_analysis_session: Option<&'ctx ExternalAnalysisSession>,
+    ) -> Self {
+        self.native_signature_source = external_analysis_session.map(|session| (plugin_registry, session));
+        self
+    }
+
+    /// The registry and worker session that answer callable-signature requests.
+    pub(crate) fn callable_signature_source(&self) -> Option<(&'ctx PluginRegistry, &'ctx ExternalAnalysisSession)> {
+        self.native_signature_source
+            .or_else(|| self.external_analysis_session.map(|session| (self.plugin_registry, session)))
     }
 
     #[must_use]

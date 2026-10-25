@@ -510,6 +510,40 @@ function proof(): Payload {
 }
 
 #[test]
+fn native_types_pass_keeps_provider_out_types_of_by_reference_arguments() -> Result<(), Box<dyn std::error::Error>> {
+    if !php_sdk_is_available() {
+        return Ok(());
+    }
+    let source = r"<?php
+
+declare(strict_types=1);
+
+const FILL_MODE = 'string';
+
+function fill_by_mode(string $mode, mixed &$out): void {}
+
+function filled(): string
+{
+    $filled = null;
+    fill_by_mode(FILL_MODE, $filled);
+
+    return $filled ?? 'default';
+}
+";
+    let observation = analyze_with_fixture_settings(source, true, false, false, |settings| {
+        settings.treat_docblock_types_as_certain = false;
+    })?;
+    let codes = observation.issues.iter().filter_map(|(code, _)| code.as_deref()).collect::<Vec<_>>();
+    assert_eq!(
+        codes,
+        ["redundant-null-coalesce"],
+        "the native pass must see the provider out type: {:#?}",
+        observation.issues
+    );
+    Ok(())
+}
+
+#[test]
 fn external_providers_receive_complete_invocation_context() -> Result<(), Box<dyn std::error::Error>> {
     if !php_sdk_is_available() {
         return Ok(());
@@ -735,6 +769,16 @@ fn analyze_with_fixture(
     decline_property_initialization: bool,
     register_issue_filter: bool,
 ) -> Result<AnalysisObservation, Box<dyn std::error::Error>> {
+    analyze_with_fixture_settings(source, function_only, decline_property_initialization, register_issue_filter, |_| {})
+}
+
+fn analyze_with_fixture_settings(
+    source: &str,
+    function_only: bool,
+    decline_property_initialization: bool,
+    register_issue_filter: bool,
+    configure: impl FnOnce(&mut Settings),
+) -> Result<AnalysisObservation, Box<dyn std::error::Error>> {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
     let temporary = tempfile::tempdir()?;
     let audit = temporary.path().join("invocations.txt");
@@ -769,6 +813,7 @@ fn analyze_with_fixture(
     let mut settings = Settings::new(PHPVersion::PHP85);
     settings.find_unused_parameters = false;
     settings.check_property_initialization = true;
+    configure(&mut settings);
     let mut service = IncrementalAnalysisService::new(
         database.read_only(),
         CodebaseMetadata::new(),

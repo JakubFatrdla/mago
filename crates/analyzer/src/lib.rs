@@ -372,6 +372,7 @@ where
             None,
         )
         .with_native_types_only()
+        .with_native_signature_source(self.plugin_registry, self.external_analysis_session)
         .with_strict_types(program)
         .with_last_conditions(program);
 

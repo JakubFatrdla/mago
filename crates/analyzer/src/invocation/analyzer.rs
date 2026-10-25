@@ -1,6 +1,7 @@
 use mago_allocator::Arena;
 use std::borrow::Cow;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use foldhash::HashMap;
 use foldhash::HashSet;
@@ -52,6 +53,7 @@ use crate::code::IssueCode;
 use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
+use crate::invocation::EffectiveCallableSignature;
 use crate::invocation::Invocation;
 use crate::invocation::InvocationArgument;
 use crate::invocation::InvocationArgumentsSource;
@@ -182,9 +184,10 @@ where
     A: Arena,
 {
     let signature_provider_target = invocation.target.get_function_like_identifier().copied().filter(|identifier| {
-        context.external_analysis_session.is_some()
-            && !invocation.target.has_effective_signature()
-            && context.plugin_registry.may_have_callable_signature_provider(identifier)
+        !invocation.target.has_effective_signature()
+            && context
+                .callable_signature_source()
+                .is_some_and(|(plugin_registry, _)| plugin_registry.may_have_callable_signature_provider(identifier))
     });
 
     if let Some(identifier) = &signature_provider_target {
@@ -369,14 +372,7 @@ where
 
     if let Some(identifier) = &signature_provider_target
         && !non_closure_arguments.is_empty()
-        && let Some(signature) = context.plugin_registry.get_function_like_callable_signature(
-            context.codebase,
-            context.source_file,
-            artifacts,
-            identifier,
-            invocation,
-            context.external_analysis_session,
-        )
+        && let Some(signature) = request_callable_signature(context, artifacts, identifier, invocation)
     {
         let non_closure_offsets: Vec<usize> = non_closure_arguments.iter().map(|(offset, _)| *offset).collect();
         let closure_offsets: Vec<usize> = closure_arguments.iter().map(|(offset, _)| *offset).collect();
@@ -1356,19 +1352,65 @@ pub(crate) fn apply_callable_signature<'ctx, 'arena, A>(
 where
     A: Arena,
 {
-    let Some(signature) = context.plugin_registry.get_function_like_callable_signature(
-        context.codebase,
-        context.source_file,
-        artifacts,
-        identifier,
-        invocation,
-        context.external_analysis_session,
-    ) else {
+    let Some(signature) = request_callable_signature(context, artifacts, identifier, invocation) else {
         return false;
     };
 
     invocation.target.set_effective_signature(signature);
     true
+}
+
+fn request_callable_signature<'ctx, 'arena, A>(
+    context: &Context<'ctx, 'arena, A>,
+    artifacts: &AnalysisArtifacts,
+    identifier: &FunctionLikeIdentifier,
+    invocation: &Invocation<'ctx, '_, 'arena>,
+) -> Option<EffectiveCallableSignature>
+where
+    A: Arena,
+{
+    let (plugin_registry, session) = context.callable_signature_source()?;
+    let signature = plugin_registry.get_function_like_callable_signature(
+        context.codebase,
+        context.source_file,
+        artifacts,
+        identifier,
+        invocation,
+        Some(session),
+    )?;
+
+    if context.native_types_only { with_by_reference_out_types_only(invocation, signature) } else { Some(signature) }
+}
+
+/// Keeps only the out types a provider gives by-reference parameters, which PHPStan's native scope takes from
+/// the phpdoc scope; parameter types stay declared. `None` when the provider changes no out type.
+fn with_by_reference_out_types_only(
+    invocation: &Invocation<'_, '_, '_>,
+    mut signature: EffectiveCallableSignature,
+) -> Option<EffectiveCallableSignature> {
+    let metadata = invocation.target.get_function_like_metadata()?;
+    let mut changes_out_type = false;
+    for (parameter, declared) in signature.parameters.iter_mut().zip(&metadata.parameters) {
+        let declared_out_type = declared.out_type.as_ref().map(|out_type| &out_type.type_union);
+        let out_type = if parameter.is_by_reference() && parameter.get_out_type() != declared_out_type {
+            changes_out_type = true;
+            parameter.get_out_type().cloned()
+        } else {
+            declared_out_type.cloned()
+        };
+
+        *parameter = parameter
+            .clone()
+            .with_type_signature(
+                declared.get_type_metadata().map(|type_metadata| Arc::new(type_metadata.type_union.clone())),
+            )
+            .with_closure_this_type(
+                declared.closure_this_type.as_ref().map(|this_type| Arc::new(this_type.type_union.clone())),
+            )
+            .with_out_type(out_type.map(Arc::new));
+    }
+
+    changes_out_type.then_some(signature)
 }
 
 /// Instantiates first-class generic callables from the surrounding call's other arguments.
