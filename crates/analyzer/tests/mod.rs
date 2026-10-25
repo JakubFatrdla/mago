@@ -3412,6 +3412,7 @@ test_case!(method_tag_is_no_parent_method);
 test_case!(parameter_keeps_inherited_docblock_type);
 test_case!(in_array_always_true_like_phpstan);
 test_case!(loop_keeps_type_before_non_null_mixed);
+test_case!(non_null_mixed_compared_with_null);
 test_case!(imprecise_docblock_types_like_phpstan, {
     let mut s = crate::framework::default_test_settings();
     s.check_missing_type_hints = true;
