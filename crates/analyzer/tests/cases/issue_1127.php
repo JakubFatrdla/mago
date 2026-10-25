@@ -12,6 +12,7 @@ class Foo
     }
 }
 
+// @mago-expect analysis:invalid-callable
 Closure::bind(
     function (): void {
         $x = new stdClass();
