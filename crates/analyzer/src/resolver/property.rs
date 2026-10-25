@@ -177,6 +177,28 @@ where
     );
 }
 
+pub(crate) fn resolve_property_selector<'ctx, 'arena, A>(
+    context: &mut Context<'ctx, 'arena, A>,
+    block_context: &mut BlockContext<'ctx>,
+    artifacts: &mut AnalysisArtifacts,
+    object_type: Option<&TUnion>,
+    property_selector: &ClassLikeMemberSelector<'arena>,
+    is_null_safe: bool,
+) -> Result<Vec<ResolvedSelector>, AnalysisError>
+where
+    A: Arena,
+{
+    let reports_string_selector =
+        !is_null_safe && !object_type.is_some_and(|object_type| is_universal_object_crate(context, object_type));
+    let selectors =
+        resolve_member_selector(context, block_context, artifacts, property_selector, true, reports_string_selector)?;
+    if reports_string_selector && selectors.contains(&ResolvedSelector::Mixed) {
+        report_mixed_member_selector(context, property_selector.span());
+    }
+
+    Ok(selectors)
+}
+
 /// Resolves all possible instance properties from an object expression and a member selector.
 pub fn resolve_instance_properties<'ctx, 'ast, 'arena, A>(
     context: &mut Context<'ctx, 'arena, A>,
@@ -199,15 +221,15 @@ where
     object_expression.analyze(context, block_context, artifacts)?;
     block_context.flags.set_inside_general_use(was_inside_general_use);
 
-    let reports_string_selector = !is_null_safe
-        && !artifacts
-            .get_rc_expression_type(object_expression)
-            .is_some_and(|object_type| is_universal_object_crate(context, object_type));
-    let selectors =
-        resolve_member_selector(context, block_context, artifacts, property_selector, true, reports_string_selector)?;
-    if reports_string_selector && selectors.contains(&ResolvedSelector::Mixed) {
-        report_mixed_member_selector(context, property_selector.span());
-    }
+    let receiver_type = artifacts.get_rc_expression_type(object_expression).cloned();
+    let selectors = resolve_property_selector(
+        context,
+        block_context,
+        artifacts,
+        receiver_type.as_deref(),
+        property_selector,
+        is_null_safe,
+    )?;
 
     let Some(object_type) = artifacts.get_rc_expression_type(object_expression).cloned() else {
         return Ok(result);

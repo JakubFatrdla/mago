@@ -3189,6 +3189,7 @@ test_case!(trait_reads_properties_every_user_declares);
 test_case!(trait_calls_methods_every_user_declares);
 test_case!(receiver_checks_like_phpstan);
 test_case!(memoized_property_receiver_on_every_read);
+test_case!(dynamic_property_name_on_every_read);
 test_case!(error_path_null_like_phpstan);
 test_case!(null_coalesce_chain_narrows_shared_base);
 test_case!(offset_write_drops_scalar_members);

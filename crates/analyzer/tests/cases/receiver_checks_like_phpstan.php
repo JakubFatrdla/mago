@@ -47,7 +47,7 @@ function receiver_dynamic_name_on_nullable(?ReceiverRow $row, string $column): m
 
 function receiver_dynamic_name_read_twice(?ReceiverRow $row, string $column): bool
 {
-    return $row->$column !== $row->$column; // @mago-expect analysis:string-member-selector
+    return $row->$column !== $row->$column; // @mago-expect analysis:string-member-selector,string-member-selector
 }
 
 function receiver_literal_name_on_nullable(?ReceiverRow $row): ?int

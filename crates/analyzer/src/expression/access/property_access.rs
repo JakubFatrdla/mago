@@ -35,6 +35,7 @@ use crate::resolver::property::report_redundant_nullsafe;
 use crate::resolver::property::report_undeclared_property;
 use crate::resolver::property::resolve_declared_property;
 use crate::resolver::property::resolve_instance_properties;
+use crate::resolver::property::resolve_property_selector;
 use crate::statement::class_like::initialization::report_read_before_initialization;
 use crate::utils::deprecation::report_deprecated_property;
 use crate::utils::expression::get_block_expression_id;
@@ -177,6 +178,19 @@ where
             && let Some(object_type) = block_context.locals.get(&object_id)
         {
             artifacts.set_rc_expression_type(object, Rc::clone(object_type));
+        }
+
+        if !matches!(property_selector, ClassLikeMemberSelector::Identifier(_))
+            && let Some(object_type) = artifacts.get_rc_expression_type(object).cloned()
+        {
+            resolve_property_selector(
+                context,
+                block_context,
+                artifacts,
+                Some(&object_type),
+                property_selector,
+                is_null_safe,
+            )?;
         }
 
         artifacts.set_rc_expression_type(&span, existing_type);
