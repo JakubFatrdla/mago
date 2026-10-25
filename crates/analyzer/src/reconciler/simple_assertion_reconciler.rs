@@ -81,6 +81,16 @@ where
     if let Some(assertion_type) = assertion.get_type() {
         // `mixed is T` -> `T`, always
         if existing_var_type.is_mixed() {
+            if let TAtomic::Array(TArray::Keyed(keyed_array)) = assertion_type
+                && !keyed_array.has_known_items()
+                && existing_var_type
+                    .types
+                    .iter()
+                    .all(|atomic| matches!(atomic, TAtomic::Mixed(mixed) if mixed.is_truthy()))
+            {
+                return Some(wrap_atomic(TAtomic::Array(TArray::Keyed(keyed_array.as_non_empty_array(true)))));
+            }
+
             return Some(wrap_atomic(assertion_type.clone()));
         }
 
