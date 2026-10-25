@@ -113,7 +113,6 @@ where
     let mut current_type = Rc::clone(&root_array_type);
 
     let root_var_id = get_block_expression_id(root_array_expression, context, block_context);
-    let writes_root_offset = array_target_expressions.len() == 1;
     let written_ids_under_mixed_root = root_array_type.is_mixed().then(|| {
         array_target_expressions
             .iter()
@@ -163,9 +162,8 @@ where
         mark_non_empty: root_var_id.is_none_or(|id| !block_context.references_in_scope.contains_key(&id)),
     };
     let root_array_type = root_offset_write.apply(context, block_context, Rc::unwrap_or_clone(root_array_type));
-    let remembered_root_write = (writes_root_offset
-        && root_var_id.is_some_and(|id| block_context.locals.contains_key(&id)))
-    .then_some(&root_offset_write);
+    let remembered_root_write =
+        root_var_id.is_some_and(|id| block_context.locals.contains_key(&id)).then_some(&root_offset_write);
 
     if let Expression::Access(Access::Property(property_access)) = &root_array_expression {
         property_assignment::analyze(
