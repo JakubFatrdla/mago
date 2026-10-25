@@ -243,6 +243,7 @@ where
         checks_receiver && receiver_has_reported_non_object_part(&object_type, reports_null);
 
     let mut object_atomics = object_type.types.iter().collect::<Vec<_>>();
+    let mut non_object_atomics = Vec::new();
     while let Some(object_atomic) = object_atomics.pop() {
         if let TAtomic::GenericParameter(TGenericParameter { constraint, .. }) = object_atomic {
             object_atomics.extend(constraint.types.iter());
@@ -258,14 +259,7 @@ where
                 && !object_type.has_nullsafe_null()
                 && !object_type.has_error_path_null()
             {
-                report_access_on_null(
-                    context,
-                    block_context,
-                    object_expression.span(),
-                    operator_span,
-                    is_all_null,
-                    object_atomic.is_void(),
-                );
+                non_object_atomics.push(object_atomic);
             }
 
             continue;
@@ -285,13 +279,7 @@ where
                 }
 
                 if checks_receiver {
-                    report_access_on_non_object(
-                        context,
-                        object_atomic,
-                        &property_names,
-                        property_selector,
-                        object_expression.span(),
-                    );
+                    non_object_atomics.push(object_atomic);
                 }
 
                 continue;
@@ -544,6 +532,18 @@ where
             result.properties.push(resolved_property);
         }
     }
+
+    non_object_atomics.reverse();
+    report_non_object_receiver(
+        context,
+        block_context,
+        &non_object_atomics,
+        is_all_null,
+        &property_names,
+        property_selector,
+        object_expression.span(),
+        operator_span,
+    );
 
     result.all_properties_non_nullable =
         !result.properties.is_empty() && result.properties.iter().all(|p| !p.property_type.is_nullable());
@@ -1784,19 +1784,61 @@ pub(crate) fn report_redundant_nullsafe<'arena, A>(
     );
 }
 
-pub(crate) fn report_access_on_non_object<A>(
+pub(crate) fn report_non_object_receiver<'ctx, A>(
+    context: &mut Context<'ctx, '_, A>,
+    block_context: &BlockContext<'ctx>,
+    non_object_atomics: &[&TAtomic],
+    is_always_null: bool,
+    property_names: &[Word],
+    selector: &ClassLikeMemberSelector,
+    object_span: Span,
+    operator_span: Span,
+) where
+    A: Arena,
+{
+    let (null_atomics, other_atomics): (Vec<&TAtomic>, Vec<&TAtomic>) =
+        non_object_atomics.iter().partition(|atomic| atomic.is_null() || atomic.is_void());
+    if other_atomics.iter().any(|atomic| !atomic.is_mixed()) {
+        report_access_on_non_object(context, non_object_atomics, property_names, selector, object_span);
+
+        return;
+    }
+
+    for null_atomic in null_atomics {
+        report_access_on_null(
+            context,
+            block_context,
+            object_span,
+            operator_span,
+            is_always_null,
+            null_atomic.is_void(),
+        );
+    }
+
+    if !other_atomics.is_empty() {
+        report_access_on_non_object(context, &other_atomics, property_names, selector, object_span);
+    }
+}
+
+fn report_access_on_non_object<A>(
     context: &mut Context<'_, '_, A>,
-    atomic_type: &TAtomic,
+    atomic_types: &[&TAtomic],
     property_names: &[Word],
     selector: &ClassLikeMemberSelector,
     object_span: Span,
 ) where
     A: Arena,
 {
-    let type_str = atomic_type.get_id();
+    let type_str =
+        atomic_types.iter().map(|atomic_type| atomic_type.get_id().to_string()).collect::<Vec<_>>().join("|");
+    let code = if atomic_types.iter().all(|atomic_type| atomic_type.is_mixed()) {
+        IssueCode::MixedPropertyAccess
+    } else {
+        IssueCode::InvalidPropertyAccess
+    };
     for property_name in property_names {
         context.collector.report_with_code(
-            if atomic_type.is_mixed() { IssueCode::MixedPropertyAccess } else { IssueCode::InvalidPropertyAccess },
+            code,
             Issue::error(format!(
                 "Attempting to access property `{property_name}` on a non-object type (`{type_str}`)."
             ))

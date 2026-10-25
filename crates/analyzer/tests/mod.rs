@@ -3405,6 +3405,7 @@ test_case!(array_fill_keys_over_literal_keys_is_a_shape, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(null_named_beside_other_non_object_parts);
 
 #[test]
 #[cfg_attr(miri, ignore)]

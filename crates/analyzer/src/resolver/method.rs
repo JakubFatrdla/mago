@@ -233,18 +233,7 @@ where
                         result.has_invalid_target = true;
                     }
 
-                    context.collector.report_with_code(
-                        if object_type.is_null() {
-                            IssueCode::MethodAccessOnNull
-                        } else {
-                            IssueCode::PossibleMethodAccessOnNull
-                        },
-                        Issue::error("Attempting to call a method on `null`.")
-                            .with_annotation(
-                                Annotation::primary(object.span()).with_message("This expression can be `null`"),
-                            )
-                            .with_help("Use the nullsafe operator (`?->`) if `null` is an expected value."),
-                    );
+                    non_object_atomics.push(object_atomic);
                 }
 
                 continue;
@@ -392,6 +381,15 @@ where
 
                 result.resolved_methods.extend(resolved_methods);
             }
+        }
+
+        let names_null_beside_other_parts =
+            non_object_atomics.iter().any(|atomic| !atomic.is_null() && !atomic.is_mixed());
+        if !names_null_beside_other_parts
+            && let Some(null_position) = non_object_atomics.iter().position(|atomic| atomic.is_null())
+        {
+            non_object_atomics.remove(null_position);
+            report_call_on_null(context, object_type, object.span());
         }
 
         if !non_object_atomics.is_empty() {
@@ -975,6 +973,18 @@ where
     }
 
     true
+}
+
+fn report_call_on_null<A>(context: &mut Context<'_, '_, A>, object_type: &TUnion, obj_span: Span)
+where
+    A: Arena,
+{
+    context.collector.report_with_code(
+        if object_type.is_null() { IssueCode::MethodAccessOnNull } else { IssueCode::PossibleMethodAccessOnNull },
+        Issue::error("Attempting to call a method on `null`.")
+            .with_annotation(Annotation::primary(obj_span).with_message("This expression can be `null`"))
+            .with_help("Use the nullsafe operator (`?->`) if `null` is an expected value."),
+    );
 }
 
 fn report_call_on_non_object<A>(

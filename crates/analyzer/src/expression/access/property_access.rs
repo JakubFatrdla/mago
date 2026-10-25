@@ -30,8 +30,7 @@ use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
 use crate::expression::array_access::report_index_types_of_array_access;
-use crate::resolver::property::report_access_on_non_object;
-use crate::resolver::property::report_access_on_null;
+use crate::resolver::property::report_non_object_receiver;
 use crate::resolver::property::report_undeclared_property;
 use crate::resolver::property::resolve_declared_property;
 use crate::resolver::property::resolve_instance_properties;
@@ -383,28 +382,28 @@ fn report_memoized_receiver<'ctx, 'ast, 'arena, A>(
         return;
     }
 
-    let is_all_null = receiver_type.is_null() || receiver_type.is_void();
-    for atomic in receiver_type.types.iter() {
-        match atomic {
-            TAtomic::Null | TAtomic::Void => {
-                if !block_context.flags.inside_isset()
-                    && !receiver_type.has_nullsafe_null()
-                    && !receiver_type.has_error_path_null()
-                {
-                    report_access_on_null(
-                        context,
-                        block_context,
-                        object.span(),
-                        arrow_span,
-                        is_all_null,
-                        atomic.is_void(),
-                    );
-                }
-            }
-            TAtomic::Object(_) | TAtomic::GenericParameter(_) | TAtomic::Callable(_) => {}
-            _ => report_access_on_non_object(context, atomic, &property_names, property_selector, object.span()),
-        }
-    }
+    let reports_null = !block_context.flags.inside_isset()
+        && !receiver_type.has_nullsafe_null()
+        && !receiver_type.has_error_path_null();
+    let non_object_atomics = receiver_type
+        .types
+        .iter()
+        .filter(|atomic| match atomic {
+            TAtomic::Null | TAtomic::Void => reports_null,
+            TAtomic::Object(_) | TAtomic::GenericParameter(_) | TAtomic::Callable(_) => false,
+            _ => true,
+        })
+        .collect::<Vec<_>>();
+    report_non_object_receiver(
+        context,
+        block_context,
+        &non_object_atomics,
+        receiver_type.is_null() || receiver_type.is_void(),
+        &property_names,
+        property_selector,
+        object.span(),
+        arrow_span,
+    );
 }
 
 fn memoized_selector_type<A>(
