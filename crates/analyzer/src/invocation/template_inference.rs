@@ -691,14 +691,28 @@ fn infer_templates_from_input_and_container_types<A>(
                             Cow::Borrowed(input_parameter_type)
                         };
 
+                        let mut parameter_violations = Vec::new();
                         infer_templates_from_input_and_container_types(
                             context,
                             container_parameter_type,
                             &input_param_for_inference,
                             template_result,
                             InferenceOptions { infer_only_if_new: true, ..options },
-                            arm_violations,
+                            &mut parameter_violations,
                         );
+
+                        // A parameter that accepts every value of the constraint can take whatever the template binds to.
+                        arm_violations.extend(parameter_violations.into_iter().filter(|violation| {
+                            !union_comparator::is_contained_by(
+                                context.codebase,
+                                &violation.constraint,
+                                &violation.inferred_bound,
+                                false,
+                                false,
+                                false,
+                                &mut ComparisonResult::default(),
+                            )
+                        }));
                     }
 
                     let Some(container_return) = container_signature.get_return_type() else {

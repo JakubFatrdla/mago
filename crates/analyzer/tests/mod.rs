@@ -3198,6 +3198,7 @@ test_case!(closure_bind_may_return_null);
 test_case!(pow_returns_object_only_for_overloading_operand);
 test_case!(mixed_operand_with_numeric_string_is_a_number);
 test_case!(readonly_property_types_from_constructor);
+test_case!(template_bound_from_wider_callable_parameter);
 test_case!(error_path_null_like_phpstan);
 test_case!(null_coalesce_chain_narrows_shared_base);
 test_case!(offset_write_drops_scalar_members);
