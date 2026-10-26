@@ -472,6 +472,7 @@ test_case!(generator_return_yield);
 test_case!(generic_shape_coercion);
 test_case!(int_cast_of_mixed);
 test_case!(array_plus_mixed_is_array);
+test_case!(arithmetic_operand_reported_at_operation_start);
 test_case!(float_cast_of_numeric_objects);
 test_case!(float_cast_of_scalar_or_object);
 test_case!(int_or_float);

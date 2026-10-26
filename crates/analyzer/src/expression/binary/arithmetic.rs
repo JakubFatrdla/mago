@@ -70,6 +70,7 @@ where
     }
 
     let mut final_result_type: Option<TUnion> = None;
+    let right_operand_span = binary.rhs.span().from_start(binary.span().start);
 
     if left_type.is_null() {
         context.collector.report_with_code(
@@ -102,7 +103,7 @@ where
         context.collector.report_with_code(
             IssueCode::NullOperand,
             Issue::error("Right operand in arithmetic operation cannot be `null`.")
-                .with_annotation(Annotation::primary(binary.rhs.span()).with_message("This is `null`."))
+                .with_annotation(Annotation::primary(right_operand_span).with_message("This is `null`."))
                 .with_note("Performing arithmetic operations on `null` typically results in `0`.")
                 .with_help("Ensure the right operand is a number (int/float) or a type that can be cast to a number."),
         );
@@ -115,7 +116,7 @@ where
                 "Right operand in arithmetic operation might be `null` (type `{}`).",
                 right_type.get_id()
             ))
-            .with_annotation(Annotation::primary(binary.rhs.span()).with_message("This might be `null`"))
+            .with_annotation(Annotation::primary(right_operand_span).with_message("This might be `null`"))
             .with_note("Performing arithmetic operations on `null` typically results in `0`.")
             .with_help(
                 "Ensure the right operand is non-null before the operation, potentially using checks or assertions.",
@@ -185,7 +186,7 @@ where
                 "Right operand in arithmetic operation is `false`."
             )
             .with_annotation(
-                Annotation::primary(binary.rhs.span())
+                Annotation::primary(right_operand_span)
                     .with_message("This is `false`.")
             )
             .with_note(
@@ -203,7 +204,7 @@ where
                 right_type.get_id()
             ))
             .with_annotation(
-                Annotation::primary(binary.rhs.span())
+                Annotation::primary(right_operand_span)
                     .with_message("This might be `false`.")
             )
             .with_note(
@@ -303,7 +304,7 @@ where
                             "Right operand in binary operation has type `mixed`."
                         )
                         .with_annotation(
-                            Annotation::primary(binary.rhs.span())
+                            Annotation::primary(right_operand_span)
                                 .with_message("Operand is `mixed`.")
                         )
                         .with_note(
@@ -344,7 +345,7 @@ where
                 } else if left_atomic.is_array() {
                     invalid_right_messages.push((
                         format!("Cannot add array to non-array type {}", right_atomic.get_id()),
-                        binary.rhs.span(),
+                        right_operand_span,
                     ));
 
                     has_valid_left_operand = true;
@@ -409,11 +410,11 @@ where
                         _ => format!("Cannot use {} as an operand with {name}", right_operand.get_id()),
                     };
 
-                    invalid_right_messages.push((message, binary.rhs.span()));
+                    invalid_right_messages.push((message, right_operand_span));
                 }
 
                 if is_division_by_zero {
-                    invalid_right_messages.push(("Division or modulo by zero".to_string(), binary.rhs.span()));
+                    invalid_right_messages.push(("Division or modulo by zero".to_string(), right_operand_span));
                     result_atomic_types.push(TAtomic::Never);
                 } else if right_is_valid {
                     has_valid_right_operand = true;
@@ -430,7 +431,7 @@ where
                 }
             } else if left_atomic.is_numeric() && right_atomic.is_numeric() {
                 if let Some(reason) = definite_arithmetic_runtime_error(&binary.operator, right_atomic) {
-                    invalid_right_messages.push((reason, binary.rhs.span()));
+                    invalid_right_messages.push((reason, right_operand_span));
                     pair_result_atomics.push(TAtomic::Never);
                     result_atomic_types.extend(pair_result_atomics);
                     continue;
@@ -450,7 +451,7 @@ where
                             || matches!(right_atomic.get_literal_float_value(), Some(0.0));
 
                         if right_is_zero {
-                            invalid_right_messages.push(("Division or modulo by zero".to_string(), binary.rhs.span()));
+                            invalid_right_messages.push(("Division or modulo by zero".to_string(), right_operand_span));
                             pair_result_atomics.push(TAtomic::Never);
                         } else {
                             pair_result_atomics.extend(numeric_results);
@@ -466,7 +467,7 @@ where
             } else if left_atomic.is_numeric() {
                 invalid_right_messages.push((
                     format!("Cannot perform arithmetic operation with non-numeric type {}", right_atomic.get_id()),
-                    binary.rhs.span(),
+                    right_operand_span,
                 ));
                 has_valid_left_operand = true;
                 invalid_pair = true;
@@ -485,7 +486,7 @@ where
 
                 invalid_right_messages.push((
                     format!("Cannot perform arithmetic operation on type {}", right_atomic.get_id()),
-                    binary.rhs.span(),
+                    right_operand_span,
                 ));
 
                 invalid_pair = true;
