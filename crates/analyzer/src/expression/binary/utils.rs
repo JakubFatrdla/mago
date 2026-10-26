@@ -249,6 +249,13 @@ fn compare_literal_int_and_string(php_version: PHPVersion, lhs: &TUnion, rhs: &T
     None
 }
 
+fn is_truthy_string_or_mixed_against_falsy(truthy: &TUnion, falsy: &TUnion) -> bool {
+    truthy.is_always_truthy()
+        && truthy.types.iter().all(|atomic| matches!(atomic, TAtomic::Mixed(_) | TAtomic::Scalar(TScalar::String(_))))
+        && falsy.is_always_falsy()
+        && !falsy.has_array()
+}
+
 pub fn are_definitely_not_identical(
     codebase: &CodebaseMetadata,
     lhs: &TUnion,
@@ -256,6 +263,10 @@ pub fn are_definitely_not_identical(
     allow_type_coercion: bool,
 ) -> bool {
     if (lhs.is_null() && !rhs.can_be_null()) || (rhs.is_null() && !lhs.can_be_null()) {
+        return true;
+    }
+
+    if is_truthy_string_or_mixed_against_falsy(lhs, rhs) || is_truthy_string_or_mixed_against_falsy(rhs, lhs) {
         return true;
     }
 

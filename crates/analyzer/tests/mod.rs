@@ -475,6 +475,7 @@ test_case!(array_plus_mixed_is_array);
 test_case!(arithmetic_operand_reported_at_operation_start);
 test_case!(min_max_mixed_argument);
 test_case!(docblock_return_rejected_by_native);
+test_case!(truthy_never_identical_to_falsy);
 test_case!(float_cast_of_numeric_objects);
 test_case!(float_cast_of_scalar_or_object);
 test_case!(int_or_float);
