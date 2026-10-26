@@ -3195,6 +3195,7 @@ test_case!(variable_method_name_with_literal_value);
 test_case!(new_static_in_abstract_static_method);
 test_case!(property_default_value_against_docblock_type);
 test_case!(closure_bind_may_return_null);
+test_case!(pow_returns_object_only_for_overloading_operand);
 test_case!(error_path_null_like_phpstan);
 test_case!(null_coalesce_chain_narrows_shared_base);
 test_case!(offset_write_drops_scalar_members);

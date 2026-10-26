@@ -2122,6 +2122,14 @@ function is_infinite(float $num): bool {}
 
 /**
  * @pure
+ *
+ * @return (
+ *   $num is GMP
+ *     ? GMP
+ *     : ($exponent is GMP
+ *       ? GMP
+ *       : ($num is BcMath\Number ? BcMath\Number : ($exponent is BcMath\Number ? BcMath\Number : int|float)))
+ * )
  */
 function pow(mixed $num, mixed $exponent): object|int|float {}
 
