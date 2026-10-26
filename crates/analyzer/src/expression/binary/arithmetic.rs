@@ -597,7 +597,7 @@ where
 
 fn mixed_operand_result(op: &BinaryOperator<'_>, left: &TAtomic, right: &TAtomic) -> Option<Vec<TAtomic>> {
     let other = if left.is_mixed() { right } else { left };
-    if !other.is_mixed() && !other.is_int() && !other.is_float() {
+    if !other.is_mixed() && !other.is_numeric() {
         return None;
     }
 
