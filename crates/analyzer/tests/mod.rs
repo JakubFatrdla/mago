@@ -3465,6 +3465,12 @@ test_case!(offset_memo_definedness_like_phpstan, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(invalid_array_access_once_per_access, {
+    let mut s = crate::framework::default_test_settings();
+    s.allow_possibly_undefined_array_keys = false;
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

@@ -10,7 +10,7 @@ declare(strict_types=1);
 function offset_write_into_flipped_merge(array $continents, string $code, string $country, int $id): array
 {
     $structure = array_merge(array_flip(['eu', 'na']), $continents);
-    $structure[$code]['countries'] = ['cz' => ['cities' => []]]; // @mago-expect analysis:possibly-invalid-array-access,possibly-invalid-array-access
+    $structure[$code]['countries'] = ['cz' => ['cities' => []]]; // @mago-expect analysis:possibly-invalid-array-access
     $structure[$code]['countries'][$country]['cities'][$id] = 'x';
     $structure[$code]['countries'][$country]['regions'] = [];
 

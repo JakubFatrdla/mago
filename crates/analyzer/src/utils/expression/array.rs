@@ -670,24 +670,34 @@ where
     };
 
     let issues = context.collector.finish_recording().unwrap_or_default();
-    context.collector.extend(one_possibly_undefined_index_per_access(issues));
+    context.collector.extend(one_union_member_issue_per_access(issues));
 
     (access_type, reports_invalid_index || string_rejects_write)
 }
 
-fn one_possibly_undefined_index_per_access(issues: IssueCollection) -> impl Iterator<Item = Issue> {
+fn one_union_member_issue_per_access(issues: IssueCollection) -> impl Iterator<Item = Issue> {
     let mut reported_spans = HashSet::default();
 
     issues.into_iter().filter(move |issue| {
-        !is_possibly_undefined_index(issue) || issue.primary_span().is_none_or(|span| reported_spans.insert(span))
+        let Some(group) = union_member_issue_group(issue) else {
+            return true;
+        };
+
+        issue.primary_span().is_none_or(|span| reported_spans.insert((group, span)))
     })
 }
 
-fn is_possibly_undefined_index(issue: &Issue) -> bool {
-    issue.code.as_deref().is_some_and(|code| {
-        code == IssueCode::PossiblyUndefinedIntArrayIndex.as_str()
-            || code == IssueCode::PossiblyUndefinedStringArrayIndex.as_str()
-    })
+fn union_member_issue_group(issue: &Issue) -> Option<u8> {
+    let code = issue.code.as_deref()?;
+    if code == IssueCode::PossiblyUndefinedIntArrayIndex.as_str()
+        || code == IssueCode::PossiblyUndefinedStringArrayIndex.as_str()
+    {
+        Some(0)
+    } else if code == IssueCode::PossiblyInvalidArrayAccess.as_str() || code == IssueCode::InvalidArrayAccess.as_str() {
+        Some(1)
+    } else {
+        None
+    }
 }
 
 fn check_index_of_auto_vivified_array<A>(
