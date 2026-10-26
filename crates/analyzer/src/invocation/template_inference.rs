@@ -1278,6 +1278,25 @@ pub fn infer_parameter_templates_from_default<A>(
     );
 }
 
+/// Like [`infer_parameter_templates_from_default`], but next to the bounds already found, as PHPStan joins them.
+pub fn add_parameter_templates_from_default<A>(
+    context: &Context<'_, '_, A>,
+    parameter_type: &TUnion,
+    default_type: &TUnion,
+    template_result: &mut TemplateResult,
+) where
+    A: Arena,
+{
+    infer_templates_from_input_and_container_types(
+        context,
+        parameter_type,
+        default_type,
+        template_result,
+        InferenceOptions::default(),
+        &mut Vec::new(),
+    );
+}
+
 /// Replaces unbound `GenericParameter` types with their constraint types.
 ///
 /// When a callable signature has template parameters that aren't bound to concrete types,

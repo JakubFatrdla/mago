@@ -63,6 +63,7 @@ use crate::invocation::arguments::analyze_and_store_argument_type;
 use crate::invocation::arguments::get_unpacked_argument_type;
 use crate::invocation::arguments::verify_argument_type;
 use crate::invocation::resolver::resolve_invocation_type;
+use crate::invocation::template_inference::add_parameter_templates_from_default;
 use crate::invocation::template_inference::infer_parameter_templates_from_argument;
 use crate::invocation::template_inference::infer_parameter_templates_from_default;
 use crate::invocation::template_result::get_class_template_parameters_from_result;
@@ -388,6 +389,13 @@ where
     let method_class_type = method_call_context.map(|ctx| &ctx.class_type);
 
     let global_closure_bind_scope = detect_closure_bind_scope(context, invocation, &analyzed_argument_types);
+    let bound_parameter_offsets: Option<HashSet<usize>> = (!has_unpacked_arguments).then(|| {
+        non_closure_arguments
+            .iter()
+            .chain(&closure_arguments)
+            .filter_map(|(_, parameter)| parameter.map(|(parameter_offset, _)| parameter_offset))
+            .collect()
+    });
     let previous_bind_scope = artifacts.closure_bind_scope.take();
 
     for (argument_offset, parameter) in &closure_arguments {
@@ -483,6 +491,57 @@ where
                 closure_this_bind_scope(&resolved)
             })
             .or_else(|| global_closure_bind_scope.clone());
+
+        let parameter_type = match &base_parameter_type_for_inference {
+            Some(base_parameter_type)
+                if closure_parameters_follow_callable_return(base_parameter_type, argument_expression) =>
+            {
+                let bounds = bind_templates_from_closure_return(
+                    context,
+                    block_context,
+                    artifacts,
+                    invocation,
+                    argument_expression,
+                    *argument_offset,
+                    parameter.is_some_and(|p| p.1.is_by_reference()),
+                    parameter_type.as_ref(),
+                    base_parameter_type,
+                    template_result,
+                    bound_parameter_offsets.as_ref(),
+                    analyzed_argument_types.len(),
+                    base_class_metadata,
+                    calling_class_like_metadata,
+                    calling_instance_type,
+                    method_class_type,
+                )?;
+
+                let mut closure_parameter_type = inferred_type_replacer::replace_with_polarity(
+                    base_parameter_type,
+                    &bounds,
+                    context.codebase,
+                    mago_codex::ttype::template::variance::Variance::Contravariant,
+                );
+
+                if closure_parameter_type.is_expandable() {
+                    expander::expand_union(
+                        context.codebase,
+                        &mut closure_parameter_type,
+                        &TypeExpansionOptions {
+                            self_class: base_class_metadata.map(|metadata| metadata.name),
+                            ..Default::default()
+                        },
+                    );
+                }
+
+                filter_array_filter_callback_type(
+                    &invocation.target,
+                    &mut closure_parameter_type,
+                    &analyzed_argument_types,
+                );
+                Some(closure_parameter_type)
+            }
+            _ => parameter_type,
+        };
 
         analyze_and_store_argument_type(
             context,
@@ -1515,6 +1574,116 @@ fn infer_generic_callable_arguments<'ctx, 'arena, A>(
             }
         }
     }
+}
+
+/// PHPStan resolves a callable's templates from the closure's own return type before it types the closure's parameters.
+fn closure_parameters_follow_callable_return(parameter_type: &TUnion, argument_expression: &Expression<'_>) -> bool {
+    let parameters = match argument_expression {
+        Expression::Closure(closure) => &closure.parameter_list.parameters,
+        Expression::ArrowFunction(arrow_function) => &arrow_function.parameter_list.parameters,
+        _ => return false,
+    };
+
+    parameter_type.types.iter().any(|atomic| {
+        let TAtomic::Callable(TCallable::Signature(signature)) = atomic else {
+            return false;
+        };
+
+        signature.get_return_type().is_some_and(TUnion::has_template_types)
+            && parameters.iter().zip(signature.get_parameters()).any(|(parameter, expected)| {
+                parameter.hint.is_none() && expected.get_type_signature().is_some_and(TUnion::has_template_types)
+            })
+    })
+}
+
+/// The bounds a silent first pass over the closure adds: its return type, then the defaults of the omitted parameters.
+#[allow(clippy::too_many_arguments)]
+fn bind_templates_from_closure_return<'ctx, 'arena, A>(
+    context: &mut Context<'ctx, 'arena, A>,
+    block_context: &BlockContext<'ctx>,
+    artifacts: &AnalysisArtifacts,
+    invocation: &Invocation<'ctx, '_, 'arena>,
+    argument_expression: &Expression<'arena>,
+    argument_offset: usize,
+    by_reference: bool,
+    parameter_type: Option<&TUnion>,
+    base_parameter_type: &TUnion,
+    template_result: &TemplateResult,
+    bound_parameter_offsets: Option<&HashSet<usize>>,
+    argument_count: usize,
+    base_class_metadata: Option<&'ctx ClassLikeMetadata>,
+    calling_class_like_metadata: Option<&'ctx ClassLikeMetadata>,
+    calling_instance_type: Option<&TAtomic>,
+    method_class_type: Option<&StaticClassType>,
+) -> Result<TemplateResult, AnalysisError>
+where
+    A: Arena,
+{
+    let mut first_pass_block_context = block_context.clone();
+    let mut first_pass_artifacts = AnalysisArtifacts::new();
+    first_pass_artifacts.closure_bind_scope.clone_from(&artifacts.closure_bind_scope);
+    let mut first_pass_argument_types = vec![None; argument_count];
+
+    let (first_pass, _) = context.record(|context| {
+        analyze_and_store_argument_type(
+            context,
+            &mut first_pass_block_context,
+            &mut first_pass_artifacts,
+            &invocation.target,
+            argument_expression,
+            argument_offset,
+            &mut first_pass_argument_types,
+            by_reference,
+            parameter_type,
+        )
+    });
+    first_pass?;
+
+    let mut bounds = template_result.clone();
+    let Some((closure_type, closure_span)) = &first_pass_argument_types[argument_offset] else {
+        return Ok(bounds);
+    };
+
+    context.record(|context| {
+        infer_parameter_templates_from_argument(
+            context,
+            base_parameter_type,
+            closure_type,
+            &mut bounds,
+            argument_offset,
+            *closure_span,
+            true,
+        );
+    });
+
+    let Some(bound_parameter_offsets) = bound_parameter_offsets else {
+        return Ok(bounds);
+    };
+
+    for (parameter_offset, parameter) in invocation.target.iter_parameters().enumerate() {
+        if bound_parameter_offsets.contains(&parameter_offset) || !parameter.has_default() {
+            continue;
+        }
+
+        let Some(default_type) = parameter.get_default_type() else {
+            continue;
+        };
+
+        let parameter_type = get_parameter_type(
+            context,
+            Some(parameter),
+            base_class_metadata,
+            calling_class_like_metadata,
+            calling_instance_type,
+            method_class_type,
+        );
+
+        if parameter_type.has_template_types() {
+            add_parameter_templates_from_default(context, &parameter_type, default_type, &mut bounds);
+        }
+    }
+
+    Ok(bounds)
 }
 
 fn with_own_templates_as_parameter_constraints<A>(
