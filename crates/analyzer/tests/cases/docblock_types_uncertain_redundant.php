@@ -168,7 +168,7 @@ final class NativeTypes
 
     public function comparison(Item $item, bool $flag): bool
     {
-        return $flag && $item !== null; // @mago-expect analysis:redundant-comparison,redundant-logical-operation
+        return $flag && $item !== null; // @mago-expect analysis:redundant-comparison
     }
 }
 

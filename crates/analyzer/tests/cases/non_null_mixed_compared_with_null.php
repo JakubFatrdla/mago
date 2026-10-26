@@ -6,7 +6,6 @@ namespace NonNullMixedComparedWithNull;
 
 /**
  * @mago-expect analysis:redundant-comparison
- * @mago-expect analysis:redundant-logical-operation
  */
 function checked_twice(mixed $value): void
 {

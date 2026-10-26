@@ -39,6 +39,7 @@ use crate::error::AnalysisError;
 use crate::formula::get_formula;
 use crate::formula::negate_or_synthesize;
 use crate::reconciler;
+use crate::utils::conditional::is_reported_as_comparison;
 use crate::utils::expression::expression_has_observable_side_effect;
 use crate::utils::symbol_existence::extract_function_constant_existence;
 
@@ -304,7 +305,7 @@ where
         };
 
         let left_is_truthy = lhs_type.is_always_truthy();
-        if left_is_truthy && !block_context.flags.inside_loop_expressions() {
+        if left_is_truthy && !block_context.flags.inside_loop_expressions() && !is_reported_as_comparison(binary.lhs) {
             // true && x → x (remove left, keep right)
             report_redundant_logical_operation(
                 context,
@@ -325,7 +326,10 @@ where
             result_type = get_false();
         } else if rhs_type.is_always_truthy() {
             // x && true → x (remove right, keep left)
-            if !block_context.flags.inside_loop_expressions() {
+            let result_stands_for_comparisons = left_is_truthy && is_reported_as_comparison(binary.lhs);
+            if !block_context.flags.inside_loop_expressions()
+                && (!is_reported_as_comparison(binary.rhs) || result_stands_for_comparisons)
+            {
                 report_redundant_logical_operation(
                     context,
                     binary,
@@ -667,27 +671,31 @@ where
                 result_type = get_true();
             } else {
                 // false || x → x (remove left, keep right)
-                report_redundant_logical_operation(
-                    context,
-                    binary,
-                    "always false",
-                    "evaluated",
-                    "the boolean value of the right-hand side",
-                    Some(false), // remove left
-                );
+                if !is_reported_as_comparison(binary.lhs) {
+                    report_redundant_logical_operation(
+                        context,
+                        binary,
+                        "always false",
+                        "evaluated",
+                        "the boolean value of the right-hand side",
+                        Some(false), // remove left
+                    );
+                }
 
                 result_type = get_bool();
             }
         } else if rhs_type.is_always_falsy() {
             // x || false → x (remove right, keep left)
-            report_redundant_logical_operation(
-                context,
-                binary,
-                "evaluated",
-                "always falsy",
-                "the boolean value of the left-hand side",
-                Some(true), // remove right
-            );
+            if !is_reported_as_comparison(binary.rhs) {
+                report_redundant_logical_operation(
+                    context,
+                    binary,
+                    "evaluated",
+                    "always falsy",
+                    "the boolean value of the left-hand side",
+                    Some(true), // remove right
+                );
+            }
 
             result_type = get_bool();
         } else if rhs_type.is_always_truthy() {
