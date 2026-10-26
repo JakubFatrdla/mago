@@ -3489,6 +3489,12 @@ test_case!(nullable_container_read_null_is_error_path, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(call_argument_inside_coalesce_is_read, {
+    let mut s = crate::framework::default_test_settings();
+    s.allow_possibly_undefined_array_keys = false;
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

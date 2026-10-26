@@ -184,6 +184,36 @@ pub fn analyze_invocation<'ctx, 'arena, A>(
 where
     A: Arena,
 {
+    let was_inside_isset = block_context.flags.inside_isset();
+    block_context.flags.set_inside_isset(false);
+    let result = analyze_invocation_arguments(
+        context,
+        block_context,
+        artifacts,
+        invocation,
+        calling_class_like,
+        class_related_argument_variables,
+        template_result,
+        parameter_types,
+    );
+    block_context.flags.set_inside_isset(was_inside_isset);
+
+    result
+}
+
+fn analyze_invocation_arguments<'ctx, 'arena, A>(
+    context: &mut Context<'ctx, 'arena, A>,
+    block_context: &mut BlockContext<'ctx>,
+    artifacts: &mut AnalysisArtifacts,
+    invocation: &mut Invocation<'ctx, '_, 'arena>,
+    calling_class_like: Option<(Word, Option<&TAtomic>)>,
+    class_related_argument_variables: Option<&WordSet>,
+    template_result: &mut TemplateResult,
+    parameter_types: &mut WordMap<TUnion>,
+) -> Result<(), AnalysisError>
+where
+    A: Arena,
+{
     let signature_provider_target = invocation.target.get_function_like_identifier().copied().filter(|identifier| {
         !invocation.target.has_effective_signature()
             && context
