@@ -62,6 +62,7 @@ function read_current(SimpleXMLElement $el): string
 
 function read_offset(SimpleXMLElement $el): string
 {
+    // @mago-expect analysis:possible-method-access-on-null
     return $el['x']->getName();
 }
 
@@ -69,4 +70,15 @@ function read_children_unguarded(SimpleXMLElement $el): string
 {
     // @mago-expect analysis:possible-method-access-on-null
     return $el->children()->getName();
+}
+
+function read_child_offset(SimpleXMLElement $el): int
+{
+    $children = $el->children();
+    if ($children === null) {
+        return 0;
+    }
+
+    // @mago-expect analysis:possible-method-access-on-null
+    return $children[0]->count();
 }

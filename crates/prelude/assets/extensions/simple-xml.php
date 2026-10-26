@@ -2,7 +2,7 @@
 
 /**
  * @implements Traversable<string, static>
- * @implements ArrayAccess<int|string, static>
+ * @implements ArrayAccess<int|string, static|null>
  * @implements Iterator<string, static>
  * @implements RecursiveIterator<string, static>
  */
@@ -74,7 +74,7 @@ class SimpleXMLElement implements Traversable, ArrayAccess, Countable, Iterator,
     /**
      * @param string|int $offset
      *
-     * @return static
+     * @return static|null
      */
     public function offsetGet($offset) {}
 
