@@ -322,6 +322,14 @@ where
         && let Some(class_like_metadata) = context.codebase.get_class_like(calling_class.as_bytes())
     {
         add_properties_to_context(context, block_context, class_like_metadata, Some(function_like_metadata))?;
+
+        if !block_context.scope.is_static()
+            && let Some(property_types) = context.constructor_property_types.get(&calling_class)
+        {
+            for (expression_id, property_type) in property_types {
+                block_context.locals.insert(*expression_id, Rc::clone(property_type));
+            }
+        }
     }
 
     if !function_like_metadata.flags.is_unchecked() {

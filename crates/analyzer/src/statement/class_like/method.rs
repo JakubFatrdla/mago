@@ -1,5 +1,8 @@
+use std::rc::Rc;
+
 use mago_allocator::Arena;
 use mago_codex::context::ScopeContext;
+use mago_word::Word;
 use mago_word::ascii_lowercase_word;
 use mago_word::concat_word;
 
@@ -7,11 +10,14 @@ use mago_codex::identifier::method::MethodIdentifier;
 use mago_codex::metadata::class_like::ClassLikeMetadata;
 use mago_codex::metadata::function_like::FunctionLikeMetadata;
 use mago_codex::reference::ReferenceOrigin;
+use mago_codex::ttype::union::TUnion;
 
 use mago_span::HasSpan;
 use mago_span::Span;
+use mago_syntax::cst::Block;
 use mago_syntax::cst::Method;
 use mago_syntax::cst::MethodBody;
+use mago_syntax::utils::find_returns_in_block;
 
 use crate::analyzable::Analyzable;
 use crate::artifacts::AnalysisArtifacts;
@@ -106,6 +112,17 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Method<'arena> {
                 context
                     .constructor_initialized_properties
                     .insert(class_like_metadata.name, method_block_context.definitely_initialized_properties.clone());
+
+                if !self.is_static()
+                    && let Some(property_types) = readonly_property_types_at_end(
+                        context,
+                        class_like_metadata,
+                        &method_block_context,
+                        concrete_body,
+                    )
+                {
+                    context.constructor_property_types.insert(class_like_metadata.name, property_types);
+                }
             }
 
             artifacts
@@ -195,6 +212,53 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Method<'arena> {
 
         Ok(())
     }
+}
+
+/// `None` when a `return` or an always-terminating body leaves no single end scope; PHPStan merges the return scopes.
+fn readonly_property_types_at_end<A>(
+    context: &Context<'_, '_, A>,
+    class_like_metadata: &ClassLikeMetadata,
+    block_context: &BlockContext<'_>,
+    body: &Block<'_>,
+) -> Option<Vec<(Word, Rc<TUnion>)>>
+where
+    A: Arena,
+{
+    if block_context.flags.has_returned() || !find_returns_in_block(body).is_empty() {
+        return None;
+    }
+
+    let property_types = block_context
+        .locals
+        .iter()
+        .filter(|(expression_id, _)| {
+            expression_id
+                .as_bytes()
+                .strip_prefix(b"$this->")
+                .is_some_and(|name| is_readonly_property(context, class_like_metadata, name))
+        })
+        .map(|(expression_id, property_type)| (*expression_id, Rc::clone(property_type)))
+        .collect();
+
+    Some(property_types)
+}
+
+fn is_readonly_property<A>(context: &Context<'_, '_, A>, class_like_metadata: &ClassLikeMetadata, name: &[u8]) -> bool
+where
+    A: Arena,
+{
+    if !name.iter().all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_' || *byte >= 0x80) {
+        return false;
+    }
+
+    let property_name = concat_word!(b"$", name);
+
+    class_like_metadata
+        .declaring_property_ids
+        .get(&property_name)
+        .and_then(|declaring_class| context.codebase.get_class_like(declaring_class.as_bytes()))
+        .and_then(|declaring_class| declaring_class.properties.get(&property_name))
+        .is_some_and(|property| property.flags.is_readonly() && !property.flags.is_static())
 }
 
 fn is_constructor_checked_for_unused_parameters<A>(

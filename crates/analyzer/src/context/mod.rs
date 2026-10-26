@@ -85,6 +85,8 @@ where
     pub(crate) last_conditions: HashSet<Span>,
     class_initializers: WordMap<WordSet>,
     pub(crate) constructor_initialized_properties: WordMap<WordSet>,
+    /// `$this->prop` types of readonly properties where the constructor ends, like PHPStan's remembered constructor scope.
+    pub(crate) constructor_property_types: WordMap<Vec<(Word, Rc<TUnion>)>>,
 }
 
 impl<'ctx, 'arena, A> Context<'ctx, 'arena, A>
@@ -127,6 +129,7 @@ where
             last_conditions: HashSet::default(),
             class_initializers: WordMap::default(),
             constructor_initialized_properties: WordMap::default(),
+            constructor_property_types: WordMap::default(),
         }
     }
 

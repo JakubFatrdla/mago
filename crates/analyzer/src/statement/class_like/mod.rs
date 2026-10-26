@@ -1073,6 +1073,16 @@ where
 
     let mut block_context = BlockContext::new(scope, context.settings.register_super_globals);
 
+    // PHPStan analyses the constructor before the other methods, which then see its readonly property types.
+    let constructor = members.iter().find_map(|member| match member {
+        ClassLikeMember::Method(method) if method.name.value.eq_ignore_ascii_case(b"__construct") => Some(method),
+        _ => None,
+    });
+
+    if let Some(constructor) = constructor {
+        constructor.analyze(context, &mut block_context, artifacts)?;
+    }
+
     for member in members {
         match member {
             ClassLikeMember::Constant(class_like_constant) => {
@@ -1159,7 +1169,9 @@ where
 
                 enum_case.analyze(context, &mut block_context, artifacts)?;
             }
-            ClassLikeMember::Method(method) => {
+            ClassLikeMember::Method(method)
+                if !constructor.is_some_and(|constructor| std::ptr::eq(constructor, method)) =>
+            {
                 method.analyze(context, &mut block_context, artifacts)?;
             }
             _ => {}
