@@ -13,7 +13,7 @@ function param_mismatch(int $x): void // @mago-expect analysis:docblock-type-mis
  */
 function return_mismatch(): string // @mago-expect analysis:docblock-type-mismatch
 {
-    return 1;
+    return 1; // @mago-expect analysis:invalid-return-statement
 }
 
 /** @param int $x */
@@ -55,7 +55,7 @@ class Foo
      */
     public function method_return_mismatch(): string // @mago-expect analysis:docblock-type-mismatch
     {
-        return 1;
+        return 1; // @mago-expect analysis:invalid-return-statement
     }
 }
 

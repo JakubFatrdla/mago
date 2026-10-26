@@ -551,6 +551,9 @@ fn populate_codebase_inner(
     deferred_array_items::resolve(codebase);
     trace_phase!("deferred_array_items");
 
+    docblock::reject_docblock_return_types_native_rejects(codebase);
+    trace_phase!("docblock_return_types");
+
     codebase.safe_symbols = safe_symbols;
     codebase.safe_symbol_members = safe_symbol_members;
 }

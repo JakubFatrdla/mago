@@ -23,8 +23,14 @@ use crate::ttype::TType;
 use crate::ttype::TypeRef;
 use crate::ttype::atomic::TAtomic;
 use crate::ttype::atomic::callable::TCallable;
+use crate::ttype::atomic::object::TObject;
+use crate::ttype::atomic::scalar::TScalar;
+use crate::ttype::atomic::scalar::class_like_string::TClassLikeString;
 use crate::ttype::comparator::ComparisonResult;
 use crate::ttype::comparator::union_comparator;
+use crate::ttype::expander;
+use crate::ttype::expander::StaticClassType;
+use crate::ttype::expander::TypeExpansionOptions;
 use crate::ttype::template::TemplateResult;
 use crate::ttype::template::inferred_type_replacer;
 use crate::ttype::union::TUnion;
@@ -1255,6 +1261,87 @@ fn apply_property_inheritance_work(codebase: &mut CodebaseMetadata, inheritance_
         inherited.inferred = true;
         child_property.type_metadata = Some(inherited);
     }
+}
+
+pub fn reject_docblock_return_types_native_rejects(codebase: &mut CodebaseMetadata) {
+    let rejected: Vec<(Word, Word)> = codebase
+        .function_likes
+        .iter()
+        .filter(|(id, metadata)| native_rejects_docblock_return(codebase, id, metadata))
+        .map(|(id, _)| *id)
+        .collect();
+
+    for id in rejected {
+        if let Some(metadata) = codebase.function_likes.get_mut(&id) {
+            let native = metadata.return_type_declaration_metadata.clone();
+            metadata.rejected_docblock_return_type_metadata =
+                std::mem::replace(&mut metadata.return_type_metadata, native);
+        }
+    }
+}
+
+fn native_rejects_docblock_return(
+    codebase: &CodebaseMetadata,
+    (class_name, _): &(Word, Word),
+    metadata: &FunctionLikeMetadata,
+) -> bool {
+    let (Some(docblock), Some(native)) = (&metadata.return_type_metadata, &metadata.return_type_declaration_metadata)
+    else {
+        return false;
+    };
+
+    if !docblock.from_docblock
+        || docblock.inferred
+        || metadata.flags.is_built_in()
+        || metadata.kind.is_closure()
+        || metadata.kind.is_arrow_function()
+        || has_call_or_generic_dependent_types(&docblock.type_union)
+    {
+        return false;
+    }
+
+    let self_class = (!class_name.is_empty()).then_some(*class_name);
+    let options = TypeExpansionOptions {
+        self_class,
+        static_class_type: self_class.map_or(StaticClassType::None, StaticClassType::Name),
+        function_is_final: metadata.method_metadata.as_ref().is_some_and(|method| method.is_final),
+        ..Default::default()
+    };
+
+    let mut native_type = native.type_union.clone();
+    expander::expand_union(codebase, &mut native_type, &options);
+
+    let mut docblock_type =
+        if native_type.accepts_null() { docblock.type_union.clone() } else { docblock.type_union.to_non_nullable() };
+    expander::expand_union(codebase, &mut docblock_type, &options);
+
+    !union_comparator::is_contained_by(
+        codebase,
+        &docblock_type,
+        &native_type,
+        false,
+        false,
+        false,
+        &mut ComparisonResult::new(),
+    )
+}
+
+fn has_call_or_generic_dependent_types(union: &TUnion) -> bool {
+    union.any_child_node(|node| {
+        let TypeRef::Atomic(atomic) = node else {
+            return false;
+        };
+
+        match atomic {
+            TAtomic::GenericParameter(_)
+            | TAtomic::Variable(_)
+            | TAtomic::Conditional(_)
+            | TAtomic::Derived(_)
+            | TAtomic::Scalar(TScalar::ClassLikeString(TClassLikeString::Generic { .. })) => true,
+            TAtomic::Object(TObject::Named(named_object)) => named_object.type_parameters.is_some(),
+            _ => false,
+        }
+    })
 }
 
 #[cfg(test)]

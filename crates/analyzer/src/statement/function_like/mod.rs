@@ -236,8 +236,12 @@ where
         }
     }
 
-    if let Some(effective_return) = &function_like_metadata.return_type_metadata
-        && effective_return.from_docblock
+    let docblock_return = function_like_metadata
+        .rejected_docblock_return_type_metadata
+        .as_ref()
+        .or_else(|| function_like_metadata.return_type_metadata.as_ref().filter(|metadata| metadata.from_docblock));
+
+    if let Some(effective_return) = docblock_return
         && let Some(native_return) = &function_like_metadata.return_type_declaration_metadata
     {
         let expanded_docblock =

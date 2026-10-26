@@ -121,6 +121,9 @@ pub struct FunctionLikeMetadata {
     /// `None` if neither is specified.
     pub return_type_metadata: Option<TypeMetadata>,
 
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub rejected_docblock_return_type_metadata: Option<TypeMetadata>,
+
     /// Generic type parameters (templates) defined for the function/method (e.g., `@template T`).
     /// Stores the template name and its constraint (defining entity and bound type).
     /// Example: `{ "T" => (GenericParent::FunctionLike(("funcName", "")), TUnion::object()) }`
@@ -235,6 +238,7 @@ impl FunctionLikeMetadata {
             parameters: vec![],
             return_type_declaration_metadata: None,
             return_type_metadata: None,
+            rejected_docblock_return_type_metadata: None,
             template_types: TemplateTypes::default(),
             attributes: vec![],
             method_metadata,

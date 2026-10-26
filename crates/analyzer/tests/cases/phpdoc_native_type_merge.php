@@ -55,7 +55,7 @@ final class QueryFactory
      */
     public static function create(): Query // @mago-expect analysis:docblock-type-mismatch
     {
-        return new Query(); // @mago-expect analysis:invalid-return-statement
+        return new Query();
     }
 }
 
