@@ -3501,6 +3501,12 @@ test_case!(foreach_continue_exit_keeps_loop_types, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(array_key_exists_literal_key_types_mixed_array, {
+    let mut s = crate::framework::default_test_settings();
+    s.allow_possibly_undefined_array_keys = false;
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

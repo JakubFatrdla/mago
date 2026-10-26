@@ -2,6 +2,7 @@ use mago_allocator::Arena;
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use mago_algebra::AssertionMap;
 use mago_algebra::assertion_set::AssertionSet;
@@ -19,6 +20,7 @@ use mago_codex::metadata::function_like::FunctionLikeMetadata;
 use mago_codex::ttype::TType;
 use mago_codex::ttype::atomic::TAtomic;
 use mago_codex::ttype::atomic::array::TArray;
+use mago_codex::ttype::atomic::array::keyed::TKeyedArray;
 use mago_codex::ttype::atomic::callable::TCallableSignature;
 use mago_codex::ttype::atomic::object::TObject;
 use mago_codex::ttype::atomic::resource::TResource;
@@ -29,6 +31,7 @@ use mago_codex::ttype::comparator::union_comparator::can_expression_types_be_ide
 use mago_codex::ttype::comparator::union_comparator::is_contained_by;
 use mago_codex::ttype::expander::TypeExpansionOptions;
 use mago_codex::ttype::expander::expand_union;
+use mago_codex::ttype::get_arraykey;
 use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::get_never;
 use mago_codex::ttype::template::TemplateResult;
@@ -95,6 +98,7 @@ where
 {
     update_by_reference_argument_types(context, block_context, artifacts, invoication, template_result, parameters)?;
     clear_object_property_narrowings(context, block_context, artifacts, invoication, this_variable);
+    narrow_mixed_array_of_literal_key_lookup(context, block_context, artifacts, invoication);
 
     let Some(identifier) = invoication.target.get_function_like_identifier() else {
         return Ok(());
@@ -873,6 +877,47 @@ fn is_bare_closure_object(signature: &TCallableSignature) -> bool {
             signature.get_parameters(),
             [parameter] if parameter.is_variadic() && parameter.get_type_signature().is_some_and(TUnion::is_mixed)
         )
+}
+
+fn narrow_mixed_array_of_literal_key_lookup<'ctx, A>(
+    context: &Context<'ctx, '_, A>,
+    block_context: &mut BlockContext<'ctx>,
+    artifacts: &AnalysisArtifacts,
+    invocation: &Invocation<'ctx, '_, '_>,
+) where
+    A: Arena,
+{
+    let Some(FunctionLikeIdentifier::Function(function_name)) = invocation.target.get_function_like_identifier() else {
+        return;
+    };
+
+    if !matches!(function_name.as_bytes(), b"array_key_exists" | b"key_exists") {
+        return;
+    }
+
+    let key_argument = invocation.arguments_source.get_argument(0).and_then(|argument| argument.value());
+    let array_argument = invocation.arguments_source.get_argument(1).and_then(|argument| argument.value());
+    let (Some(key_argument), Some(array_argument)) = (key_argument, array_argument) else {
+        return;
+    };
+
+    let key_is_literal = artifacts.get_expression_type(key_argument).is_some_and(|key_type| {
+        !key_type.types.is_empty() && key_type.types.iter().all(|key| key.to_array_key().is_some())
+    });
+    let Some(array_id) = get_block_expression_id(array_argument, context, block_context) else {
+        return;
+    };
+
+    if key_is_literal && block_context.locals.get(&array_id).is_some_and(|array_type| array_type.is_mixed()) {
+        block_context.assigned_variable_ids.insert(array_id, array_argument.span().start.offset);
+        block_context.locals.insert(
+            array_id,
+            Rc::new(TUnion::from_atomic(TAtomic::Array(TArray::Keyed(TKeyedArray::new_with_parameters(
+                Arc::new(get_arraykey()),
+                Arc::new(get_mixed()),
+            ))))),
+        );
+    }
 }
 
 pub fn has_side_effects(metadata: &FunctionLikeMetadata) -> bool {

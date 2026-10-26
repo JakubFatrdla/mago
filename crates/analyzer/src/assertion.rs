@@ -505,6 +505,13 @@ where
                 if_types.insert(access_id, vec![vec![Assertion::ArrayKeyExists]]);
             }
 
+            if let Some(array_id) = assertion_context.get_expression_id(array_argument)
+                && artifacts.get_expression_type(array_argument).is_some_and(TUnion::is_mixed)
+                && let Some(literal_keys) = get_expression_literal_array_keys(artifacts, key_argument)
+            {
+                if_types.insert(array_id, vec![literal_keys.into_iter().map(Assertion::HasArrayKey).collect()]);
+            }
+
             if let Some(key_id) = assertion_context.get_expression_id(key_argument)
                 && let Some(array_type) = artifacts.get_expression_type(array_argument)
                 && let Some(input_key_type) = artifacts.get_expression_type(key_argument)
@@ -2461,6 +2468,10 @@ fn get_isset_expression_id<A>(
 
 fn get_expression_array_key(artifacts: &AnalysisArtifacts, expression: &Expression) -> Option<ArrayKey> {
     artifacts.get_expression_type(expression).and_then(mago_codex::ttype::union::TUnion::get_single_array_key)
+}
+
+fn get_expression_literal_array_keys(artifacts: &AnalysisArtifacts, expression: &Expression) -> Option<Vec<ArrayKey>> {
+    artifacts.get_expression_type(expression)?.types.iter().map(TAtomic::to_array_key).collect()
 }
 
 fn add_index_below_count_assertion<A>(

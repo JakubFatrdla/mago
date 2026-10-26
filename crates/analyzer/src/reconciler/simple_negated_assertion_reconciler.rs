@@ -18,6 +18,8 @@ use mago_codex::ttype::atomic::scalar::bool::TBool;
 use mago_codex::ttype::atomic::scalar::float::TFloat;
 use mago_codex::ttype::atomic::scalar::int::TInteger;
 use mago_codex::ttype::comparator::union_comparator;
+use mago_codex::ttype::get_arraykey;
+use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::get_never;
 use mago_codex::ttype::get_null;
 use mago_codex::ttype::get_undefined_null;
@@ -1540,7 +1542,10 @@ where
             }
             TAtomic::Mixed(_) => {
                 did_remove_type = true;
-                acceptable_types.push(atomic);
+                acceptable_types.push(TAtomic::Array(TArray::Keyed(TKeyedArray::new_with_parameters(
+                    Arc::new(get_arraykey()),
+                    Arc::new(get_mixed()),
+                ))));
             }
             TAtomic::Object(TObject::Named(_)) => {
                 did_remove_type = true;
