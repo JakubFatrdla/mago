@@ -597,6 +597,14 @@ where
 
 fn mixed_operand_result(op: &BinaryOperator<'_>, left: &TAtomic, right: &TAtomic) -> Option<Vec<TAtomic>> {
     let other = if left.is_mixed() { right } else { left };
+    let any_array = || {
+        TAtomic::Array(TArray::Keyed(TKeyedArray::new_with_parameters(Arc::new(get_arraykey()), Arc::new(get_mixed()))))
+    };
+
+    if matches!(op, BinaryOperator::Addition(_)) && other.is_array() {
+        return Some(vec![any_array()]);
+    }
+
     if !other.is_mixed() && !other.is_numeric() {
         return None;
     }
@@ -605,14 +613,9 @@ fn mixed_operand_result(op: &BinaryOperator<'_>, left: &TAtomic, right: &TAtomic
 
     match op {
         BinaryOperator::Modulo(_) => Some(vec![TAtomic::Scalar(TScalar::int())]),
-        BinaryOperator::Addition(_) if other.is_mixed() => Some(vec![
-            TAtomic::Array(TArray::Keyed(TKeyedArray::new_with_parameters(
-                Arc::new(get_arraykey()),
-                Arc::new(get_mixed()),
-            ))),
-            TAtomic::Scalar(TScalar::int()),
-            TAtomic::Scalar(TScalar::float()),
-        ]),
+        BinaryOperator::Addition(_) if other.is_mixed() => {
+            Some(vec![any_array(), TAtomic::Scalar(TScalar::int()), TAtomic::Scalar(TScalar::float())])
+        }
         BinaryOperator::Addition(_)
         | BinaryOperator::Subtraction(_)
         | BinaryOperator::Multiplication(_)
