@@ -3483,6 +3483,12 @@ test_case!(remembered_property_rechecks_offset_receiver, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(nullable_container_read_null_is_error_path, {
+    let mut s = crate::framework::default_test_settings();
+    s.allow_possibly_undefined_array_keys = false;
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

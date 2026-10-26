@@ -57,7 +57,6 @@ function test_that(array|false $row): void
 {
     // @mago-expect analysis:possibly-false-array-access - $row can be false
     // @mago-expect analysis:possibly-undefined-string-array-index - if not, the key might not exist
-    // @mago-expect analysis:possibly-null-argument - if $row is false, arg ends up `null`
     echo i_might_return_null_too($row['missing']) ?? 'default';
 }
 
@@ -66,6 +65,5 @@ function test_that2(?array $row): void
 {
     // @mago-expect analysis:possibly-null-array-access - $row can be null
     // @mago-expect analysis:possibly-undefined-string-array-index - if not, the key might not exist
-    // @mago-expect analysis:possibly-null-argument - if $row is null, arg ends up `null`
     echo i_might_return_null_too($row['missing']) ?? 'default';
 }

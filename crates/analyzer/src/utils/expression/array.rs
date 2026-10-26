@@ -314,21 +314,22 @@ where
                 has_valid_expected_index = true;
             }
             TAtomic::Null | TAtomic::Void => {
-                if in_assignment {
-                    value_type = Some(add_optional_union_type(get_null(), value_type.as_ref(), context.codebase));
-                } else if !array_like_type.ignore_nullable_issues() {
-                    let mut null = get_null();
-                    null.set_error_path_null(array_like_type.has_error_path_null());
-                    value_type = Some(add_optional_union_type(null, value_type.as_ref(), context.codebase));
-                }
-
-                if !in_assignment
+                let reports_null_access = !in_assignment
                     && !is_array_like_nullsafe
                     && !block_context.flags.inside_isset()
                     && !block_context.flags.inside_unset()
                     && !array_like_type.ignore_nullable_issues()
-                    && !array_like_type.has_error_path_null()
-                {
+                    && !array_like_type.has_error_path_null();
+
+                if in_assignment {
+                    value_type = Some(add_optional_union_type(get_null(), value_type.as_ref(), context.codebase));
+                } else if !array_like_type.ignore_nullable_issues() {
+                    let mut null = get_null();
+                    null.set_error_path_null(array_like_type.has_error_path_null() || reports_null_access);
+                    value_type = Some(add_optional_union_type(null, value_type.as_ref(), context.codebase));
+                }
+
+                if reports_null_access {
                     if array_like_type.is_nullable() {
                         context.collector.report_with_code(
                             IssueCode::PossiblyNullArrayAccess,
@@ -372,14 +373,17 @@ where
                 }
             }
             TAtomic::Scalar(TScalar::Bool(bool_scalar)) if bool_scalar.is_false() => {
+                let reports_false_access = !block_context.flags.inside_isset()
+                    && !block_context.flags.inside_unset()
+                    && !array_like_type.ignore_falsable_issues();
+
                 if !array_like_type.ignore_falsable_issues() && !in_assignment {
-                    value_type = Some(add_optional_union_type(get_null(), value_type.as_ref(), context.codebase));
+                    let mut null = get_null();
+                    null.set_error_path_null(reports_false_access);
+                    value_type = Some(add_optional_union_type(null, value_type.as_ref(), context.codebase));
                 }
 
-                if !block_context.flags.inside_isset()
-                    && !block_context.flags.inside_unset()
-                    && !array_like_type.ignore_falsable_issues()
-                {
+                if reports_false_access {
                     if array_like_type.is_falsable() {
                         context.collector.report_with_code(
                             IssueCode::PossiblyFalseArrayAccess,
