@@ -110,8 +110,7 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for ArrayAccess<'arena> {
             && block_context.has_variable_atom(*keyed_array_var_id)
             && let Some(array_access_type) = block_context.locals.get(keyed_array_var_id).cloned()
         {
-            let is_variable_key = has_dynamic_index(keyed_array_var_id.as_bytes());
-            if is_variable_key || !array_access_type.possibly_undefined() {
+            if !array_access_type.possibly_undefined() {
                 let is_unnarrowed_read = artifacts
                     .read_memoized_array_accesses
                     .get(keyed_array_var_id)

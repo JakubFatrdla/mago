@@ -2034,6 +2034,7 @@ where
     A: Arena,
 {
     let mut new_var_type = existing_var_type.clone();
+    new_var_type.set_possibly_undefined(false, None);
 
     if new_var_type.is_mixed() || new_var_type.has_template() {
         return new_var_type;

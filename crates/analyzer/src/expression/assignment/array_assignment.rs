@@ -972,7 +972,7 @@ where
         let extended_var_id = mago_word::word(&combined);
 
         if full_var_id && has_dynamic_index(extended_var_id.as_bytes()) {
-            block_context.locals.insert(extended_var_id, Rc::clone(last_array_expr_type));
+            block_context.locals.insert(extended_var_id, defined_entry_type(last_array_expr_type));
             block_context.possibly_assigned_variable_ids.insert(extended_var_id);
         }
     }
@@ -1015,7 +1015,7 @@ where
         if let Some(array_expr_id) = &array_expr_id
             && has_dynamic_index(array_expr_id.as_bytes())
         {
-            block_context.locals.insert(*array_expr_id, Rc::clone(last_array_expr_type));
+            block_context.locals.insert(*array_expr_id, defined_entry_type(last_array_expr_type));
             block_context.possibly_assigned_variable_ids.insert(*array_expr_id);
         }
 
@@ -1143,4 +1143,14 @@ where
 
     let code = if possibly { IssueCode::PossiblyArrayAppendOverflow } else { IssueCode::ArrayAppendOverflow };
     context.collector.report_with_code(code, issue);
+}
+
+fn defined_entry_type(written_type: &Rc<TUnion>) -> Rc<TUnion> {
+    if !written_type.possibly_undefined() {
+        return Rc::clone(written_type);
+    }
+
+    let mut defined_type = (**written_type).clone();
+    defined_type.set_possibly_undefined(false, None);
+    Rc::new(defined_type)
 }

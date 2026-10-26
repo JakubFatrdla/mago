@@ -52,6 +52,7 @@ use crate::context::scope::var_has_root;
 use crate::external::PropertyAccessKind;
 use crate::resolver::property::is_declared_untyped_property;
 use crate::resolver::property::resolve_declared_property;
+use crate::utils::expression::has_dynamic_index;
 use crate::utils::expression::is_dynamic_index_id;
 
 pub mod assertion_reconciler;
@@ -295,7 +296,7 @@ pub fn reconcile_keyed_types<'ctx, A>(
             }
         }
 
-        let result_type = result_type.map(Cow::into_owned).unwrap_or_else(get_never);
+        let mut result_type = result_type.map(Cow::into_owned).unwrap_or_else(get_never);
         let unproven_entry_keys = if !context.settings.treat_docblock_types_as_certain && result_type.is_never() {
             get_entry_keys_ruled_out_by_shape(new_type_parts, before_adjustment.as_deref())
         } else {
@@ -453,6 +454,19 @@ pub fn reconcile_keyed_types<'ctx, A>(
         if has_inverted_isset && is_offset_of_mixed_or_call(block_context, key_str) {
             block_context.locals.remove(key);
         } else if !has_object_array_access && !leaves_type_as_is {
+            let proves_entry = if has_dynamic_index(key_str) {
+                is_real
+                    || new_type_parts.iter().flatten().any(|assertion| {
+                        matches!(assertion, Assertion::HasNonnullEntryForKey(_) | Assertion::HasIntOrStringArrayAccess)
+                    })
+            } else {
+                is_real && new_type_parts.iter().flatten().all(is_comparison_assertion)
+            };
+            let narrows_entry = proves_entry && !has_inverted_isset && !has_inverted_key_exists && !has_empty;
+            if narrows_entry && result_type.possibly_undefined() && key_str.ends_with(b"]") {
+                result_type.set_possibly_undefined(false, None);
+            }
+
             block_context.locals.insert(*key, Rc::new(result_type));
         }
 
@@ -1369,6 +1383,7 @@ where
                     }
 
                     let mut new_base_type_candidate;
+                    let mut reads_unknown_entry = false;
 
                     if let TAtomic::Array(TArray::Keyed(TKeyedArray { known_items, .. })) = existing_key_type_part {
                         if has_empty {
@@ -1396,6 +1411,7 @@ where
 
                             new_base_type_candidate =
                                 get_iterable_value_parameter(existing_key_type_part, context.codebase)?;
+                            reads_unknown_entry = true;
 
                             if new_base_type_candidate.is_mixed()
                                 && !has_isset
@@ -1442,6 +1458,7 @@ where
                         } else {
                             new_base_type_candidate =
                                 get_iterable_value_parameter(existing_key_type_part, context.codebase)?;
+                            reads_unknown_entry = true;
 
                             if (has_isset || has_inverted_isset || has_inverted_key_exists)
                                 && new_assertions.contains_key(&new_base_key_atom)
@@ -1479,8 +1496,13 @@ where
                         }
 
                         new_base_type_candidate = get_mixed();
+                        reads_unknown_entry = true;
                     } else {
                         continue;
+                    }
+
+                    if reads_unknown_entry && !has_isset {
+                        new_base_type_candidate.set_possibly_undefined(true, None);
                     }
 
                     let resulting_type = Rc::new(if let Some(new_base_type) = &new_base_type {
@@ -1644,6 +1666,13 @@ fn leaves_type_unspecified(assertions: &AssertionSet, before: Option<&TUnion>) -
         }
         _ => false,
     })
+}
+
+fn is_comparison_assertion(assertion: &Assertion) -> bool {
+    matches!(
+        assertion,
+        Assertion::IsIdentical(_) | Assertion::IsNotIdentical(_) | Assertion::IsEqual(_) | Assertion::IsNotEqual(_)
+    )
 }
 
 fn drops_only_error_path_null(before: &TUnion, after: &TUnion) -> bool {

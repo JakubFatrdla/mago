@@ -3459,6 +3459,12 @@ test_case!(nested_offset_write_checks_declared_property_type);
 test_case!(nested_write_through_optional_shape_key);
 test_case!(static_generic_return_on_raw_receiver);
 test_case!(redundant_check_on_constructor_initialized_property);
+test_case!(offset_memo_definedness_like_phpstan, {
+    let mut s = crate::framework::default_test_settings();
+    s.allow_possibly_undefined_array_keys = false;
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]
