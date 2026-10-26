@@ -857,7 +857,7 @@ where
 
                 let mut resulting_type = type_param.into_owned();
                 if context.settings.strict_array_index_existence
-                    && *has_valid_expected_index
+                    && (*has_valid_expected_index || dim_type.has_float())
                     && !block_context.flags.inside_isset()
                     && !block_context.flags.inside_unset()
                     && let Some(span) = span
@@ -895,7 +895,7 @@ where
         let mut result = if type_param.is_never() { get_mixed() } else { type_param.into_owned() };
         if !in_assignment {
             if context.settings.strict_array_index_existence
-                && *has_valid_expected_index
+                && (*has_valid_expected_index || dim_type.has_float())
                 && !block_context.flags.inside_isset()
                 && !block_context.flags.inside_unset()
                 && let Some(span) = span
@@ -951,7 +951,7 @@ where
             let is_definitely_defined = *non_empty && dim_type.get_single_literal_int_value() == Some(0);
             if !is_definitely_defined {
                 if context.settings.strict_array_index_existence
-                    && *has_valid_expected_index
+                    && (*has_valid_expected_index || dim_type.has_float())
                     && !in_assignment
                     && !block_context.flags.inside_isset()
                     && !block_context.flags.inside_unset()
