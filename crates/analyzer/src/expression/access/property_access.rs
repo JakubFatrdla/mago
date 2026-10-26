@@ -29,7 +29,6 @@ use crate::artifacts::editor::MemberReference;
 use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::error::AnalysisError;
-use crate::expression::array_access::report_index_types_of_array_access;
 use crate::resolver::property::receiver_has_reported_non_object_part;
 use crate::resolver::property::report_non_object_receiver;
 use crate::resolver::property::report_redundant_nullsafe;
@@ -141,6 +140,10 @@ where
         && let Some(existing_type) = memoized_type.clone()
     {
         add_memoized_property_reference(context, block_context, artifacts, object, property_selector, is_null_safe)?;
+        if let Expression::ArrayAccess(array_access) = object {
+            array_access.analyze(context, block_context, artifacts)?;
+        }
+
         report_memoized_receiver(
             context,
             block_context,
@@ -164,10 +167,6 @@ where
             for undeclared in undeclared_properties.clone() {
                 report_undeclared_property(context, undeclared, property_selector.span(), object.span());
             }
-        }
-
-        if let Expression::ArrayAccess(array_access) = object {
-            report_index_types_of_array_access(context, block_context, artifacts, array_access)?;
         }
 
         if artifacts.get_expression_type(object).is_none()
@@ -437,11 +436,15 @@ fn report_memoized_receiver<'ctx, 'ast, 'arena, A>(
         property_selector,
         memoized_selector_type(context, block_context, artifacts, property_selector).as_deref(),
     );
-    let current_receiver_type = block_context.locals.get(&object_id);
+    let current_receiver_type = block_context.locals.get(&object_id).cloned().or_else(|| {
+        matches!(object, Expression::ArrayAccess(_))
+            .then(|| artifacts.get_rc_expression_type(object).cloned())
+            .flatten()
+    });
     let receiver_type = match artifacts.read_memoized_property_receivers.get(&property_access_id) {
         Some(recorded_type) => Rc::clone(recorded_type),
         None if !is_null_safe && !property_names.is_empty() => {
-            let Some(current_type) = current_receiver_type else {
+            let Some(current_type) = &current_receiver_type else {
                 return;
             };
 
@@ -450,7 +453,7 @@ fn report_memoized_receiver<'ctx, 'ast, 'arena, A>(
         None => return,
     };
 
-    if current_receiver_type.is_some_and(|current_type| *current_type != receiver_type)
+    if current_receiver_type.is_some_and(|current_type| current_type != receiver_type)
         || (!context.collector.is_recording() && !artifacts.reported_receiver_offsets.insert(arrow_span.start.offset))
     {
         return;

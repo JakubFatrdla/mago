@@ -273,22 +273,6 @@ fn report_stored_read_index_type<'ctx, 'arena, A>(
     }
 }
 
-pub(crate) fn report_index_types_of_array_access<'ctx, 'arena, A>(
-    context: &mut Context<'ctx, 'arena, A>,
-    block_context: &mut BlockContext<'ctx>,
-    artifacts: &mut AnalysisArtifacts,
-    array_access: &ArrayAccess<'arena>,
-) -> Result<(), AnalysisError>
-where
-    A: Arena,
-{
-    let (result, recorded_issues) = context.record(|context| array_access.analyze(context, block_context, artifacts));
-
-    context.collector.extend(recorded_issues.into_iter().filter(is_index_type_issue));
-
-    result
-}
-
 fn is_possibly_undefined_index_issue(issue: &Issue) -> bool {
     const POSSIBLY_UNDEFINED_INDEX_CODES: [IssueCode; 2] =
         [IssueCode::PossiblyUndefinedStringArrayIndex, IssueCode::PossiblyUndefinedIntArrayIndex];
