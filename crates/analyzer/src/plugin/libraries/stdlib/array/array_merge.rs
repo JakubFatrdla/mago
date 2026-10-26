@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use mago_codex::metadata::CodebaseMetadata;
 use mago_codex::ttype::atomic::TAtomic;
 use mago_codex::ttype::atomic::array::TArray;
 use mago_codex::ttype::atomic::array::key::ArrayKey;
@@ -71,6 +72,7 @@ impl FunctionReturnTypeProvider for ArrayMergeProvider {
         let mut all_lists_are_closed = true;
         let mut list_indices_known = true;
         let mut has_int_keys = false;
+        let mut has_general_argument = false;
 
         for invocation_argument in arguments {
             let argument_expr = invocation_argument.value()?;
@@ -129,6 +131,11 @@ impl FunctionReturnTypeProvider for ArrayMergeProvider {
                         }
 
                         if let Some((key_type, value_type)) = &keyed.parameters {
+                            if keyed.known_items.is_none() {
+                                has_general_argument = true;
+                                widen_merged_items(&mut merged_items, value_type, codebase);
+                            }
+
                             has_parameters = true;
                             if key_type.is_int() {
                                 has_int_keys = true;
@@ -186,6 +193,10 @@ impl FunctionReturnTypeProvider for ArrayMergeProvider {
                         }
 
                         let (_, list_value_type) = get_array_parameters(&TArray::List(list.clone()), codebase);
+                        if list.known_elements.is_none() && !is_list_closed {
+                            has_general_argument = true;
+                            widen_merged_items(&mut merged_items, &list_value_type, codebase);
+                        }
 
                         has_parameters = true;
                         merged_value_type = Some(match merged_value_type {
@@ -197,6 +208,8 @@ impl FunctionReturnTypeProvider for ArrayMergeProvider {
                     }
                 }
             } else if let Some((iterable_key, iterable_value)) = get_iterable_parameters(iterable, codebase) {
+                has_general_argument = true;
+                widen_merged_items(&mut merged_items, &iterable_value, codebase);
                 all_arguments_are_lists = false;
                 has_parameters = true;
                 merged_key_type = Some(match merged_key_type {
@@ -231,12 +244,16 @@ impl FunctionReturnTypeProvider for ArrayMergeProvider {
         } else {
             let mut result_array = TKeyedArray::new();
 
-            let has_merged_items = !merged_items.is_empty();
-            if has_merged_items {
+            if has_general_argument {
+                merged_items.retain(|_, (optional, _)| !*optional);
+            }
+
+            let has_required_item = merged_items.values().any(|(optional, _)| !*optional);
+            if !merged_items.is_empty() {
                 result_array.known_items = Some(merged_items.into());
             }
 
-            result_array.non_empty = any_argument_non_empty || has_merged_items;
+            result_array.non_empty = any_argument_non_empty || has_required_item;
 
             if has_int_keys {
                 let key_type = get_int();
@@ -255,5 +272,16 @@ impl FunctionReturnTypeProvider for ArrayMergeProvider {
 
             Some(TUnion::from_atomic(TAtomic::Array(TArray::Keyed(result_array))))
         }
+    }
+}
+
+/// A general array merged after a known string key may overwrite it, so the key's value widens by the array's value type.
+fn widen_merged_items(
+    merged_items: &mut BTreeMap<ArrayKey, (bool, TUnion)>,
+    value_type: &TUnion,
+    codebase: &CodebaseMetadata,
+) {
+    for (_, item_type) in merged_items.values_mut() {
+        *item_type = combine_union_types(item_type, value_type, codebase, CombinerOptions::default());
     }
 }

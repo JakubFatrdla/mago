@@ -3219,6 +3219,11 @@ test_case!(variable_type_overwrite_list_drops_known_elements, {
     s.check_variable_type_overwrite = true;
     s
 });
+test_case!(array_merge_general_array_widens_known_keys, {
+    let mut s = crate::framework::default_test_settings();
+    s.check_variable_type_overwrite = true;
+    s
+});
 test_case!(count_upper_bound_negation);
 test_case!(count_narrows_list_to_size, {
     let mut s = crate::framework::default_test_settings();
