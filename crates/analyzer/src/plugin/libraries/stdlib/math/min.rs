@@ -3,12 +3,14 @@ use mago_codex::ttype::atomic::TAtomic;
 use mago_codex::ttype::atomic::scalar::TScalar;
 use mago_codex::ttype::atomic::scalar::int::TInteger;
 use mago_codex::ttype::get_array_value_parameter;
+use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::union::TUnion;
 
 use crate::plugin::context::InvocationInfo;
 use crate::plugin::context::ProviderContext;
 use crate::plugin::libraries::stdlib::math::collect_integers;
 use crate::plugin::libraries::stdlib::math::get_integer_from_type;
+use crate::plugin::libraries::stdlib::math::has_mixed_argument;
 use crate::plugin::provider::Provider;
 use crate::plugin::provider::ProviderMeta;
 use crate::plugin::provider::function::FunctionReturnTypeProvider;
@@ -92,6 +94,10 @@ impl FunctionReturnTypeProvider for MinProvider {
 
 #[allow(clippy::similar_names)]
 fn get_min_of_args(context: &ProviderContext<'_, '_, '_>, invocation: &InvocationInfo<'_, '_, '_>) -> Option<TUnion> {
+    if has_mixed_argument(context, invocation) {
+        return Some(get_mixed());
+    }
+
     let first = invocation.get_argument(0, &[b"value"])?;
     let first_type = context.get_expression_type(first)?;
     let mut result = get_integer_from_type(first_type)?;

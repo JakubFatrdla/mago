@@ -13,6 +13,18 @@ use mago_codex::ttype::atomic::scalar::TScalar;
 use mago_codex::ttype::atomic::scalar::int::TInteger;
 use mago_codex::ttype::union::TUnion;
 
+use crate::plugin::context::InvocationInfo;
+use crate::plugin::context::ProviderContext;
+
+fn has_mixed_argument(context: &ProviderContext<'_, '_, '_>, invocation: &InvocationInfo<'_, '_, '_>) -> bool {
+    (0..invocation.argument_count()).any(|index| {
+        invocation
+            .get_argument(index, &[])
+            .and_then(|argument| context.get_expression_type(argument))
+            .is_some_and(TUnion::has_mixed)
+    })
+}
+
 /// Extract a `TInteger` from a union type by computing the combined bounds of all integer atomics.
 /// Returns `None` if any atomic in the union is not an integer.
 #[allow(clippy::similar_names)]
