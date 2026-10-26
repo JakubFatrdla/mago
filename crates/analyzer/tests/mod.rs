@@ -3513,6 +3513,12 @@ test_case!(float_offset_on_list_may_be_missing, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(non_array_access_offset_is_implicit_mixed, {
+    let mut s = crate::framework::default_test_settings();
+    s.allow_possibly_undefined_array_keys = false;
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]

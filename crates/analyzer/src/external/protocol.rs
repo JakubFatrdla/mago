@@ -1510,6 +1510,7 @@ fn encode_union_snapshot_inner<'type_info>(
     flags |= u16::from(union.populated()) << 8;
     flags |= u16::from(union.has_nullsafe_null()) << 9;
     flags |= u16::from(union.from_unspecified_template()) << 10;
+    flags |= u16::from(union.is_implicit_mixed()) << 11;
     writer.write_u16(flags);
     let atomics = atomics_without_error_path_null(union);
     write_snapshot_count(writer, atomics.len(), "union atomic types")?;
@@ -2664,6 +2665,7 @@ pub(super) fn decode_complete_union(
     union.set_populated(flags & (1 << 8) != 0);
     union.set_nullsafe_null(flags & (1 << 9) != 0);
     union.set_from_unspecified_template(flags & (1 << 10) != 0);
+    union.set_implicit_mixed(flags & (1 << 11) != 0);
     Ok(union)
 }
 

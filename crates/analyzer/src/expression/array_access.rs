@@ -265,7 +265,8 @@ fn report_stored_read_index_type<'ctx, 'arena, A>(
     });
 
     context.collector.extend(recorded_issues.into_iter().filter(|issue| {
-        is_index_type_issue(issue) || (is_unnarrowed_read && is_possibly_undefined_index_issue(issue))
+        is_index_type_issue(issue)
+            || (is_unnarrowed_read && (is_possibly_undefined_index_issue(issue) || is_container_issue(issue)))
     }));
 
     if index_reported {
@@ -278,6 +279,20 @@ fn is_possibly_undefined_index_issue(issue: &Issue) -> bool {
         [IssueCode::PossiblyUndefinedStringArrayIndex, IssueCode::PossiblyUndefinedIntArrayIndex];
 
     POSSIBLY_UNDEFINED_INDEX_CODES.iter().any(|code| issue.code.as_deref() == Some(code.as_str()))
+}
+
+fn is_container_issue(issue: &Issue) -> bool {
+    const CONTAINER_CODES: [IssueCode; 7] = [
+        IssueCode::InvalidArrayAccess,
+        IssueCode::PossiblyInvalidArrayAccess,
+        IssueCode::MixedArrayAccess,
+        IssueCode::NullArrayAccess,
+        IssueCode::PossiblyNullArrayAccess,
+        IssueCode::FalseArrayAccess,
+        IssueCode::PossiblyFalseArrayAccess,
+    ];
+
+    CONTAINER_CODES.iter().any(|code| issue.code.as_deref() == Some(code.as_str()))
 }
 
 fn is_index_type_issue(issue: &Issue) -> bool {

@@ -22,5 +22,6 @@ final class TypeFlags
         public readonly bool $populated = false,
         public readonly bool $nullsafeNull = false,
         public readonly bool $fromUnspecifiedTemplate = false,
+        public readonly bool $implicitMixed = false,
     ) {}
 }

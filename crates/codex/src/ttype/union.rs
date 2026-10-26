@@ -304,6 +304,11 @@ impl TUnion {
     }
 
     #[inline]
+    pub fn set_implicit_mixed(&mut self, value: bool) {
+        self.flags.set(UnionFlags::IMPLICIT_MIXED, value);
+    }
+
+    #[inline]
     pub fn set_populated(&mut self, value: bool) {
         self.flags.set(UnionFlags::POPULATED, value);
     }

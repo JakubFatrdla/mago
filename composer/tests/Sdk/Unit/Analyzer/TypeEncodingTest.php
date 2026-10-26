@@ -36,4 +36,13 @@ final class TypeEncodingTest extends TestCase
         self::assertTrue($reader->readBoolean());
         $reader->finish();
     }
+
+    public function testImplicitMixedFlagIsEncoded(): void
+    {
+        $type = Type::mixed()->withFlags(new TypeFlags(implicitMixed: true));
+        $reader = new PayloadReader($type->encode());
+
+        $reader->readU8();
+        self::assertSame(1 << 11, $reader->readU16());
+    }
 }

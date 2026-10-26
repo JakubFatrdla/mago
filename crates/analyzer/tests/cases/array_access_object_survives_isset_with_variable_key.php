@@ -98,7 +98,6 @@ function from_inherited(ChildBag $bag, string $key): ChildBag
 /**
  * @mago-expect analysis:invalid-array-access
  * @mago-expect analysis:invalid-array-index
- * @mago-expect analysis:redundant-condition
  * @mago-expect analysis:never-return
  */
 function from_std_class(stdClass $object, string $key): stdClass

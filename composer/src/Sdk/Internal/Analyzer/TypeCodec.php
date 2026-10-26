@@ -118,6 +118,7 @@ final class TypeCodec
         $bits |= (int) $flags->populated << 8;
         $bits |= (int) $flags->nullsafeNull << 9;
         $bits |= (int) $flags->fromUnspecifiedTemplate << 10;
+        $bits |= (int) $flags->implicitMixed << 11;
         $writer->writeU16($bits);
         $writer->writeCount($type->atomicTypes);
         foreach ($type->atomicTypes as $atomicType) {
@@ -775,6 +776,7 @@ final class TypeCodec
             populated: ($bits & (1 << 8)) !== 0,
             nullsafeNull: ($bits & (1 << 9)) !== 0,
             fromUnspecifiedTemplate: ($bits & (1 << 10)) !== 0,
+            implicitMixed: ($bits & (1 << 11)) !== 0,
         );
 
         $count = $reader->readCount(self::MAXIMUM_MEMBERS);

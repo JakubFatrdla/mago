@@ -37,6 +37,7 @@ use mago_codex::ttype::expander::TypeExpansionOptions;
 use mago_codex::ttype::expander::expand_union;
 use mago_codex::ttype::get_array_value_parameter;
 use mago_codex::ttype::get_arraykey;
+use mago_codex::ttype::get_implicit_mixed;
 use mago_codex::ttype::get_int;
 use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::get_mixed_maybe_from_loop;
@@ -610,6 +611,9 @@ where
         Some(mut value_type) => {
             if array_like_type.possibly_undefined() {
                 value_type.set_possibly_undefined(true, None);
+            }
+            if array_like_type.is_implicit_mixed() && value_type.is_mixed() {
+                value_type.set_implicit_mixed(true);
             }
             if array_like_type.possibly_undefined_from_try() {
                 value_type.set_possibly_undefined_from_try(true);
@@ -1690,7 +1694,7 @@ where
             .with_help("Ensure the object implements `ArrayAccess` before attempting to access it as an array."),
         );
 
-        return get_never();
+        return get_implicit_mixed();
     };
 
     let mut union_comparison_result = ComparisonResult::new();
