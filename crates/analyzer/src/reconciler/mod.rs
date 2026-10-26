@@ -1659,7 +1659,8 @@ where
 /// list values have no finite type, and `$x === $y` where `$x` has only finite types and `$y` none.
 fn leaves_type_unspecified(assertions: &AssertionSet, before: Option<&TUnion>) -> bool {
     assertions.iter().flatten().all(|assertion| match assertion {
-        Assertion::IsNotIdentical(atomic) | Assertion::IsNotEqual(atomic) => !is_finite_atomic(atomic),
+        Assertion::IsNotIdentical(atomic) => !is_finite_atomic(atomic),
+        Assertion::IsNotEqual(atomic) => !is_finite_atomic(atomic) || !loose_inequality_narrows(atomic, before),
         Assertion::NotInArray(values) => !values.types.iter().any(is_finite_atomic),
         Assertion::IsIdentical(atomic) => {
             !is_finite_atomic(atomic) && before.is_some_and(|before| before.types.iter().all(is_finite_atomic))
@@ -1673,6 +1674,31 @@ fn is_comparison_assertion(assertion: &Assertion) -> bool {
         assertion,
         Assertion::IsIdentical(_) | Assertion::IsNotIdentical(_) | Assertion::IsEqual(_) | Assertion::IsNotEqual(_)
     )
+}
+
+fn loose_inequality_narrows(atomic: &TAtomic, before: Option<&TUnion>) -> bool {
+    let TAtomic::Scalar(scalar) = atomic else {
+        return true;
+    };
+
+    let is_loose_falsy_literal = scalar.is_bool()
+        || scalar.get_literal_int_value() == Some(0)
+        || scalar.get_known_literal_string_value() == Some(b"".as_slice());
+    if is_loose_falsy_literal {
+        return true;
+    }
+
+    before.is_some_and(|before| {
+        !before.types.is_empty()
+            && before.types.iter().all(|before_atomic| match before_atomic {
+                TAtomic::Scalar(before_scalar) => {
+                    (scalar.is_any_string() && before_scalar.is_any_string())
+                        || (scalar.is_int() && before_scalar.is_int())
+                        || (scalar.is_float() && before_scalar.is_float())
+                }
+                _ => false,
+            })
+    })
 }
 
 fn drops_only_error_path_null(before: &TUnion, after: &TUnion) -> bool {

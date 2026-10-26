@@ -3471,6 +3471,12 @@ test_case!(invalid_array_access_once_per_access, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(switch_default_loose_subject_like_phpstan, {
+    let mut s = crate::framework::default_test_settings();
+    s.allow_possibly_undefined_array_keys = false;
+    s.strict_array_index_existence = true;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]
