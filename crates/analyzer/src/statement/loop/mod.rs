@@ -1235,7 +1235,7 @@ where
             // if there are break statements in the loop it's not certain
             // that the loop has finished executing, so the assertions at the end
             // the loop in the while conditional may not hold
-            if does_sometimes_break || does_sometimes_continue {
+            if does_sometimes_break {
                 if let Some(possibly_defined_type) = loop_scope.possibly_defined_loop_parent_variables.get(variable_id)
                 {
                     loop_parent_context.locals.insert(
