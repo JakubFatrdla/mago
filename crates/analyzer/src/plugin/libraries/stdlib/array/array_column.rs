@@ -59,6 +59,7 @@ impl FunctionReturnTypeProvider for ArrayColumnProvider {
         let array = array_type.get_single_array()?;
         let codebase = context.codebase();
         let element_type = get_array_parameters(array, codebase).1;
+        let input_is_non_empty = array.is_non_empty();
 
         let column_key_argument = invocation.get_argument(1, &[b"column_key"])?;
         let column_key_type = context.get_expression_type(column_key_argument)?;
@@ -70,8 +71,10 @@ impl FunctionReturnTypeProvider for ArrayColumnProvider {
             return Some(result);
         }
 
-        if let Some(result) = try_resolve_from_keyed_array(&element_type, column_key_type, index_key_type) {
-            return Some(result);
+        if let Some((result, column_in_every_element)) =
+            try_resolve_from_keyed_array(&element_type, column_key_type, index_key_type)
+        {
+            return Some(if input_is_non_empty && column_in_every_element { into_non_empty(result) } else { result });
         }
 
         None
@@ -103,12 +106,12 @@ fn try_resolve_from_named_object(
 }
 
 /// Resolve column and index types from a keyed-array element type by looking
-/// up known items.
+/// up known items, and whether every element holds the column.
 fn try_resolve_from_keyed_array(
     element_type: &TUnion,
     column_key_type: &TUnion,
     index_key_type: Option<&TUnion>,
-) -> Option<TUnion> {
+) -> Option<(TUnion, bool)> {
     if !element_type.is_single() {
         return None;
     }
@@ -119,12 +122,12 @@ fn try_resolve_from_keyed_array(
 
     let known_items = keyed.get_known_items()?;
 
-    let column_type = if column_key_type.is_null() {
-        element_type.clone()
+    let (column_type, column_in_every_element) = if column_key_type.is_null() {
+        (element_type.clone(), true)
     } else {
         let key_str = column_key_type.get_single_literal_string_value()?;
-        let (_, value_type) = known_items.get(&ArrayKey::String(word(key_str)))?;
-        value_type.clone()
+        let (optional, value_type) = known_items.get(&ArrayKey::String(word(key_str)))?;
+        (value_type.clone(), !*optional)
     };
 
     let index_type = if let Some(index_key_type) = index_key_type {
@@ -139,7 +142,7 @@ fn try_resolve_from_keyed_array(
         None
     };
 
-    Some(build_result(column_type, index_type))
+    Some((build_result(column_type, index_type), column_in_every_element))
 }
 
 /// Try to extract the key scalar type from a value type (for use as array index).
@@ -171,6 +174,24 @@ fn resolve_index_type_from_property(
     let prop_type = resolve_property_for_external_access(codebase, class_like, prop_key)?.declared_type(codebase);
 
     extract_scalar_for_key(&prop_type).cloned()
+}
+
+fn into_non_empty(result: TUnion) -> TUnion {
+    let atomics = result
+        .types
+        .iter()
+        .map(|atomic| match atomic {
+            TAtomic::Array(TArray::List(list)) => {
+                let mut list = list.clone();
+                list.non_empty = true;
+                TAtomic::Array(TArray::List(list))
+            }
+            TAtomic::Array(TArray::Keyed(keyed)) => TAtomic::Array(TArray::Keyed(keyed.clone().with_non_empty(true))),
+            atomic => atomic.clone(),
+        })
+        .collect();
+
+    result.clone_with_types(atomics)
 }
 
 fn build_result(column_type: TUnion, index_type: Option<TScalar>) -> TUnion {

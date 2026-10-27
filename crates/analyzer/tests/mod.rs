@@ -3542,6 +3542,7 @@ test_case!(variable_type_overwrite_drops_written_keys, {
     s.check_variable_type_overwrite = true;
     s
 });
+test_case!(array_column_keeps_non_empty);
 
 #[test]
 #[cfg_attr(miri, ignore)]
