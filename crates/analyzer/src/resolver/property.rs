@@ -24,6 +24,7 @@ use mago_codex::ttype::comparator::union_comparator;
 use mago_codex::ttype::expander;
 use mago_codex::ttype::expander::StaticClassType;
 use mago_codex::ttype::expander::TypeExpansionOptions;
+use mago_codex::ttype::get_implicit_mixed;
 use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::intersect_union_types;
 use mago_codex::ttype::template::TemplateResult;
@@ -89,6 +90,7 @@ pub struct PropertyResolutionResult {
     pub encountered_null: bool,
     pub encountered_mixed: bool,
     pub has_possibly_defined_property: bool,
+    pub possibly_defined_by_trait_user: bool,
     /// True when a successfully written extension property cannot subsequently be read.
     pub has_unreadable_property: bool,
     /// True if all resolved properties are non-nullable.
@@ -331,7 +333,7 @@ where
                             property_span: None,
                             property_name: *prop_name,
                             declaring_class_id: None,
-                            property_type: get_mixed(),
+                            property_type: get_implicit_mixed(),
                             is_magic: false,
                             read_type: None,
                         });
@@ -367,7 +369,7 @@ where
                             property_span: None,
                             property_name: *prop_name,
                             declaring_class_id: None,
-                            property_type: get_mixed(),
+                            property_type: get_implicit_mixed(),
                             is_magic: false,
                             read_type: None,
                         });
@@ -930,7 +932,7 @@ impl DeclaredProperty<'_> {
             annotation_type_metadata(self.property, for_write).or(self.property.type_declaration_metadata.as_ref())
         };
 
-        effective_metadata.map(|tm| Cow::Borrowed(&tm.type_union)).unwrap_or_else(|| Cow::Owned(get_mixed()))
+        effective_metadata.map(|tm| Cow::Borrowed(&tm.type_union)).unwrap_or_else(|| Cow::Owned(get_implicit_mixed()))
     }
 }
 
@@ -1282,7 +1284,7 @@ where
                 property_span: None,
                 property_name: prop_name,
                 declaring_class_id: Some(class_id),
-                property_type: get_mixed(),
+                property_type: get_implicit_mixed(),
                 is_magic: true,
                 // Undocumented access on a class with `__get`/`__set` (e.g. `stdClass` dynamic
                 // properties): the type is unknown, so the written value stays memoizable.
@@ -1308,7 +1310,7 @@ where
                 property_span: None,
                 property_name: prop_name,
                 declaring_class_id: None,
-                property_type: get_mixed(),
+                property_type: get_implicit_mixed(),
                 is_magic: false,
                 read_type: None,
             });
@@ -1323,6 +1325,7 @@ where
 
         if !class_metadata.flags.is_final() || class_metadata.kind.is_interface() || class_metadata.kind.is_trait() {
             result.has_possibly_defined_property = true;
+            result.possibly_defined_by_trait_user |= class_metadata.kind.is_trait();
         }
 
         report_non_existent_property(context, class_id, prop_name, selector.span(), object_expr.span(), false);

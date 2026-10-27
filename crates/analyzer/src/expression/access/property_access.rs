@@ -7,6 +7,7 @@ use mago_codex::ttype::atomic::TAtomic;
 use mago_codex::ttype::expander::StaticClassType;
 use mago_codex::ttype::expander::TypeExpansionOptions;
 use mago_codex::ttype::expander::expand_union;
+use mago_codex::ttype::get_implicit_mixed;
 use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::get_never;
 use mago_codex::ttype::get_null;
@@ -226,8 +227,10 @@ where
             || resolution_result.encountered_mixed
             || resolution_result.has_possibly_defined_property
         {
+            let unknown_type =
+                if resolution_result.possibly_defined_by_trait_user { get_mixed() } else { get_implicit_mixed() };
             resulting_expression_type =
-                Some(add_optional_union_type(get_mixed(), resulting_expression_type.as_ref(), context.codebase));
+                Some(add_optional_union_type(unknown_type, resulting_expression_type.as_ref(), context.codebase));
         }
 
         if resolution_result.has_invalid_path || resolution_result.encountered_null {

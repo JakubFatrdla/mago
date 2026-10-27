@@ -139,6 +139,89 @@ function unset_offset(array $rows): void
     }
 }
 
+final class Holder
+{
+    public $untyped;
+
+    /** @var mixed */
+    public $docMixed;
+
+    public mixed $nativeMixed = null;
+}
+
+function untyped_property(Holder $h): void
+{
+    if ($h->untyped) {}
+}
+
+function docblock_mixed_property(Holder $h): void
+{
+    if ($h->docMixed) {}
+}
+
+function native_mixed_property(Holder $h): void
+{
+    if ($h->nativeMixed) {}
+}
+
+function property_of_mixed(mixed $m): void
+{
+    if ($m->flag) {}
+}
+
+function dynamic_property(\stdClass $o): void
+{
+    if ($o->flag) {}
+}
+
+function isset_property_of_mixed(mixed $m): void
+{
+    if (isset($m->flag)) {
+        if ($m->flag) {}
+    }
+}
+
+function property_exists_on_object(object $o): void
+{
+    if (property_exists($o, 'flag')) {
+        if ($o->flag) {}
+    }
+}
+
+function method_and_property_exist(object $o): void
+{
+    if (method_exists($o, 'run') && property_exists($o, 'flag')) {
+        if ($o->flag) {}
+    }
+}
+
+function property_exists_on_named(Holder $h): void
+{
+    if (property_exists($h, 'extra')) {
+        if ($h->extra) {}
+    }
+}
+
+trait ReadsUserProperty
+{
+    public function trait_user_property(): void
+    {
+        if ($this->row) {}
+    }
+}
+
+final class TypedUser
+{
+    use ReadsUserProperty;
+
+    private ?\stdClass $row = null;
+}
+
+final class UntypedUser
+{
+    use ReadsUserProperty;
+}
+
 function key_exists_on_mixed(mixed $json): void
 {
     if (array_key_exists('meta', $json)) {
@@ -170,6 +253,16 @@ const EXPECTED: &[(&str, &str)] = &[
     ("nested_isset_of_iterated", "implicit-mixed"),
     ("iterated_offset", "implicit-mixed"),
     ("unset_offset", "implicit-mixed"),
+    ("untyped_property", "implicit-mixed"),
+    ("docblock_mixed_property", "explicit-mixed"),
+    ("native_mixed_property", "explicit-mixed"),
+    ("property_of_mixed", "implicit-mixed"),
+    ("dynamic_property", "implicit-mixed"),
+    ("isset_property_of_mixed", "implicit-mixed"),
+    ("property_exists_on_object", "implicit-mixed"),
+    ("method_and_property_exist", "implicit-mixed"),
+    ("property_exists_on_named", "implicit-mixed"),
+    ("trait_user_property", "explicit-mixed"),
     ("key_exists_on_mixed", "implicit-mixed"),
     ("is_array_on_mixed", "explicit-mixed"),
 ];
