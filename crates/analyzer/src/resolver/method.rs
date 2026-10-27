@@ -592,6 +592,7 @@ where
     let Some(name) = object_type.get_name() else {
         if std::ptr::eq(object_type, outer_object) {
             result.has_ambiguous_target = true;
+            result.encountered_mixed = true;
 
             if !has_magic_call {
                 let method_name_bytes: &[u8] = method_name.as_ref();
