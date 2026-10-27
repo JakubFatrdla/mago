@@ -3522,6 +3522,7 @@ test_case!(non_array_access_offset_is_implicit_mixed, {
 test_case!(clone_of_mixed_is_object);
 test_case!(unpacked_unknown_array_checks_first_parameter);
 test_case!(property_offset_write_is_not_read);
+test_case!(dom_xpath_query_yields_nodes);
 
 #[test]
 #[cfg_attr(miri, ignore)]
