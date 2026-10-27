@@ -1107,6 +1107,11 @@ test_case!(closure_and_arrow_function_parameter_type_hints, {
     s.check_closure_and_arrow_function_parameter_type_hints = true;
     s
 });
+test_case!(closure_return_type_hints, {
+    let mut s = crate::framework::default_test_settings();
+    s.check_closure_return_type_hints = true;
+    s
+});
 test_case!(pipe_callable_implicit_types_outside_pipe_warns, {
     let mut s = crate::framework::default_test_settings();
     s.check_missing_type_hints = true;

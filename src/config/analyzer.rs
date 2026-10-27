@@ -225,6 +225,15 @@ pub struct AnalyzerConfiguration {
     /// Defaults to `false`.
     pub check_closure_and_arrow_function_parameter_type_hints: bool,
 
+    /// Check closures for a missing return type hint.
+    ///
+    /// When `true`, a closure (`function() {}`) without a return type hint is reported, even when
+    /// its return type could be inferred. Arrow functions, parameters and closures inside traits
+    /// are not covered. This works without `check_missing_type_hints`.
+    ///
+    /// Defaults to `false`.
+    pub check_closure_return_type_hints: bool,
+
     /// Skip missing-type-hint checks for closures and arrow functions used
     /// as the right-hand side of the pipe operator (`|>`).
     ///
@@ -559,6 +568,7 @@ impl AnalyzerConfiguration {
             check_arrow_function_missing_type_hints: self.check_arrow_function_missing_type_hints,
             check_closure_and_arrow_function_parameter_type_hints: self
                 .check_closure_and_arrow_function_parameter_type_hints,
+            check_closure_return_type_hints: self.check_closure_return_type_hints,
             allow_implicit_pipe_callable_types: self.allow_implicit_pipe_callable_types,
             register_super_globals: self.register_super_globals,
             use_colors: should_use_colors(color_choice),
@@ -635,6 +645,7 @@ impl Default for AnalyzerConfiguration {
             check_arrow_function_missing_type_hints: defaults.check_arrow_function_missing_type_hints,
             check_closure_and_arrow_function_parameter_type_hints: defaults
                 .check_closure_and_arrow_function_parameter_type_hints,
+            check_closure_return_type_hints: defaults.check_closure_return_type_hints,
             allow_implicit_pipe_callable_types: defaults.allow_implicit_pipe_callable_types,
             register_super_globals: defaults.register_super_globals,
             trust_existence_checks: defaults.trust_existence_checks,

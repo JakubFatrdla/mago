@@ -224,7 +224,13 @@ pub fn check_return_type_hint<'arena, A>(
 ) where
     A: Arena,
 {
-    if !context.settings.check_missing_type_hints || context.settings.version < PHPVersion::PHP70 {
+    let is_closure = matches!(function_like_metadata.kind, FunctionLikeKind::Closure);
+    let checks_closure_return_only = is_closure
+        && context.settings.check_closure_return_type_hints
+        && !(context.settings.check_missing_type_hints && context.settings.check_closure_missing_type_hints);
+    if !(context.settings.check_missing_type_hints || checks_closure_return_only)
+        || context.settings.version < PHPVersion::PHP70
+    {
         return;
     }
 
@@ -234,9 +240,11 @@ pub fn check_return_type_hint<'arena, A>(
     }
 
     // Check if we should skip based on function kind
-    if matches!(function_like_metadata.kind, FunctionLikeKind::Closure)
-        && !context.settings.check_closure_missing_type_hints
-    {
+    if is_closure && !context.settings.check_closure_missing_type_hints && !checks_closure_return_only {
+        return;
+    }
+
+    if checks_closure_return_only && class_like_metadata.is_some_and(|class_metadata| class_metadata.kind.is_trait()) {
         return;
     }
     if matches!(function_like_metadata.kind, FunctionLikeKind::ArrowFunction)
