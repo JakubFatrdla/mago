@@ -39,6 +39,5 @@ function method_of_a_nullable_container_offset(?Items $items): void
 function argument_from_a_falsable_container(array|false $row): int
 {
     // @mago-expect analysis:possibly-false-array-access
-    // @mago-expect analysis:possibly-undefined-string-array-index
     return strlen($row['k']);
 }

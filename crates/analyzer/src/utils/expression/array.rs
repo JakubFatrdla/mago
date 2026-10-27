@@ -684,9 +684,14 @@ where
 }
 
 fn one_union_member_issue_per_access(issues: IssueCollection) -> impl Iterator<Item = Issue> {
+    let container_may_reject_offset = issues.iter().any(|issue| has_code(issue, OFFSET_REJECTING_CONTAINER_CODES));
     let mut reported_spans = HashSet::default();
 
     issues.into_iter().filter(move |issue| {
+        if container_may_reject_offset && has_code(issue, MISSING_KEY_CODES) {
+            return false;
+        }
+
         let Some(group) = union_member_issue_group(issue) else {
             return true;
         };
@@ -695,13 +700,24 @@ fn one_union_member_issue_per_access(issues: IssueCollection) -> impl Iterator<I
     })
 }
 
+const OFFSET_REJECTING_CONTAINER_CODES: &[IssueCode] =
+    &[IssueCode::PossiblyNullArrayAccess, IssueCode::PossiblyFalseArrayAccess, IssueCode::PossiblyInvalidArrayAccess];
+
+const MISSING_KEY_CODES: &[IssueCode] = &[
+    IssueCode::PossiblyUndefinedIntArrayIndex,
+    IssueCode::PossiblyUndefinedStringArrayIndex,
+    IssueCode::UndefinedIntArrayIndex,
+    IssueCode::UndefinedStringArrayIndex,
+];
+
+fn has_code(issue: &Issue, codes: &[IssueCode]) -> bool {
+    issue.code.as_deref().is_some_and(|code| codes.iter().any(|candidate| candidate.as_str() == code))
+}
+
 fn union_member_issue_group(issue: &Issue) -> Option<u8> {
-    let code = issue.code.as_deref()?;
-    if code == IssueCode::PossiblyUndefinedIntArrayIndex.as_str()
-        || code == IssueCode::PossiblyUndefinedStringArrayIndex.as_str()
-    {
+    if has_code(issue, &[IssueCode::PossiblyUndefinedIntArrayIndex, IssueCode::PossiblyUndefinedStringArrayIndex]) {
         Some(0)
-    } else if code == IssueCode::PossiblyInvalidArrayAccess.as_str() || code == IssueCode::InvalidArrayAccess.as_str() {
+    } else if has_code(issue, OFFSET_REJECTING_CONTAINER_CODES) || has_code(issue, &[IssueCode::InvalidArrayAccess]) {
         Some(1)
     } else {
         None

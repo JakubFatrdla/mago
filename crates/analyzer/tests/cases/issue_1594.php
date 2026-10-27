@@ -56,7 +56,6 @@ function test_null_coalesce_func_call(array $row): void
 function test_that(array|false $row): void
 {
     // @mago-expect analysis:possibly-false-array-access - $row can be false
-    // @mago-expect analysis:possibly-undefined-string-array-index - if not, the key might not exist
     echo i_might_return_null_too($row['missing']) ?? 'default';
 }
 
@@ -64,6 +63,5 @@ function test_that(array|false $row): void
 function test_that2(?array $row): void
 {
     // @mago-expect analysis:possibly-null-array-access - $row can be null
-    // @mago-expect analysis:possibly-undefined-string-array-index - if not, the key might not exist
     echo i_might_return_null_too($row['missing']) ?? 'default';
 }

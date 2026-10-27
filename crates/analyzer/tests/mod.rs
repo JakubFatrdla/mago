@@ -3553,6 +3553,13 @@ test_case!(foreach_value_of_unchanged_type_is_reassigned, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(offset_rejecting_container_reports_once, {
+    let mut s = crate::framework::default_test_settings();
+    s.allow_possibly_undefined_array_keys = false;
+    s.strict_array_index_existence = true;
+    s
+});
+
 #[test]
 #[cfg_attr(miri, ignore)]
 fn test_all_test_cases_are_ran() {
