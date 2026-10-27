@@ -39,6 +39,7 @@ use crate::error::AnalysisError;
 use crate::formula::get_formula;
 use crate::formula::negate_or_synthesize;
 use crate::reconciler;
+use crate::utils::conditional::is_isset_or_empty;
 use crate::utils::conditional::is_reported_as_comparison;
 use crate::utils::expression::expression_has_observable_side_effect;
 use crate::utils::symbol_existence::extract_function_constant_existence;
@@ -328,6 +329,7 @@ where
             // x && true → x (remove right, keep left)
             let result_stands_for_comparisons = left_is_truthy && is_reported_as_comparison(binary.lhs);
             if !block_context.flags.inside_loop_expressions()
+                && !is_isset_or_empty(binary.rhs)
                 && (!is_reported_as_comparison(binary.rhs) || result_stands_for_comparisons)
             {
                 report_redundant_logical_operation(

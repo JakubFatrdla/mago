@@ -10,6 +10,7 @@ use mago_reporting::Annotation;
 use mago_reporting::Issue;
 use mago_span::HasSpan;
 use mago_syntax::cst::BinaryOperator;
+use mago_syntax::cst::Construct;
 use mago_syntax::cst::Expression;
 use mago_syntax::cst::UnaryPrefixOperator;
 use mago_word::Word;
@@ -295,6 +296,15 @@ fn get_definitely_evaluated_expression_inside_if<'ast, 'arena>(
     }
 
     condition
+}
+
+/// PHPStan leaves an `isset()` or `empty()` operand of `&&` and `||` to its isset rules.
+pub(crate) fn is_isset_or_empty(operand: &Expression<'_>) -> bool {
+    match operand {
+        Expression::Parenthesized(parenthesized) => is_isset_or_empty(parenthesized.expression),
+        Expression::Construct(Construct::Isset(_) | Construct::Empty(_)) => true,
+        _ => false,
+    }
 }
 
 pub(crate) fn is_reported_as_comparison(condition: &Expression<'_>) -> bool {
