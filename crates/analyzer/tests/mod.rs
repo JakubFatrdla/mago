@@ -3077,6 +3077,7 @@ test_case!(dead_catch, mago_analyzer::settings::Settings { check_dead_catch: tru
 test_case!(while_assignment_condition_may_skip_body);
 test_case!(mixed_operand_reported_once_per_operation);
 test_case!(logical_operand_of_implicit_mixed);
+test_case!(unset_of_a_key_some_union_members_lack);
 test_case!(possibly_invalid_array_index);
 test_case!(mixed_access_inside_isset);
 test_case!(concat_operand_reported_at_operation_start);
