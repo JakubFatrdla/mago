@@ -207,7 +207,9 @@ impl FunctionReturnTypeProvider for ArrayMergeProvider {
                         });
                     }
                 }
-            } else if let Some((iterable_key, iterable_value)) = get_iterable_parameters(iterable, codebase) {
+            } else if let Some((iterable_key, iterable_value)) = get_iterable_parameters(iterable, codebase)
+                .or_else(|| iterable.is_mixed().then(|| (get_arraykey(), get_mixed())))
+            {
                 has_general_argument = true;
                 widen_merged_items(&mut merged_items, &iterable_value, codebase);
                 all_arguments_are_lists = false;

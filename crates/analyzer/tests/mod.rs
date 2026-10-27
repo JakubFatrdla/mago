@@ -3536,6 +3536,7 @@ test_case!(native_pass_applies_docblock_facts, {
 });
 test_case!(unused_property_type_in_trait_users);
 test_case!(array_filter_keeps_list_shape);
+test_case!(array_merge_mixed_argument_is_array);
 
 #[test]
 #[cfg_attr(miri, ignore)]
