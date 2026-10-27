@@ -9,7 +9,7 @@ use mago_codex::identifier::method::MethodIdentifier;
 use mago_codex::ttype::TType;
 use mago_codex::ttype::add_optional_union_type;
 use mago_codex::ttype::expander::StaticClassType;
-use mago_codex::ttype::get_mixed;
+use mago_codex::ttype::get_implicit_mixed;
 use mago_codex::ttype::get_null;
 use mago_codex::ttype::get_void;
 use mago_codex::ttype::template::TemplateResult;
@@ -206,7 +206,7 @@ where
 
     let resulting_type = if let Some(resulting_type) = resulting_type {
         if encountered_mixed_targets {
-            get_mixed()
+            get_implicit_mixed()
         } else if should_add_null {
             let mut result_with_null = add_optional_union_type(get_null(), Some(&resulting_type), context.codebase);
             if all_targets_non_nullable_return {
@@ -225,7 +225,7 @@ where
         analyze_invocation_arguments_source(context, block_context, artifacts, &invocation_arguments)?;
 
         if encountered_mixed_targets {
-            get_mixed()
+            get_implicit_mixed()
         } else {
             return Ok(());
         }

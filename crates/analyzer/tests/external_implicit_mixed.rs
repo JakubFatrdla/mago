@@ -222,6 +222,77 @@ final class UntypedUser
     use ReadsUserProperty;
 }
 
+function untyped_parameter($m): void
+{
+    if ($m) {}
+}
+
+function untyped_source()
+{
+    return 1;
+}
+
+function untyped_return(): void
+{
+    if (untyped_source()) {}
+}
+
+function mixed_source(): mixed
+{
+    return 1;
+}
+
+function mixed_return(): void
+{
+    if (mixed_source()) {}
+}
+
+function method_of_mixed(mixed $m): void
+{
+    if ($m->run()) {}
+}
+
+final class Flagged
+{
+    public function flag(): bool
+    {
+        return true;
+    }
+}
+
+function method_of_object(object $o): void
+{
+    if ($o->flag()) {}
+}
+
+/** @param Flagged|object $o */
+function method_of_class_or_object($o): void
+{
+    if ($o->flag()) {}
+}
+
+final class Unfinished extends MissingParent
+{
+}
+
+function method_of_class_or_unfinished(Flagged|Unfinished $o): void
+{
+    if ($o->flag()) {}
+}
+
+final class Magic
+{
+    public function __call(string $name, array $arguments): mixed
+    {
+        return null;
+    }
+}
+
+function undocumented_magic_call(Magic $m): void
+{
+    if ($m->run()) {}
+}
+
 function key_exists_on_mixed(mixed $json): void
 {
     if (array_key_exists('meta', $json)) {
@@ -263,6 +334,14 @@ const EXPECTED: &[(&str, &str)] = &[
     ("method_and_property_exist", "implicit-mixed"),
     ("property_exists_on_named", "implicit-mixed"),
     ("trait_user_property", "explicit-mixed"),
+    ("untyped_parameter", "implicit-mixed"),
+    ("untyped_return", "implicit-mixed"),
+    ("mixed_return", "explicit-mixed"),
+    ("method_of_mixed", "implicit-mixed"),
+    ("method_of_object", "implicit-mixed"),
+    ("method_of_class_or_object", "implicit-mixed"),
+    ("method_of_class_or_unfinished", "implicit-mixed"),
+    ("undocumented_magic_call", "implicit-mixed"),
     ("key_exists_on_mixed", "implicit-mixed"),
     ("is_array_on_mixed", "explicit-mixed"),
 ];

@@ -2,7 +2,7 @@ use mago_allocator::Arena;
 use mago_codex::identifier::function_like::FunctionLikeIdentifier;
 use mago_codex::metadata::function_like::FunctionLikeMetadata;
 use mago_codex::ttype::atomic::TAtomic;
-use mago_codex::ttype::get_mixed;
+use mago_codex::ttype::get_implicit_mixed;
 use mago_codex::ttype::get_never;
 use mago_codex::ttype::template::TemplateResult;
 use mago_codex::ttype::union::TUnion;
@@ -131,7 +131,7 @@ where
     let mut resulting_type = if let Some(return_type) = target_return_type {
         resolve_invocation_type(context, invocation, template_result, parameters, return_type)
     } else {
-        get_mixed()
+        get_implicit_mixed()
     };
 
     if let Some(function_like_metadata) = invocation.target.get_function_like_metadata()

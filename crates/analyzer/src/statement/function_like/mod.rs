@@ -40,6 +40,7 @@ use mago_codex::ttype::expander::TypeExpansionOptions;
 use mago_codex::ttype::expander::contains_parameter_variable;
 use mago_codex::ttype::expander::get_signature_of_function_like_metadata;
 use mago_codex::ttype::get_arraykey;
+use mago_codex::ttype::get_implicit_mixed;
 use mago_codex::ttype::get_keyed_array;
 use mago_codex::ttype::get_list;
 use mago_codex::ttype::get_mixed;
@@ -562,7 +563,7 @@ where
 
             effective_type
         } else {
-            get_mixed()
+            get_implicit_mixed()
         };
 
         // TODO(azjezz): consider comparing declared and inferred types instead

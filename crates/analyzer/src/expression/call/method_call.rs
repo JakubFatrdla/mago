@@ -642,12 +642,17 @@ where
                     );
                 }
 
-                fetch_declared_invocation_return_type(
+                let mut magic_return_type = fetch_declared_invocation_return_type(
                     context,
                     &invocation,
                     &invocation_template_result,
                     &parameter_types,
-                )
+                );
+                if magic_return_type.is_mixed() {
+                    magic_return_type.set_implicit_mixed(true);
+                }
+
+                magic_return_type
             }
         };
 
