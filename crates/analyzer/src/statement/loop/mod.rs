@@ -460,6 +460,7 @@ where
     if pre_conditions.is_empty() {
         always_assigned_before_loop_body_variables =
             BlockContext::get_new_or_updated_locals(loop_parent_context, loop_context);
+        always_assigned_before_loop_body_variables.extend(loop_scope.foreach_target_variables.iter().copied());
     } else {
         let assertion_context = context.get_assertion_context_from_block(loop_context);
 

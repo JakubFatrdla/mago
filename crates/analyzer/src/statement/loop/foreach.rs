@@ -194,6 +194,10 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Foreach<'arena> {
         };
 
         let mut loop_scope = LoopScope::new(self.span(), block_context.locals.clone(), None);
+        let is_variable_key =
+            self.target.key().is_some_and(|key| matches!(key, Expression::Variable(Variable::Direct(_))));
+        loop_scope.foreach_target_variables.extend(key_expression_id.filter(|_| is_variable_key));
+        loop_scope.foreach_target_variables.extend(value_expression_id.filter(|_| is_variable_value));
         if let Some((_, _, _, entry_id, entry_type)) = &foreach_entry {
             loop_scope.parent_context_variables.insert(*entry_id, Rc::clone(entry_type));
             loop_scope.tracks_assignment_targets = true;

@@ -3547,6 +3547,12 @@ test_case!(array_map_of_non_empty_array_is_non_empty);
 test_case!(loop_that_ran_links_its_variables);
 test_case!(generic_object_call_result_is_mixed);
 test_case!(keys_written_in_a_loop_that_may_not_run_may_stay_empty);
+test_case!(foreach_value_of_unchanged_type_is_reassigned, {
+    let mut s = crate::framework::default_test_settings();
+    s.allow_possibly_undefined_array_keys = false;
+    s.strict_array_index_existence = true;
+    s
+});
 #[test]
 #[cfg_attr(miri, ignore)]
 fn test_all_test_cases_are_ran() {
