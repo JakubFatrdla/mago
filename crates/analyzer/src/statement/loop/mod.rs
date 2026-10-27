@@ -16,6 +16,7 @@ use mago_allocator::Arena;
 use mago_reporting::IssueCollection;
 
 use mago_algebra::saturate_shared_clauses;
+use mago_codex::assertion::Assertion;
 use mago_codex::metadata::CodebaseMetadata;
 use mago_codex::ttype;
 use mago_codex::ttype::TType;
@@ -255,6 +256,14 @@ fn inherit_loop_block_context<'ctx, A>(
 
     if can_leave_loop {
         if !always_enters_loop {
+            let loop_ran_clauses = (!has_break_or_continue && !loop_scope.condition_always_false).then(|| {
+                loop_ran_clauses(
+                    context.statement_span,
+                    &loop_scope.parent_context_variables,
+                    &inner_loop_block_context.locals,
+                )
+            });
+
             if loop_scope.condition_always_false {
                 for (variable, pre_loop_type) in &loop_scope.parent_context_variables {
                     block_context.locals.insert(*variable, Rc::clone(pre_loop_type));
@@ -283,6 +292,8 @@ fn inherit_loop_block_context<'ctx, A>(
                 block_context.locals.insert(variable, Rc::new(exit_type));
                 block_context.possibly_undefined_variable_ids.insert(variable);
             }
+
+            block_context.clauses.extend(loop_ran_clauses.into_iter().flatten());
         } else {
             for (variable, variable_type) in inner_loop_block_context.locals {
                 if let Some(exit_type) =
@@ -303,6 +314,58 @@ fn inherit_loop_block_context<'ctx, A>(
     } else {
         block_context.variables_possibly_in_scope = loop_scope.variables_possibly_in_scope;
     }
+}
+
+/// A loop that may not run leaves a variable that is falsy before it truthy after it, and one that is `null` before
+/// it non-null after it, only when it ran. PHPStan links the two as a conditional expression when it merges the paths
+/// (`MutatingScope::createConditionalExpressions()`), so a truthy first variable makes the second non-null.
+fn loop_ran_clauses(
+    loop_span: Span,
+    pre_loop_types: &mago_word::WordMap<Rc<TUnion>>,
+    end_of_body_types: &mago_word::WordMap<Rc<TUnion>>,
+) -> Vec<Rc<Clause>> {
+    let mut ran_witnesses = vec![];
+    let mut set_when_ran = vec![];
+    for (variable, pre_loop_type) in pre_loop_types {
+        let Some(end_of_body_type) = end_of_body_types.get(variable) else {
+            continue;
+        };
+
+        if pre_loop_type.is_always_falsy() && end_of_body_type.is_always_truthy() {
+            ran_witnesses.push(*variable);
+        }
+
+        if pre_loop_type.is_null() && !end_of_body_type.is_nullable() && !end_of_body_type.is_mixed() {
+            set_when_ran.push(*variable);
+        }
+    }
+
+    let mut clauses = vec![];
+    for witness in &ran_witnesses {
+        for variable in set_when_ran.iter().filter(|variable| *variable != witness) {
+            let possibilities = AssertionMap::from_iter([
+                (*witness, AssertionMap::from_iter([(Assertion::Falsy.to_hash(), Assertion::Falsy)])),
+                (
+                    *variable,
+                    AssertionMap::from_iter([(
+                        Assertion::IsNotType(TAtomic::Null).to_hash(),
+                        Assertion::IsNotType(TAtomic::Null),
+                    )]),
+                ),
+            ]);
+
+            clauses.push(Rc::new(Clause::new(
+                possibilities,
+                loop_span,
+                loop_span,
+                Some(false),
+                Some(true),
+                Some(true),
+            )));
+        }
+    }
+
+    clauses
 }
 
 fn loop_exit_type<A>(
