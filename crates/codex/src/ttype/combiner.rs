@@ -823,10 +823,11 @@ fn scrape_type_properties(
                                 }
                             }
 
+                            let frozen_non_empty = keyed_entries_are_always_filled(combination, &frozen_entries);
                             let frozen = TArray::Keyed(TKeyedArray {
                                 known_items: Some(frozen_entries.into()),
                                 parameters: None,
-                                non_empty: combination.flags.contains(CombinationFlags::KEYED_ARRAY_SOMETIMES_FILLED),
+                                non_empty: frozen_non_empty,
                                 known_non_list: combination
                                     .flags
                                     .contains(CombinationFlags::KEYED_ARRAY_KNOWN_NON_LIST),
@@ -852,10 +853,12 @@ fn scrape_type_properties(
                                     codebase,
                                 ))
                         {
+                            let frozen_entries = std::mem::take(&mut combination.keyed_array_entries);
+                            let frozen_non_empty = keyed_entries_are_always_filled(combination, &frozen_entries);
                             let frozen = TArray::Keyed(TKeyedArray {
-                                known_items: Some(std::mem::take(&mut combination.keyed_array_entries).into()),
+                                known_items: Some(frozen_entries.into()),
                                 parameters: None,
-                                non_empty: combination.flags.contains(CombinationFlags::KEYED_ARRAY_SOMETIMES_FILLED),
+                                non_empty: frozen_non_empty,
                                 known_non_list: combination
                                     .flags
                                     .contains(CombinationFlags::KEYED_ARRAY_KNOWN_NON_LIST),
@@ -1522,6 +1525,14 @@ fn adjust_keyed_array_parameters(
     *existing_value_param = combine_union_types(existing_value_param, entry_type, codebase, options);
     let new_key_type = key.to_union();
     *existing_key_param = combine_union_types(existing_key_param, &new_key_type, codebase, options);
+}
+
+fn keyed_entries_are_always_filled(
+    combination: &TypeCombination,
+    entries: &BTreeMap<ArrayKey, (bool, TUnion)>,
+) -> bool {
+    combination.flags.contains(CombinationFlags::KEYED_ARRAY_ALWAYS_FILLED)
+        || entries.values().any(|(optional, _)| !optional)
 }
 
 fn flush_sealed_keyed_arrays_into_combination(
