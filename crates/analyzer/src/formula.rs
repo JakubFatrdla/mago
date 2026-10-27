@@ -177,6 +177,14 @@ pub fn get_formula<A>(
 where
     A: Arena,
 {
+    let facts_key = (conditional_object_id, creating_object_id, conditional.span());
+    if assertion_context.native_types_only
+        && let Some(facts) = assertion_context.docblock_facts
+        && let Some(formula) = facts.borrow().formula(&facts_key)
+    {
+        return Some(formula.clone());
+    }
+
     let mut formula = get_base_formula(
         conditional_object_id,
         creating_object_id,
@@ -197,7 +205,17 @@ where
         formula_size_threshold,
     );
 
-    if formula.len() > usize::from(formula_size_threshold) { None } else { Some(formula) }
+    if formula.len() > usize::from(formula_size_threshold) {
+        return None;
+    }
+
+    if !assertion_context.native_types_only
+        && let Some(facts) = assertion_context.docblock_facts
+    {
+        facts.borrow_mut().record_formula(facts_key, &formula);
+    }
+
+    Some(formula)
 }
 
 fn get_base_formula<A>(

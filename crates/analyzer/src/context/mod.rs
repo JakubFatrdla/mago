@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use foldhash::HashMap;
@@ -37,6 +38,7 @@ use crate::artifacts::AnalysisArtifacts;
 use crate::code::IssueCode;
 use crate::context::assertion::AssertionContext;
 use crate::context::block::BlockContext;
+use crate::context::docblock_facts::DocblockFacts;
 use crate::external::ExternalAnalysisSession;
 use crate::plugin::PluginRegistry;
 use crate::resolver::function::resolve_function_name;
@@ -48,6 +50,7 @@ type PropertyTypes = Vec<(Word, Rc<TUnion>)>;
 pub mod assertion;
 pub mod block;
 pub mod block_flags;
+pub mod docblock_facts;
 pub mod scope;
 pub mod utils;
 
@@ -77,6 +80,8 @@ where
     pub(super) property_types: HashMap<(Word, bool), PropertyTypes>,
     /// Types come from native declarations only, like PHPStan's scope with promoted native types.
     pub(super) native_types_only: bool,
+    /// Facts the pass on docblock types records and the native pass applies.
+    pub(crate) docblock_facts: Option<&'ctx RefCell<DocblockFacts>>,
     pub(super) strict_types: bool,
     /// `if` conditions and `else` clauses the native pass found always false or unreachable; `None` when
     /// docblock types are certain.
@@ -124,6 +129,7 @@ where
             additional_symbol_references,
             property_types: HashMap::default(),
             native_types_only: false,
+            docblock_facts: None,
             strict_types: false,
             natively_false_conditions: None,
             last_conditions: HashSet::default(),
@@ -171,6 +177,25 @@ where
     pub(crate) fn with_last_conditions(mut self, program: &Program<'_>) -> Self {
         self.last_conditions = collect_last_conditions(program);
         self
+    }
+
+    #[must_use]
+    pub(crate) fn with_docblock_facts(mut self, facts: &'ctx RefCell<DocblockFacts>) -> Self {
+        self.docblock_facts = Some(facts);
+        self
+    }
+
+    /// Whether the pass on docblock types found the call at `call_span` to return `never`.
+    pub(crate) fn is_docblock_never_call(&self, call_span: Span) -> bool {
+        self.native_types_only && self.docblock_facts.is_some_and(|facts| facts.borrow().is_never_call(&call_span))
+    }
+
+    pub(crate) fn record_never_call(&self, call_span: Span) {
+        if !self.native_types_only
+            && let Some(facts) = self.docblock_facts
+        {
+            facts.borrow_mut().record_never_call(call_span);
+        }
     }
 
     #[must_use]
@@ -293,6 +318,8 @@ where
             codebase: self.codebase,
             this_class_name,
             trust_existence_checks: self.settings.trust_existence_checks,
+            docblock_facts: self.docblock_facts,
+            native_types_only: self.native_types_only,
         }
     }
 

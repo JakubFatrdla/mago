@@ -79,6 +79,10 @@ where
     skip_unfulfilled_expect: bool,
     /// Issue codes that are reported only at the primary spans listed for them.
     confirmed_spans: HashMap<&'static str, HashSet<Span>>,
+    /// Whether issues at spans [`Self::report_code_only_at`] did not list are held instead of dropped.
+    holds_unconfirmed: bool,
+    /// Held issues, one level for the main collection and one per recording in progress.
+    held: std::vec::Vec<std::vec::Vec<Issue>>,
 }
 
 /// Owned pragma state retained while diagnostics may still arrive after a file's
@@ -147,6 +151,8 @@ where
             link_template: None,
             skip_unfulfilled_expect: false,
             confirmed_spans: HashMap::default(),
+            holds_unconfirmed: false,
+            held: vec![std::vec::Vec::new()],
         };
 
         attach_pragma_scopes(&mut collector, program);
@@ -185,6 +191,19 @@ where
     #[inline]
     pub fn report_code_only_at(&mut self, code: &'static str, spans: HashSet<Span>) {
         self.confirmed_spans.insert(code, spans);
+    }
+
+    /// Holds the issues [`Self::report_code_only_at`] would drop, until [`Self::take_held`] hands them out.
+    #[inline]
+    pub fn hold_unconfirmed(&mut self) {
+        self.holds_unconfirmed = true;
+    }
+
+    /// Returns the held issues. A recording's held issues move to the enclosing level when it finishes,
+    /// whether its other issues are kept or not, so one span can be held more than once.
+    #[inline]
+    pub fn take_held(&mut self) -> std::vec::Vec<Issue> {
+        self.held.iter_mut().flat_map(std::mem::take).collect()
     }
 
     /// Adds `span` to the spans [`Self::report_code_only_at`] listed for `code`, if it listed any.
@@ -267,6 +286,12 @@ where
             if let Some(spans) = self.confirmed_spans.get(code)
                 && !primary_span.is_some_and(|span| spans.contains(&span))
             {
+                if self.holds_unconfirmed
+                    && let Some(level) = self.held.last_mut()
+                {
+                    level.push(issue);
+                }
+
                 return false;
             }
             // Code is enabled; fall through to the suppression checks below.
@@ -394,6 +419,7 @@ where
     #[inline]
     pub fn start_recording(&mut self) {
         self.recordings.push(IssueCollection::new());
+        self.held.push(std::vec::Vec::new());
     }
 
     /// Checks if a recording session is currently active.
@@ -411,7 +437,14 @@ where
     /// Returns `None` if no recording session is active.
     #[inline]
     pub fn finish_recording(&mut self) -> Option<IssueCollection> {
-        self.recordings.pop()
+        let recording = self.recordings.pop()?;
+        if let Some(level) = self.held.pop()
+            && let Some(enclosing) = self.held.last_mut()
+        {
+            enclosing.extend(level);
+        }
+
+        Some(recording)
     }
 
     /// Finalizes the collection process and returns an iterator over all generated issues.
@@ -831,6 +864,8 @@ impl DeferredPragmas {
             link_template: self.link_template,
             skip_unfulfilled_expect: self.skip_unfulfilled_expect,
             confirmed_spans: HashMap::default(),
+            holds_unconfirmed: false,
+            held: vec![std::vec::Vec::new()],
         }
     }
 }

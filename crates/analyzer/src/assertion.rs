@@ -2495,15 +2495,27 @@ fn add_index_below_count_assertion<A>(
         return;
     };
 
-    let is_list = artifacts.get_expression_type(list_argument.value).is_some_and(|list_type| {
-        list_type.types.iter().all(|atomic| matches!(atomic, TAtomic::Array(TArray::List(_))))
-    });
+    let Some(list_type) = artifacts.get_expression_type(list_argument.value) else {
+        return;
+    };
+    let element_atomics: Option<Vec<TAtomic>> = list_type
+        .types
+        .iter()
+        .map(|atomic| match atomic {
+            TAtomic::Array(TArray::List(list)) => Some(list.get_element_type().types.to_vec()),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()
+        .map(|element_types| element_types.into_iter().flatten().collect());
+    let Some(element_atomics) = element_atomics else {
+        return;
+    };
     let is_non_negative_int = artifacts.get_expression_type(index).is_some_and(|index_type| {
         index_type.types.iter().all(|atomic| {
             matches!(atomic, TAtomic::Scalar(TScalar::Integer(integer)) if integer.get_minimum_value().is_some_and(|minimum| minimum >= 0))
         })
     });
-    if !is_list || !is_non_negative_int {
+    if !is_non_negative_int {
         return;
     }
 
@@ -2518,8 +2530,14 @@ fn add_index_below_count_assertion<A>(
         assertions.push(WordMap::default());
     }
 
+    let element_type_assertion = (!element_atomics.iter().any(TAtomic::is_mixed))
+        .then(|| element_atomics.into_iter().map(Assertion::IsType).collect::<Vec<_>>());
     for if_types in assertions.iter_mut() {
-        if_types.entry(access_id).or_default().push(vec![Assertion::ArrayKeyExists]);
+        let access_assertions = if_types.entry(access_id).or_default();
+        access_assertions.push(vec![Assertion::ArrayKeyExists]);
+        if let Some(element_type_assertion) = &element_type_assertion {
+            access_assertions.push(element_type_assertion.clone());
+        }
     }
 }
 

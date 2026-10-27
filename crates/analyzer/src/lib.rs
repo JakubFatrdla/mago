@@ -5,6 +5,7 @@
 #![allow(clippy::pub_use)]
 #![allow(clippy::match_wildcard_for_single_variants)]
 
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use foldhash::HashMap;
@@ -19,6 +20,7 @@ use mago_codex::reference::SymbolReferences;
 use mago_collector::Collector;
 use mago_database::file::File;
 use mago_names::ResolvedNames;
+use mago_reporting::Issue;
 use mago_span::HasSpan;
 use mago_span::Span;
 use mago_syntax::cst::Node;
@@ -30,6 +32,7 @@ use crate::artifacts::AnalysisArtifacts;
 use crate::code::IssueCode;
 use crate::context::Context;
 use crate::context::block::BlockContext;
+use crate::context::docblock_facts::DocblockFacts;
 use crate::error::AnalysisError;
 use crate::external::ExternalAnalysisSession;
 use crate::external::NodeAnalysisRequirements;
@@ -226,17 +229,22 @@ where
         let (native_type_spans, natively_false_conditions) = if self.settings.treat_docblock_types_as_certain {
             (None, None)
         } else {
-            let (spans, conditions) = self.native_type_spans(program)?;
+            let (spans, conditions) = self.native_type_spans(program, None)?;
             (Some(spans), Some(conditions))
         };
+        let docblock_facts = RefCell::new(DocblockFacts::default());
 
         let mut collector = Collector::new(self.arena, self.source_file, program, COLLECTOR_CATEGORIES);
         if self.settings.diff {
             collector.set_skip_unfulfilled_expect(true);
         }
 
-        for (code, spans) in native_type_spans.into_iter().flatten() {
-            collector.report_code_only_at(code, spans);
+        if let Some(native_type_spans) = native_type_spans {
+            for (code, spans) in native_type_spans {
+                collector.report_code_only_at(code, spans);
+            }
+
+            collector.hold_unconfirmed();
         }
 
         let mut context = Context::new(
@@ -254,7 +262,7 @@ where
         )
         .with_last_conditions(program);
         if let Some(conditions) = natively_false_conditions {
-            context = context.with_natively_false_conditions(conditions);
+            context = context.with_natively_false_conditions(conditions).with_docblock_facts(&docblock_facts);
         }
 
         let mut block_context = BlockContext::new(
@@ -317,6 +325,11 @@ where
             }
         }
 
+        let held = context.collector.take_held();
+        if !held.is_empty() {
+            self.report_natively_confirmed(program, &docblock_facts, held, &mut context.collector)?;
+        }
+
         #[cfg(not(target_arch = "wasm32"))]
         let finish_start = trace_enabled.then(std::time::Instant::now);
         analysis_result.symbol_references.extend(std::mem::take(&mut artifacts.symbol_references));
@@ -355,6 +368,7 @@ where
     fn native_type_spans(
         &self,
         program: &'ast Program<'arena>,
+        docblock_facts: Option<&RefCell<DocblockFacts>>,
     ) -> Result<(NativeTypeSpans, HashSet<Span>), AnalysisError> {
         let statements = program.statements.as_slice();
         let plugin_registry = PluginRegistry::new();
@@ -375,6 +389,9 @@ where
         .with_native_signature_source(self.plugin_registry, self.external_analysis_session)
         .with_strict_types(program)
         .with_last_conditions(program);
+        if let Some(facts) = docblock_facts {
+            context = context.with_docblock_facts(facts);
+        }
 
         let mut block_context = BlockContext::new(
             ScopeContext::new(ReferenceOrigin::File(word(context.source_file.name.as_ref()))),
@@ -396,6 +413,42 @@ where
         }
 
         Ok((spans, context.natively_false_conditions.unwrap_or_default()))
+    }
+
+    /// Reports the held issues of [`NATIVE_TYPE_CODES`] that a native pass applying `docblock_facts` confirms,
+    /// as PHPStan's native types carry the narrowing it resolves on the PHPDoc types.
+    fn report_natively_confirmed(
+        &self,
+        program: &'ast Program<'arena>,
+        docblock_facts: &RefCell<DocblockFacts>,
+        held: Vec<Issue>,
+        collector: &mut Collector<'_, 'arena, A>,
+    ) -> Result<(), AnalysisError> {
+        let (native_type_spans, _) = self.native_type_spans(program, Some(docblock_facts))?;
+
+        let mut latest: HashMap<(&'static str, Span), Issue> = HashMap::default();
+        for issue in held {
+            let Some(code) =
+                NATIVE_TYPE_CODES.iter().map(IssueCode::as_str).find(|code| issue.code.as_deref() == Some(*code))
+            else {
+                continue;
+            };
+
+            if let Some(span) = issue.primary_span()
+                && native_type_spans.get(code).is_some_and(|spans| spans.contains(&span))
+            {
+                latest.insert((code, span), issue);
+            }
+        }
+
+        let mut confirmed: Vec<_> = latest.into_iter().collect();
+        confirmed.sort_by_key(|((_, span), _)| (span.start.offset, span.end.offset));
+        for ((code, span), issue) in confirmed {
+            collector.confirm_code_at(code, span);
+            collector.report(issue);
+        }
+
+        Ok(())
     }
 }
 

@@ -1,9 +1,12 @@
+use std::cell::RefCell;
+
 use mago_names::ResolvedNames;
 use mago_word::Word;
 
 use mago_codex::metadata::CodebaseMetadata;
 use mago_syntax::cst::Expression;
 
+use crate::context::docblock_facts::DocblockFacts;
 use crate::utils::expression::get_expression_id;
 
 #[derive(Debug)]
@@ -13,6 +16,9 @@ pub struct AssertionContext<'ctx, 'arena, A> {
     pub codebase: &'ctx CodebaseMetadata,
     pub this_class_name: Option<Word>,
     pub trust_existence_checks: bool,
+    /// Recorded by the pass on docblock types and applied by the native pass, see [`Self::native_types_only`].
+    pub docblock_facts: Option<&'ctx RefCell<DocblockFacts>>,
+    pub native_types_only: bool,
 }
 
 impl<A> AssertionContext<'_, '_, A> {

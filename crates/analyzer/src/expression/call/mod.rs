@@ -251,7 +251,8 @@ where
         resulting_type,
     );
 
-    if resulting_type.is_never() && !block_context.flags.inside_loop() {
+    if (resulting_type.is_never() || context.is_docblock_never_call(call_span)) && !block_context.flags.inside_loop() {
+        context.record_never_call(call_span);
         artifacts.set_expression_type(&call_span, resulting_type);
 
         block_context.flags.set_has_returned(true);

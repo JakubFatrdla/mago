@@ -3529,6 +3529,11 @@ test_case!(unpacked_unknown_array_checks_first_parameter);
 test_case!(property_offset_write_is_not_read);
 test_case!(dom_xpath_query_yields_nodes);
 test_case!(isset_operand_of_and_is_left_to_isset_check);
+test_case!(native_pass_applies_docblock_facts, {
+    let mut s = crate::framework::default_test_settings();
+    s.treat_docblock_types_as_certain = false;
+    s
+});
 
 #[test]
 #[cfg_attr(miri, ignore)]
