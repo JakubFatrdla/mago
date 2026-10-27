@@ -3520,6 +3520,7 @@ test_case!(non_array_access_offset_is_implicit_mixed, {
     s
 });
 test_case!(clone_of_mixed_is_object);
+test_case!(unpacked_unknown_array_checks_first_parameter);
 
 #[test]
 #[cfg_attr(miri, ignore)]

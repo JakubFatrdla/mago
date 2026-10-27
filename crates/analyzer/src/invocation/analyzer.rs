@@ -2273,7 +2273,7 @@ fn validate_unpacked_argument_elements<'ctx, 'arena, A>(
                     }
                 } else {
                     let element_type = list.get_element_type();
-                    let min_size = list.known_count.unwrap_or(0);
+                    let min_size = list.known_count.unwrap_or(0).max(1);
                     let max_parameters_to_check = std::cmp::min(
                         min_size,
                         invocation_target.parameter_count().saturating_sub(starting_parameter_position),
@@ -2354,6 +2354,37 @@ fn validate_keyed_array_elements<'ctx, 'arena, A>(
 
     let invocation_target = &invocation.target;
     let Some(known_items) = &keyed_array.known_items else {
+        if let Some(value_type) = keyed_array.get_value_type()
+            && let Some(parameter_ref) = invocation_target.get_parameter(starting_parameter_position)
+        {
+            let base_parameter_type = get_parameter_type(
+                context,
+                Some(parameter_ref),
+                base_class_metadata,
+                calling_class_like_metadata,
+                calling_instance_type,
+                method_class_type,
+            );
+
+            let final_parameter_type = resolve_parameter_type_for_invocation(
+                context,
+                invocation,
+                template_result,
+                parameter_types,
+                base_class_metadata,
+                base_parameter_type,
+            );
+
+            verify_argument_type(
+                context,
+                value_type,
+                &final_parameter_type,
+                starting_parameter_position,
+                argument_expression,
+                invocation_target,
+            );
+        }
+
         return;
     };
 
