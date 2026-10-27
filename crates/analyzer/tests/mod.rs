@@ -3519,6 +3519,7 @@ test_case!(non_array_access_offset_is_implicit_mixed, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(clone_of_mixed_is_object);
 
 #[test]
 #[cfg_attr(miri, ignore)]

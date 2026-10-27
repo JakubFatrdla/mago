@@ -4,7 +4,6 @@ use std::rc::Rc;
 use mago_codex::ttype::TType;
 use mago_codex::ttype::atomic::TAtomic;
 use mago_codex::ttype::atomic::object::TObject;
-use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::get_never;
 use mago_reporting::Annotation;
 use mago_reporting::Issue;
@@ -134,23 +133,18 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Clone<'arena> {
             }
         }
 
-        let resulting_type = if invalid_clone_atomics.is_empty() {
+        let resulting_type = if invalid_clone_atomics.is_empty() && !has_mixed_type {
             object_type
         } else {
-            Rc::new(if has_mixed_type {
-                get_mixed()
-            } else if has_cloneable_object {
-                object_type.clone_with_types(
-                    object_type
-                        .types
-                        .iter()
-                        .filter(|atomic| !invalid_clone_atomics.contains(atomic))
-                        .cloned()
-                        .collect(),
-                )
-            } else {
-                get_never()
-            })
+            let mut cloned_atomics: Vec<TAtomic> = vec![];
+            for atomic in object_type.types.iter().filter(|atomic| !invalid_clone_atomics.contains(atomic)) {
+                let cloned = if atomic.is_mixed() { TAtomic::Object(TObject::Any) } else { atomic.clone() };
+                if !cloned_atomics.contains(&cloned) {
+                    cloned_atomics.push(cloned);
+                }
+            }
+
+            Rc::new(if cloned_atomics.is_empty() { get_never() } else { object_type.clone_with_types(cloned_atomics) })
         };
 
         artifacts.set_rc_expression_type(self, resulting_type);
