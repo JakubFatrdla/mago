@@ -41,6 +41,8 @@ use crate::common::synthetic::new_synthetic_call;
 use crate::common::synthetic::new_synthetic_negation;
 use crate::context::Context;
 use crate::context::block::BlockContext;
+use crate::context::conditional_expression::BranchEnd;
+use crate::context::conditional_expression::create_conditional_expressions;
 use crate::context::scope::conditional_scope::IfConditionalScope;
 use crate::context::scope::control_action::ControlAction;
 use crate::context::scope::control_action::ControlActionSet;
@@ -261,6 +263,8 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for If<'arena> {
             self.span(),
         )?;
 
+        let branch_ends = (if_scope.if_branch_end.take(), if_scope.else_branch_end.take());
+
         if_body_redefined_snapshot.retain(|variable_id, _| {
             if_body_assigned_ids.contains(variable_id)
                 || else_block_context.assigned_variable_ids.contains_key(variable_id)
@@ -460,6 +464,15 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for If<'arena> {
         }
 
         block_context.clauses.extend(discriminator_clauses);
+        if !context.native_types_only
+            && !self.body.has_else_if_clauses()
+            && let (Some(if_branch_end), Some(else_branch_end)) = branch_ends
+        {
+            let conditional_expressions =
+                create_conditional_expressions(context.codebase, &if_branch_end, &else_branch_end, block_context);
+            block_context.conditional_expressions.extend(conditional_expressions);
+        }
+
         if has_returned {
             block_context.flags.set_has_returned(true);
         }
@@ -630,6 +643,7 @@ where
     inherit_branch_context_properties(context, outer_block_context, &if_block_context);
 
     if !has_leaving_statements {
+        if_scope.if_branch_end = Some(BranchEnd::of(&if_block_context));
         let new_assigned_variable_ids_keys = new_assigned_variable_ids.keys().copied().collect::<Vec<Word>>();
 
         update_if_scope(
@@ -1070,6 +1084,7 @@ where
         }
 
         merge_definitely_uninitialized_property_ids(if_scope, else_block_context);
+        if_scope.else_branch_end = Some(BranchEnd::of(else_block_context));
 
         return Ok(());
     }
@@ -1207,6 +1222,7 @@ where
     if_scope.final_actions.extend(&final_actions);
 
     if !has_leaving_statements {
+        if_scope.else_branch_end = Some(BranchEnd::of(else_block_context));
         update_if_scope(
             context,
             if_scope,

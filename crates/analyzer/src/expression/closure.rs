@@ -214,6 +214,25 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Closure<'arena> {
             None,
         );
 
+        if let Some(use_clause) = self.use_clause.as_ref() {
+            let captured_by_value = use_clause
+                .variables
+                .iter()
+                .filter(|use_variable| use_variable.ampersand.is_none())
+                .map(|use_variable| word(use_variable.variable.name))
+                .collect::<Vec<_>>();
+
+            inner_block_context.conditional_expressions = block_context
+                .conditional_expressions
+                .iter()
+                .filter(|conditional_expression| {
+                    captured_by_value.contains(&conditional_expression.guard)
+                        && captured_by_value.contains(&conditional_expression.target)
+                })
+                .cloned()
+                .collect();
+        }
+
         let inferred_parameter_types = artifacts.inferred_parameter_types.take();
         let inner_artifacts = analyze_function_like(
             context,

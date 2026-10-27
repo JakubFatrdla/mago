@@ -85,6 +85,16 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for ArrowFunction<'arena> {
             inner_block_context.variables_possibly_in_scope.insert(variable_atom);
         }
 
+        inner_block_context.conditional_expressions = block_context
+            .conditional_expressions
+            .iter()
+            .filter(|conditional_expression| {
+                inner_block_context.locals.contains_key(&conditional_expression.guard)
+                    && inner_block_context.locals.contains_key(&conditional_expression.target)
+            })
+            .cloned()
+            .collect();
+
         if !context.settings.allow_implicit_pipe_callable_types || !block_context.flags.inside_pipe_callable() {
             for parameter in &self.parameter_list.parameters {
                 missing_type_hints::check_parameter_type_hint(

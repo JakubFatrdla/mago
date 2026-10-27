@@ -442,7 +442,7 @@ fn node_or_same_span_descendant_is_targeted(
     targeted
 }
 
-fn is_plain_variable(variable: Word) -> bool {
+pub(crate) fn is_plain_variable(variable: Word) -> bool {
     let bytes = variable.as_bytes();
 
     bytes.starts_with(b"$")

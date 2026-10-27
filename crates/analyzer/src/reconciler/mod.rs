@@ -500,6 +500,10 @@ pub fn reconcile_keyed_types<'ctx, A>(
             }
         }
     }
+
+    if !context.native_types_only {
+        block_context.apply_conditional_expressions(context.codebase, changed_var_ids);
+    }
 }
 
 fn get_entry_keys_ruled_out_by_shape(assertions: &AssertionSet, before: Option<&TUnion>) -> Vec<ArrayKey> {

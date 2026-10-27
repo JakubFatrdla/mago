@@ -11,6 +11,7 @@ use mago_word::WordMap;
 use mago_word::WordSet;
 
 use crate::context::block::BlockContext;
+use crate::context::conditional_expression::BranchEnd;
 use crate::context::scope::control_action::ControlActionSet;
 
 #[derive(Clone, Debug, Default)]
@@ -39,6 +40,8 @@ pub struct IfScope<'ctx> {
     /// None = no branches processed yet. Some(set) = intersection across branches.
     pub definitely_called_methods: Option<HashSet<Word>>,
     pub removed_access_paths: WordSet,
+    pub if_branch_end: Option<BranchEnd>,
+    pub else_branch_end: Option<BranchEnd>,
 }
 
 impl IfScope<'_> {
@@ -63,6 +66,8 @@ impl IfScope<'_> {
             definitely_uninitialized_property_ids: None,
             definitely_called_methods: None,
             removed_access_paths: WordSet::default(),
+            if_branch_end: None,
+            else_branch_end: None,
         }
     }
 }

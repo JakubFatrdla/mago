@@ -65,6 +65,8 @@ use crate::code::IssueCode;
 use crate::context::Context;
 use crate::context::block::BlockContext;
 use crate::context::block::BreakContext;
+use crate::context::conditional_expression::BranchEnd;
+use crate::context::conditional_expression::create_conditional_expressions;
 use crate::context::scope::control_action::ControlAction;
 use crate::context::scope::is_access_path;
 use crate::context::scope::loop_scope::LoopScope;
@@ -270,6 +272,20 @@ fn inherit_loop_block_context<'ctx, A>(
                 }
             }
 
+            let branch_ends = (!has_break_or_continue
+                && !loop_scope.condition_always_false
+                && !context.native_types_only)
+                .then(|| {
+                    (
+                        BranchEnd::of(&inner_loop_block_context),
+                        BranchEnd::new(
+                            &loop_scope.parent_context_variables,
+                            block_context.possibly_undefined_variable_ids.clone(),
+                            block_context.conditional_expressions.clone(),
+                        ),
+                    )
+                });
+
             for (variable, variable_type) in inner_loop_block_context.locals {
                 block_context.variables_possibly_in_scope.insert(variable);
 
@@ -294,6 +310,11 @@ fn inherit_loop_block_context<'ctx, A>(
             }
 
             block_context.clauses.extend(loop_ran_clauses.into_iter().flatten());
+            if let Some((ran, not_ran)) = branch_ends {
+                let conditional_expressions =
+                    create_conditional_expressions(context.codebase, &ran, &not_ran, block_context);
+                block_context.conditional_expressions.extend(conditional_expressions);
+            }
         } else {
             for (variable, variable_type) in inner_loop_block_context.locals {
                 if let Some(exit_type) =
@@ -444,6 +465,13 @@ where
     let always_enters_loop = Cell::new(always_enters_loop);
 
     let (mut assignment_map, first_variable_id) = get_assignment_map(pre_conditions, &post_expressions, statements);
+    let loop_assigned_variables =
+        assignment_map.keys().chain(loop_scope.foreach_target_variables.iter()).copied().collect::<Vec<_>>();
+    for variable_id in &loop_assigned_variables {
+        loop_parent_context.forget_conditional_expressions(*variable_id);
+        loop_context.forget_conditional_expressions(*variable_id);
+    }
+    let entry_conditional_expressions = loop_context.conditional_expressions.clone();
     let assignment_depth_limit = context.settings.loop_assignment_depth_threshold as usize;
     let assignment_depth = if let Some(first_variable_id) = first_variable_id {
         get_assignment_map_depth(first_variable_id, &mut assignment_map, assignment_depth_limit)
@@ -558,6 +586,7 @@ where
             artifacts.set_loop_scope(loop_scope.clone());
         }
 
+        continue_context.conditional_expressions.clone_from(&entry_conditional_expressions);
         analyze_body_statements(statements, context, &mut continue_context, artifacts)?;
         loop_scope = unsafe {
             // SAFETY: we know the loop scope will remain in the context.
@@ -607,6 +636,7 @@ where
 
             loop_scope = {
                 artifacts.set_loop_scope(loop_scope);
+                continue_context.conditional_expressions.clone_from(&entry_conditional_expressions);
                 analyze_body_statements(statements, context, &mut continue_context, artifacts)?;
 
                 unsafe {
@@ -1023,6 +1053,7 @@ where
 
                 let loop_scope = {
                     artifacts.set_loop_scope(loop_scope);
+                    continue_context.conditional_expressions.clone_from(&entry_conditional_expressions);
                     analyze_body_statements(statements, context, &mut continue_context, artifacts)?;
 
                     unsafe {

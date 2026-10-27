@@ -50,6 +50,7 @@ type PropertyTypes = Vec<(Word, Rc<TUnion>)>;
 pub mod assertion;
 pub mod block;
 pub mod block_flags;
+pub mod conditional_expression;
 pub mod docblock_facts;
 pub mod scope;
 pub mod utils;

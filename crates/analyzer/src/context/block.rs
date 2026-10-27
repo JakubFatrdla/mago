@@ -23,6 +23,7 @@ use mago_word::word;
 use crate::common::global::get_super_globals;
 use crate::context::Context;
 use crate::context::block_flags::BlockContextFlags;
+use crate::context::conditional_expression::ConditionalExpression;
 use crate::context::scope::control_action::ControlActionSet;
 use crate::context::scope::finally_scope::FinallyScope;
 use crate::context::scope::is_access_path;
@@ -153,6 +154,8 @@ pub struct BlockContext<'ctx> {
     pub stable_method_calls: WordSet,
 
     class_type_relations: WordMap<WordSet>,
+
+    pub conditional_expressions: Vec<Rc<ConditionalExpression>>,
 }
 
 impl BreakContext {
@@ -252,6 +255,7 @@ impl<'ctx> BlockContext<'ctx> {
             mixed_receiver_reads: WordMap::default(),
             stable_method_calls: WordSet::default(),
             class_type_relations: WordMap::default(),
+            conditional_expressions: Vec::new(),
         }
     }
 
@@ -531,6 +535,8 @@ impl<'ctx> BlockContext<'ctx> {
 
         self.class_string_sources
             .retain(|holder, source| !var_has_root(*holder, remove_var_id) && !var_has_root(*source, remove_var_id));
+
+        self.forget_conditional_expressions(remove_var_id);
 
         self.parent_conflicting_clause_variables.insert(remove_var_id);
     }
