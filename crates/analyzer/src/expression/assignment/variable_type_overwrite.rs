@@ -79,7 +79,7 @@ pub(super) fn report_type_change<'arena, A>(
     };
 
     let codebase = context.codebase;
-    let previous_type = generalize(&variable.previous_type, codebase);
+    let previous_type = generalize(&drop_written_keys(&variable.previous_type, codebase), codebase);
     let new_type = generalize(new_type, codebase);
     if is_ignored(&previous_type) || is_ignored(&new_type) {
         return;
@@ -103,6 +103,30 @@ pub(super) fn report_type_change<'arena, A>(
         )
         .with_help("Assign the new value to a new variable."),
     );
+}
+
+/// Known keys that fit an unsealed shape's other keys and values are PHPStan's `hasOffsetValue` accessories, left
+/// by writes into a general array, which shipmonk drops from the previous type.
+fn drop_written_keys(union: &TUnion, codebase: &CodebaseMetadata) -> TUnion {
+    let atomics = union.types.iter().map(|atomic| match atomic {
+        TAtomic::Array(array @ TArray::Keyed(keyed))
+            if keyed.has_known_items()
+                && let Some((rest_key_type, rest_value_type)) = &keyed.parameters =>
+        {
+            let (key_type, value_type) = get_array_parameters(array, codebase);
+            if is_subtype(&key_type, rest_key_type, codebase) && is_subtype(&value_type, rest_value_type, codebase) {
+                TAtomic::Array(TArray::Keyed(TKeyedArray::new_with_parameters(
+                    Arc::clone(rest_key_type),
+                    Arc::clone(rest_value_type),
+                )))
+            } else {
+                atomic.clone()
+            }
+        }
+        atomic => atomic.clone(),
+    });
+
+    union.clone_with_types(atomics.collect())
 }
 
 fn is_ignored(union: &TUnion) -> bool {
