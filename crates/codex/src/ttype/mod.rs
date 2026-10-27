@@ -1083,8 +1083,15 @@ fn combine_unequal_union_types_cow(
     let marked =
         merged_error_path_null(&combined_type, type_1_has_only_error_path_null && has_only_error_path_null(type_2));
     combined_type.set_error_path_null(marked);
+    keep_implicit_mixed(&mut combined_type, flags_1.contains(UnionFlags::IMPLICIT_MIXED) || type_2.is_implicit_mixed());
 
     combined_type
+}
+
+fn keep_implicit_mixed(combined_type: &mut TUnion, has_implicit_input: bool) {
+    if has_implicit_input && combined_type.is_mixed() {
+        combined_type.set_implicit_mixed(true);
+    }
 }
 
 #[inline]
@@ -1163,6 +1170,7 @@ fn add_unequal_union_type_inner(
     if other_type.ignore_nullable_issues() {
         base_type.set_ignore_nullable_issues(true);
     }
+    keep_implicit_mixed(&mut base_type, other_type.is_implicit_mixed());
 
     base_type
 }

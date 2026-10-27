@@ -49,12 +49,51 @@ function native_mixed(mixed $m): void
     if ($m) {}
 }
 
+function union_with_null(array $a, bool $b): void
+{
+    $x = $b ? $a['x'] : null;
+    if ($x) {}
+}
+
+function explicit_union_with_null(mixed $m, bool $b): void
+{
+    $x = $b ? $m : null;
+    if ($x) {}
+}
+
+function equal_union_explicit_first(mixed $m, array $a, bool $b): void
+{
+    $x = $b ? $m : $a['x'];
+    if ($x) {}
+}
+
+function equal_union_implicit_first(mixed $m, array $a, bool $b): void
+{
+    $x = $b ? $a['x'] : $m;
+    if ($x) {}
+}
+
+function branch_merge(mixed $m, array $a, bool $b): void
+{
+    if ($b) {
+        $x = $m;
+    } else {
+        $x = $a['x'];
+    }
+    if ($x) {}
+}
+
 ";
 
 const EXPECTED: &[(&str, &str)] = &[
     ("native_array_element", "implicit-mixed"),
     ("docblock_mixed_value", "explicit-mixed"),
     ("native_mixed", "explicit-mixed"),
+    ("union_with_null", "implicit-mixed"),
+    ("explicit_union_with_null", "explicit-mixed"),
+    ("equal_union_explicit_first", "implicit-mixed"),
+    ("equal_union_implicit_first", "implicit-mixed"),
+    ("branch_merge", "implicit-mixed"),
 ];
 
 #[test]
