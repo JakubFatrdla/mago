@@ -3877,9 +3877,9 @@ function array_filter(array $array, ?callable $callback = null, int $mode = 0): 
  * @param array<K, V> $array
  * @param array<S> ...$arrays
  *
- * @return ($array is list<V>
- *     ? ($array is non-empty-list<V> ? non-empty-list<U> : list<U>)
- *     : ($array is non-empty-array<K, V> ? non-empty-array<K, U> : array<K, U>))
+ * @return ($array is non-empty-array<K, V>
+ *     ? ($array is list<V> ? non-empty-list<U> : non-empty-array<K, U>)
+ *     : ($array is list<V> ? list<U> : array<K, U>))
  */
 function array_map(?callable $callback, array $array, array ...$arrays): array {}
 

@@ -3543,6 +3543,7 @@ test_case!(variable_type_overwrite_drops_written_keys, {
     s
 });
 test_case!(array_column_keeps_non_empty);
+test_case!(array_map_of_non_empty_array_is_non_empty);
 
 #[test]
 #[cfg_attr(miri, ignore)]
