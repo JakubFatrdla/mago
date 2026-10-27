@@ -297,6 +297,11 @@ pub fn reconcile_keyed_types<'ctx, A>(
         }
 
         let mut result_type = result_type.map(Cow::into_owned).unwrap_or_else(get_never);
+        let reads_offset_of_implicit_mixed =
+            before_adjustment.is_none() && is_offset_of_implicit_mixed(block_context, key_str);
+        if reads_offset_of_implicit_mixed && result_type.is_mixed() {
+            result_type.set_implicit_mixed(true);
+        }
         let unproven_entry_keys = if !context.settings.treat_docblock_types_as_certain && result_type.is_never() {
             get_entry_keys_ruled_out_by_shape(new_type_parts, before_adjustment.as_deref())
         } else {
@@ -1133,12 +1138,36 @@ fn add_nested_assertions(
 }
 
 fn is_offset_of_mixed_or_call(block_context: &BlockContext<'_>, key: &[u8]) -> bool {
-    if !key.ends_with(b"]") {
+    let Some(parent) = offset_parent(key) else {
         return false;
+    };
+
+    match block_context.locals.get(&word(parent)) {
+        Some(parent_type) => parent_type.is_mixed(),
+        None => parent.ends_with(b"()"),
+    }
+}
+
+fn is_offset_of_implicit_mixed(block_context: &BlockContext<'_>, key: &[u8]) -> bool {
+    let mut parent = offset_parent(key);
+    while let Some(parent_key) = parent {
+        if let Some(parent_type) = block_context.locals.get(&word(parent_key)) {
+            return parent_type.is_implicit_mixed();
+        }
+
+        parent = offset_parent(parent_key);
+    }
+
+    false
+}
+
+fn offset_parent(key: &[u8]) -> Option<&[u8]> {
+    if !key.ends_with(b"]") {
+        return None;
     }
 
     let mut depth = 0usize;
-    let Some(open) = key.iter().rposition(|byte| {
+    let open = key.iter().rposition(|byte| {
         match byte {
             b']' => depth += 1,
             b'[' => depth -= 1,
@@ -1146,15 +1175,9 @@ fn is_offset_of_mixed_or_call(block_context: &BlockContext<'_>, key: &[u8]) -> b
         }
 
         depth == 0
-    }) else {
-        return false;
-    };
+    })?;
 
-    let parent = &key[..open];
-    match block_context.locals.get(&word(parent)) {
-        Some(parent_type) => parent_type.is_mixed(),
-        None => parent.ends_with(b"()"),
-    }
+    Some(&key[..open])
 }
 
 fn is_literal_property_name(property_name: &[u8]) -> bool {

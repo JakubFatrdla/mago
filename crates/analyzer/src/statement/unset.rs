@@ -84,6 +84,7 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Unset<'arena> {
 
                 let mut atomics = vec![];
 
+                let unsets_implicit_mixed = array_variable.is_implicit_mixed();
                 let array_key = key_type.get_single_array_key();
                 for atomic in Rc::unwrap_or_clone(array_variable).types.into_owned() {
                     if let TAtomic::Scalar(scalar) = &atomic {
@@ -331,7 +332,9 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Unset<'arena> {
                     }
                 }
 
-                let rc = Rc::new(TUnion::from_vec(atomics));
+                let mut array_type = TUnion::from_vec(atomics);
+                array_type.set_implicit_mixed(unsets_implicit_mixed);
+                let rc = Rc::new(array_type);
 
                 block_context.locals.insert(array_id, Rc::clone(&rc));
                 block_context.remove_variable_from_conflicting_clauses(context, array_id, Some(rc.as_ref()));

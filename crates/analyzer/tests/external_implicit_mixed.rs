@@ -83,6 +83,75 @@ function branch_merge(mixed $m, array $a, bool $b): void
     if ($x) {}
 }
 
+function narrowed_after_guard(array $a): void
+{
+    $x = $a['x'];
+    if (!$x) {
+        return;
+    }
+    if ($x) {}
+}
+
+function explicit_narrowed_after_guard(mixed $x): void
+{
+    if (!$x) {
+        return;
+    }
+    if ($x) {}
+}
+
+function narrowed_not_null(array $a): void
+{
+    $x = $a['x'];
+    if ($x !== null) {
+        if ($x) {}
+    }
+}
+
+function nested_isset(array $a): void
+{
+    if (isset($a['x']['y'])) {
+        if ($a['x']['y']) {}
+    }
+}
+
+function nested_isset_of_iterated(array $rows): void
+{
+    foreach ($rows as $row) {
+        if (isset($row['values']['text'])) {
+            if ($row['values']['text']) {}
+        }
+    }
+}
+
+function iterated_offset(array $a): void
+{
+    foreach ($a['rows'] as $row) {
+        if ($row) {}
+    }
+}
+
+function unset_offset(array $rows): void
+{
+    foreach ($rows as $row) {
+        unset($row['a']);
+        if ($row['b']) {}
+    }
+}
+
+function key_exists_on_mixed(mixed $json): void
+{
+    if (array_key_exists('meta', $json)) {
+        if ($json['meta']) {}
+    }
+}
+
+function is_array_on_mixed(mixed $json): void
+{
+    if (is_array($json)) {
+        if ($json['meta']) {}
+    }
+}
 ";
 
 const EXPECTED: &[(&str, &str)] = &[
@@ -94,6 +163,15 @@ const EXPECTED: &[(&str, &str)] = &[
     ("equal_union_explicit_first", "implicit-mixed"),
     ("equal_union_implicit_first", "implicit-mixed"),
     ("branch_merge", "implicit-mixed"),
+    ("narrowed_after_guard", "implicit-mixed"),
+    ("explicit_narrowed_after_guard", "explicit-mixed"),
+    ("narrowed_not_null", "implicit-mixed"),
+    ("nested_isset", "implicit-mixed"),
+    ("nested_isset_of_iterated", "implicit-mixed"),
+    ("iterated_offset", "implicit-mixed"),
+    ("unset_offset", "implicit-mixed"),
+    ("key_exists_on_mixed", "implicit-mixed"),
+    ("is_array_on_mixed", "explicit-mixed"),
 ];
 
 #[test]

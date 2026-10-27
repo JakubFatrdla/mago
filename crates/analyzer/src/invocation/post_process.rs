@@ -32,6 +32,7 @@ use mago_codex::ttype::comparator::union_comparator::is_contained_by;
 use mago_codex::ttype::expander::TypeExpansionOptions;
 use mago_codex::ttype::expander::expand_union;
 use mago_codex::ttype::get_arraykey;
+use mago_codex::ttype::get_implicit_mixed;
 use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::get_never;
 use mago_codex::ttype::template::TemplateResult;
@@ -914,7 +915,7 @@ fn narrow_mixed_array_of_literal_key_lookup<'ctx, A>(
             array_id,
             Rc::new(TUnion::from_atomic(TAtomic::Array(TArray::Keyed(TKeyedArray::new_with_parameters(
                 Arc::new(get_arraykey()),
-                Arc::new(get_mixed()),
+                Arc::new(get_implicit_mixed()),
             ))))),
         );
     }

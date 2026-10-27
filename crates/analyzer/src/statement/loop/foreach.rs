@@ -7,6 +7,7 @@ use mago_codex::ttype::atomic::array::TArray;
 use mago_codex::ttype::comparator::ComparisonResult;
 use mago_codex::ttype::comparator::union_comparator;
 use mago_codex::ttype::get_arraykey;
+use mago_codex::ttype::get_implicit_mixed;
 use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::union::TUnion;
 use mago_reporting::Annotation;
@@ -66,12 +67,17 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Foreach<'arena> {
         let defined_before_loop = (always_enters_loop && !context.settings.pollute_scope_with_always_iterable_foreach)
             .then(|| block_context.defined_variable_ids());
 
+        let iterated_mixed = if artifacts.get_expression_type(iterator).is_some_and(TUnion::is_implicit_mixed) {
+            get_implicit_mixed
+        } else {
+            get_mixed
+        };
         if key_type.is_never() {
-            key_type = get_mixed();
+            key_type = iterated_mixed();
         }
 
         if value_type.is_never() {
-            value_type = get_mixed();
+            value_type = iterated_mixed();
         }
 
         let mut loop_block_context = block_context.clone();
