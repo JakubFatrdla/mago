@@ -49,7 +49,11 @@ final class MyBootloader extends Bootloader
 
 final class AnotherExample
 {
-    /** @var list<array{class-string, string}> */
+    /**
+     * @var list<array{class-string, string}>
+     *
+     * @mago-expect analysis:write-only-property
+     */
     private array $handlers = [];
 
     public function register(): void

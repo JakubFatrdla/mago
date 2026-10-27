@@ -346,6 +346,33 @@ impl SymbolReferences {
         }
     }
 
+    /// Returns the properties read from an explicit symbol, member, or file source.
+    #[must_use]
+    pub fn get_property_reads_from(&self, referencing: ReferenceOrigin) -> HashSet<SymbolIdentifier> {
+        let reads = match referencing {
+            ReferenceOrigin::Symbol(symbol) => self.property_read_references.get(&symbol),
+            ReferenceOrigin::File(file) => self.file_property_read_references.get(&file),
+        };
+
+        reads.cloned().unwrap_or_default()
+    }
+
+    /// Keeps only the property reads of an explicit symbol, member, or file source that `keep` accepts.
+    pub fn retain_property_reads_from(
+        &mut self,
+        referencing: ReferenceOrigin,
+        keep: impl FnMut(&SymbolIdentifier) -> bool,
+    ) {
+        let reads = match referencing {
+            ReferenceOrigin::Symbol(symbol) => self.property_read_references.get_mut(&symbol),
+            ReferenceOrigin::File(file) => self.file_property_read_references.get_mut(&file),
+        };
+
+        if let Some(reads) = reads {
+            reads.retain(keep);
+        }
+    }
+
     /// Records a property write from an explicit symbol, member, or file source.
     #[inline]
     pub fn add_property_write_reference(&mut self, referencing: ReferenceOrigin, property: SymbolIdentifier) {

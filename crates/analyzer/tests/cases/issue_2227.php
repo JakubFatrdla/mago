@@ -36,7 +36,11 @@ final class ArrayObjectHolder
 
 final class ArrayHolder
 {
-    /** @param array<string, string> $values */
+    /**
+     * @param array<string, string> $values
+     *
+     * @mago-expect analysis:write-only-property
+     */
     public function __construct(private readonly array $values)
     {
     }

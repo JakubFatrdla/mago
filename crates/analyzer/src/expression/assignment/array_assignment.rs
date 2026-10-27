@@ -31,8 +31,10 @@ use mago_reporting::Annotation;
 use mago_reporting::Issue;
 use mago_span::HasSpan;
 use mago_syntax::cst::Access;
+use mago_syntax::cst::ClassLikeMemberSelector;
 use mago_syntax::cst::Expression;
 use mago_word::Word;
+use mago_word::concat_word;
 use mago_word::empty_word;
 use mago_word::word;
 
@@ -92,7 +94,18 @@ where
         let was_inside_general_use = block_context.flags.inside_general_use();
         block_context.flags.set_inside_general_use(true);
         if let Expression::Access(Access::Property(property_access)) = root_array_expression {
+            let origin = block_context.scope.get_reference_origin();
+            let earlier_reads = artifacts.symbol_references.get_property_reads_from(origin);
             analyze_offset_write_root(context, block_context, artifacts, property_access)?;
+            let root_holds_no_object = artifacts.get_expression_type(root_array_expression).is_some_and(|root_type| {
+                root_type.types.iter().all(|atomic| !atomic.is_object_type() && !atomic.is_mixed())
+            });
+            if root_holds_no_object && let ClassLikeMemberSelector::Identifier(identifier) = &property_access.property {
+                let property_name = concat_word!(b"$", identifier.value);
+                artifacts
+                    .symbol_references
+                    .retain_property_reads_from(origin, |read| read.1 != property_name || earlier_reads.contains(read));
+            }
         } else {
             root_array_expression.analyze(context, block_context, artifacts)?;
         }

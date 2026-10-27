@@ -56,7 +56,11 @@ class UnusedInstantiationInferredParent
 
 final class UnusedInstantiationInferredChild extends UnusedInstantiationInferredParent
 {
-    /** @var list<string> */
+    /**
+     * @var list<string>
+     *
+     * @mago-expect analysis:write-only-property
+     */
     private array $tags = [];
 
     public function __construct(string $label)
