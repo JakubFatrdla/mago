@@ -293,6 +293,19 @@ function undocumented_magic_call(Magic $m): void
     if ($m->run()) {}
 }
 
+function undefined_variable(): void
+{
+    if ($undefined) {}
+}
+
+interface Shape {}
+
+function typeless_assignment(Shape $s): void
+{
+    $area = $s->area();
+    if ($area) {}
+}
+
 function key_exists_on_mixed(mixed $json): void
 {
     if (array_key_exists('meta', $json)) {
@@ -342,6 +355,8 @@ const EXPECTED: &[(&str, &str)] = &[
     ("method_of_class_or_object", "implicit-mixed"),
     ("method_of_class_or_unfinished", "implicit-mixed"),
     ("undocumented_magic_call", "implicit-mixed"),
+    ("undefined_variable", "implicit-mixed"),
+    ("typeless_assignment", "implicit-mixed"),
     ("key_exists_on_mixed", "implicit-mixed"),
     ("is_array_on_mixed", "explicit-mixed"),
 ];

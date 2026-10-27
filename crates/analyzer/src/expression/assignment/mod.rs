@@ -20,6 +20,7 @@ use mago_codex::ttype::combiner::CombinerOptions;
 use mago_codex::ttype::comparator::ComparisonResult;
 use mago_codex::ttype::comparator::union_comparator;
 use mago_codex::ttype::get_array_parameters;
+use mago_codex::ttype::get_implicit_mixed;
 use mago_codex::ttype::get_literal_int;
 use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::get_never;
@@ -257,7 +258,7 @@ where
         if let Some(source_type) = artifacts.get_rc_expression_type(&source_expression) {
             Rc::clone(source_type)
         } else {
-            Rc::new(get_mixed())
+            Rc::new(get_implicit_mixed())
         }
     } else {
         Rc::new(get_mixed())

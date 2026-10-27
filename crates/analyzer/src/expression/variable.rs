@@ -5,6 +5,7 @@ use std::rc::Rc;
 use mago_word::word;
 
 use mago_bytes::BytesDisplay;
+use mago_codex::ttype::get_implicit_mixed;
 use mago_codex::ttype::get_mixed;
 use mago_codex::ttype::get_null;
 use mago_codex::ttype::union::TUnion;
@@ -260,7 +261,7 @@ where
 
                 context.collector.report_with_code(IssueCode::UndefinedVariable, issue.with_help(help_message));
 
-                Rc::new(get_mixed())
+                Rc::new(get_implicit_mixed())
             }
         }
     };
