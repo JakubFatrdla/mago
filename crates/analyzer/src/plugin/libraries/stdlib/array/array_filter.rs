@@ -23,6 +23,7 @@ use mago_codex::ttype::comparator::atomic_comparator;
 use mago_codex::ttype::get_array_parameters;
 use mago_codex::ttype::get_keyed_array;
 use mago_codex::ttype::get_mixed_keyed_array;
+use mago_codex::ttype::get_non_negative_int;
 use mago_codex::ttype::union::TUnion;
 use mago_codex::ttype::wrap_atomic;
 
@@ -129,47 +130,24 @@ where
     F: Fn(TUnion) -> FilterOutcome,
 {
     if let TArray::Keyed(keyed) = array
-        && keyed.known_items.is_some()
+        && let Some(items) = keyed.known_items.as_deref()
     {
-        let items = keyed.known_items.as_deref()?;
+        let items = items.iter().map(|(key, (optional, value_type))| (*key, *optional, value_type));
 
-        let mut new_known_items: BTreeMap<ArrayKey, (bool, TUnion)> = BTreeMap::new();
-        for (key, (original_optional, value_type)) in items {
-            match filter(value_type.clone()) {
-                FilterOutcome::Removed => {}
-                FilterOutcome::KeptAsRequired(filtered) => {
-                    new_known_items.insert(*key, (*original_optional, filtered));
-                }
-                FilterOutcome::KeptAsOptional(filtered) => {
-                    new_known_items.insert(*key, (true, filtered));
-                }
-            }
-        }
+        return Some(filter_shape(items, keyed.parameters.clone(), filter));
+    }
 
-        let mut parameters = None;
-        if let Some((key_param, value_param)) = &keyed.parameters {
-            match filter((**value_param).clone()) {
-                FilterOutcome::Removed => {}
-                FilterOutcome::KeptAsRequired(filtered_values) | FilterOutcome::KeptAsOptional(filtered_values) => {
-                    parameters = Some((Arc::clone(key_param), Arc::new(filtered_values)));
-                }
-            }
-        }
+    // A filtered list keeps its known elements as optional keys, like PHPStan, since the filter leaves gaps.
+    if let TArray::List(list) = array
+        && let Some(elements) = list.known_elements.as_deref()
+    {
+        let items = elements.iter().map(|(index, (optional, value_type))| {
+            (ArrayKey::Integer(i64::try_from(*index).unwrap_or(i64::MAX)), *optional, value_type)
+        });
+        let parameters =
+            (!list.element_type.is_never()).then(|| (Arc::new(get_non_negative_int()), Arc::clone(&list.element_type)));
 
-        if new_known_items.is_empty() && parameters.is_none() {
-            return Some(wrap_atomic(TAtomic::Array(TArray::Keyed(TKeyedArray::new()))));
-        }
-
-        let mut result = TKeyedArray::new();
-        if !new_known_items.is_empty() {
-            result = result.with_known_items(new_known_items);
-        }
-
-        if let Some((k, v)) = parameters {
-            result = result.with_parameters(k, v);
-        }
-
-        return Some(wrap_atomic(TAtomic::Array(TArray::Keyed(result))));
+        return Some(filter_shape(items, parameters, filter));
     }
 
     let (key_type, value_type) = get_array_parameters(array, codebase);
@@ -179,6 +157,46 @@ where
     };
 
     Some(get_keyed_array(key_type, filtered_values))
+}
+
+fn filter_shape<'item, F>(
+    items: impl Iterator<Item = (ArrayKey, bool, &'item TUnion)>,
+    parameters: Option<(Arc<TUnion>, Arc<TUnion>)>,
+    filter: &F,
+) -> TUnion
+where
+    F: Fn(TUnion) -> FilterOutcome,
+{
+    let mut new_known_items: BTreeMap<ArrayKey, (bool, TUnion)> = BTreeMap::new();
+    for (key, original_optional, value_type) in items {
+        match filter(value_type.clone()) {
+            FilterOutcome::Removed => {}
+            FilterOutcome::KeptAsRequired(filtered) => {
+                new_known_items.insert(key, (original_optional, filtered));
+            }
+            FilterOutcome::KeptAsOptional(filtered) => {
+                new_known_items.insert(key, (true, filtered));
+            }
+        }
+    }
+
+    let parameters = parameters.and_then(|(key_param, value_param)| match filter((*value_param).clone()) {
+        FilterOutcome::Removed => None,
+        FilterOutcome::KeptAsRequired(filtered_values) | FilterOutcome::KeptAsOptional(filtered_values) => {
+            Some((key_param, Arc::new(filtered_values)))
+        }
+    });
+
+    let mut result = TKeyedArray::new();
+    if !new_known_items.is_empty() {
+        result = result.with_known_items(new_known_items);
+    }
+
+    if let Some((key_param, value_param)) = parameters {
+        result = result.with_parameters(key_param, value_param);
+    }
+
+    wrap_atomic(TAtomic::Array(TArray::Keyed(result)))
 }
 
 fn filter_falsy_atomics(value_type: TUnion) -> FilterOutcome {
