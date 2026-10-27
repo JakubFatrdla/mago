@@ -19,14 +19,16 @@ use crate::ttype::atomic::object::named::TNamedObject;
 use crate::ttype::atomic::reference::TReference;
 use crate::ttype::builder;
 use crate::ttype::error::TypeError;
+use crate::ttype::get_arraykey;
 use crate::ttype::get_bool;
 use crate::ttype::get_false;
 use crate::ttype::get_float;
+use crate::ttype::get_implicit_mixed;
 use crate::ttype::get_int;
+use crate::ttype::get_keyed_array;
 use crate::ttype::get_mixed;
 use crate::ttype::get_mixed_callable;
 use crate::ttype::get_mixed_iterable;
-use crate::ttype::get_mixed_keyed_array;
 use crate::ttype::get_never;
 use crate::ttype::get_null;
 use crate::ttype::get_nullable_float;
@@ -120,7 +122,7 @@ where
         Hint::Null(_) => get_null(),
         Hint::True(_) => get_true(),
         Hint::False(_) => get_false(),
-        Hint::Array(_) => get_mixed_keyed_array(),
+        Hint::Array(_) => get_keyed_array(get_arraykey(), get_implicit_mixed()),
         Hint::Callable(_) => get_mixed_callable(),
         Hint::Static(_) => {
             let classname = classname.unwrap_or_else(|| word("static"));
