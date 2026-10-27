@@ -62,6 +62,8 @@ use crate::scanner::function_like::scan_closure;
 use crate::scanner::function_like::scan_function;
 use crate::scanner::function_like::scan_method;
 use crate::scanner::property::scan_promoted_property;
+use crate::scanner::property_writes::PropertyWrites;
+use crate::scanner::property_writes::collect_property_writes;
 use crate::ttype::resolution::TypeResolutionContext;
 use crate::ttype::template::GenericTemplate;
 
@@ -82,6 +84,7 @@ pub mod inference;
 
 mod parameter;
 mod property;
+mod property_writes;
 mod ttype;
 mod version_claim;
 
@@ -729,6 +732,13 @@ where
             }
         } else {
             is_clone = name.as_bytes() == b"__clone";
+        }
+
+        if class_like_metadata.kind.is_trait() && !class_like_metadata.writes_any_property {
+            let mut writes = PropertyWrites::default();
+            collect_property_writes(method, &mut writes);
+            class_like_metadata.written_properties.extend(writes.names);
+            class_like_metadata.writes_any_property = writes.any;
         }
 
         class_like_metadata.methods.insert(name);

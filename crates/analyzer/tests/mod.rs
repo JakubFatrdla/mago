@@ -3534,6 +3534,7 @@ test_case!(native_pass_applies_docblock_facts, {
     s.treat_docblock_types_as_certain = false;
     s
 });
+test_case!(unused_property_type_in_trait_users);
 
 #[test]
 #[cfg_attr(miri, ignore)]

@@ -71,10 +71,28 @@ pub(crate) fn check_unused_property_types<A>(
     let class_name = class_like_metadata.name;
     if class_like_metadata.kind.is_trait()
         || class_like_metadata.kind.is_interface()
-        || class_like_metadata.direct_trait_names().next().is_some()
         || assigned_property_types.classes_with_unresolved_writes.contains(&class_name)
     {
         return;
+    }
+
+    let mut trait_written_properties = WordSet::default();
+    for direct_trait_name in class_like_metadata.direct_trait_names() {
+        let Some(direct_trait) = context.codebase.get_class_like(direct_trait_name.as_bytes()) else {
+            return;
+        };
+
+        for trait_name in std::iter::once(&direct_trait.name).chain(&direct_trait.used_traits) {
+            let Some(trait_metadata) = context.codebase.get_class_like(trait_name.as_bytes()) else {
+                return;
+            };
+
+            if trait_metadata.writes_any_property {
+                return;
+            }
+
+            trait_written_properties.extend(trait_metadata.written_properties.iter().copied());
+        }
     }
 
     for (property_name, property) in &class_like_metadata.properties {
@@ -85,6 +103,7 @@ pub(crate) fn check_unused_property_types<A>(
             || !property.read_visibility.is_private()
             || property.flags.is_promoted_property()
             || !property.hooks.is_empty()
+            || trait_written_properties.contains(property_name)
             || class_like_metadata
                 .used_traits
                 .iter()

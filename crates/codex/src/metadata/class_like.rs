@@ -116,6 +116,12 @@ pub struct ClassLikeMetadata {
     pub inheritable_property_ids: WordMap<Word>,
     pub overridden_property_ids: WordMap<WordSet>,
     pub initialized_properties: WordSet,
+    /// Properties a trait's methods may write, by name; see [`Self::writes_any_property`].
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub written_properties: WordSet,
+    /// A trait's method writes a property by a computed name, so it may write any property.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub writes_any_property: bool,
     pub constants: WordMap<ClassLikeConstantMetadata>,
     #[cfg_attr(feature = "serde", serde(default))]
     declared_constants: Option<Box<[Word]>>,
@@ -205,6 +211,8 @@ impl ClassLikeMetadata {
             enum_type: None,
             inheritable_property_ids: WordMap::default(),
             initialized_properties: WordSet::default(),
+            written_properties: WordSet::default(),
+            writes_any_property: false,
             invalid_dependencies: WordSet::default(),
             span,
             name_span,
