@@ -1091,7 +1091,10 @@ where
 
             if let Some(array_variable_id) = get_first_argument_expression_id(assertion_context, left) {
                 if number_on_right == 0 {
-                    if_types.insert(array_variable_id, vec![vec![Assertion::NonEmptyCountable(false)]]);
+                    if_types.insert(
+                        array_variable_id,
+                        vec![vec![Assertion::NonEmptyCountable(counts_array(artifacts, left))]],
+                    );
                 } else {
                     if_types.insert(
                         array_variable_id,
@@ -1107,7 +1110,10 @@ where
 
             if let Some(array_variable_id) = get_first_argument_expression_id(assertion_context, right) {
                 if number_on_left == 0 {
-                    if_types.insert(array_variable_id, vec![vec![Assertion::NonEmptyCountable(false)]]);
+                    if_types.insert(
+                        array_variable_id,
+                        vec![vec![Assertion::NonEmptyCountable(counts_array(artifacts, right))]],
+                    );
                 } else {
                     if_types.insert(
                         array_variable_id,
@@ -1811,7 +1817,10 @@ where
                 };
 
                 if minimum_count == 1 {
-                    if_types.insert(array_variable_id, vec![vec![Assertion::NonEmptyCountable(false)]]);
+                    if_types.insert(
+                        array_variable_id,
+                        vec![vec![Assertion::NonEmptyCountable(counts_array(artifacts, right))]],
+                    );
                 } else if minimum_count > 1 {
                     if_types.insert(array_variable_id, vec![vec![Assertion::HasAtLeastCount(minimum_count as usize)]]);
                 }
@@ -2003,7 +2012,10 @@ where
                 };
 
                 if minimum_count == 1 {
-                    if_types.insert(array_variable_id, vec![vec![Assertion::NonEmptyCountable(false)]]);
+                    if_types.insert(
+                        array_variable_id,
+                        vec![vec![Assertion::NonEmptyCountable(counts_array(artifacts, left))]],
+                    );
                 } else if minimum_count > 1 {
                     if_types.insert(array_variable_id, vec![vec![Assertion::HasAtLeastCount(minimum_count as usize)]]);
                 }
@@ -2864,6 +2876,19 @@ where
     }
 
     if if_types.is_empty() { vec![] } else { vec![if_types] }
+}
+
+/// PHPStan narrows the false branch of a `count()` comparison only when the counted value is an array.
+fn counts_array(artifacts: &AnalysisArtifacts, expression: &Expression) -> bool {
+    let Expression::Call(Call::Function(FunctionCall { argument_list, .. })) = expression else {
+        return false;
+    };
+
+    argument_list
+        .arguments
+        .first()
+        .and_then(|argument| artifacts.get_expression_type(argument.value()))
+        .is_some_and(TUnion::is_array)
 }
 
 #[inline]
