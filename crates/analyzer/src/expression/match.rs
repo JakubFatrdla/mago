@@ -550,6 +550,9 @@ where
         arm_condition.analyze(self.context, running_else_context, self.artifacts)?;
         running_else_context.flags.set_inside_conditional(was_inside_conditional);
         running_else_context.flags.set_inside_loop(was_inside_loop);
+        for condition in &expression_arm.conditions {
+            self.record_arm_writes(condition, running_else_context);
+        }
 
         let arm_status = if let Some(condition_type) = self.artifacts.get_rc_expression_type(&arm_condition).cloned() {
             if condition_type.is_always_truthy() {
