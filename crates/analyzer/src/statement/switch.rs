@@ -54,6 +54,7 @@ use crate::formula::negate_or_synthesize;
 use crate::reconciler::reconcile_keyed_types;
 use crate::resolver::function::get_builtin_get_class_or_gettype_call;
 use crate::statement::analyze_statements;
+use crate::statement::r#loop::assignment_map_visitor::get_written_variables;
 use crate::utils::expression::get_expression_id;
 use crate::utils::expression::get_root_expression_id;
 use crate::utils::misc::check_for_paradox;
@@ -101,6 +102,7 @@ where
     definitely_initialized_properties: Option<WordSet>,
     definitely_called_methods: Option<HashSet<Word>>,
     removed_narrowed_function_calls: WordSet,
+    case_written_variables: WordSet,
 }
 
 impl<'anlyz, 'ctx, 'arena, A> SwitchAnalyzer<'anlyz, 'ctx, 'arena, A>
@@ -139,6 +141,7 @@ where
             definitely_initialized_properties: None,
             definitely_called_methods: None,
             removed_narrowed_function_calls: WordSet::default(),
+            case_written_variables: WordSet::default(),
         }
     }
 
@@ -359,6 +362,10 @@ where
         if is_exhaustive {
             self.artifacts.fully_matched_switch_offsets.insert(switch.start_position().offset);
         }
+        for variable_id in self.case_written_variables {
+            self.block_context.remove_variable_from_conflicting_clauses(self.context, variable_id, None);
+        }
+
         self.block_context.assigned_variable_ids.extend(self.new_assigned_variable_ids);
         self.block_context.flags.set_has_returned(all_options_exit && is_exhaustive);
 
@@ -802,6 +809,7 @@ where
 
         if !matches!(case_exit_type, ControlAction::Return) {
             self.handle_non_returning_case(&case_block_context, original_block_context, case_exit_type);
+            self.record_case_writes(switch.span(), switch_case.statements(), &case_block_context);
         }
 
         if !matches!(case_exit_type, ControlAction::Return | ControlAction::Continue)
@@ -961,6 +969,24 @@ where
             .possibly_initialized_properties
             .extend(case_block_context.possibly_initialized_properties.iter().copied());
         self.block_context.called_methods.extend(case_block_context.called_methods.iter().copied());
+    }
+
+    fn record_case_writes(
+        &mut self,
+        switch_span: Span,
+        case_statements: &[Statement<'arena>],
+        case_block_context: &BlockContext<'ctx>,
+    ) {
+        let mut written_variables = get_written_variables(&[], &[], case_statements);
+        written_variables.extend(
+            case_block_context
+                .assigned_variable_ids
+                .iter()
+                .filter(|(_, offset)| switch_span.start.offset <= **offset && **offset < switch_span.end.offset)
+                .map(|(variable_id, _)| *variable_id),
+        );
+
+        self.case_written_variables.extend(written_variables);
     }
 
     fn handle_non_returning_case(

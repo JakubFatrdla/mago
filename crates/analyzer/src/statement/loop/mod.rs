@@ -82,7 +82,7 @@ use crate::statement::r#loop::assignment_map_visitor::get_assignment_map;
 use crate::statement::r#loop::assignment_map_visitor::get_written_variables;
 use crate::statement::r#loop::cleaner::clean_nodes;
 
-mod assignment_map_visitor;
+pub(crate) mod assignment_map_visitor;
 mod cleaner;
 mod convergence;
 
