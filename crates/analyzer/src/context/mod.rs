@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use foldhash::HashMap;
 use foldhash::HashSet;
+use mago_algebra::clause::Clause;
 use mago_allocator::Arena;
 use mago_word::Word;
 use mago_word::WordMap;
@@ -189,6 +190,28 @@ where
     /// Whether the pass on docblock types found the call at `call_span` to return `never`.
     pub(crate) fn is_docblock_never_call(&self, call_span: Span) -> bool {
         self.native_types_only && self.docblock_facts.is_some_and(|facts| facts.borrow().is_never_call(&call_span))
+    }
+
+    /// What the context's two-variable clauses make the disjunctions of a condition's formula imply, see
+    /// [`mago_algebra::resolve_disjunctions`]. The native pass takes what the pass on docblock types derived, as
+    /// PHPStan's native scope takes the sure types of an `||`.
+    pub(crate) fn resolve_disjunctions<'clause>(
+        &self,
+        condition_span: Span,
+        formula: &[Clause],
+        context_clauses: impl IntoIterator<Item = &'clause Clause>,
+    ) -> Vec<Clause> {
+        let Some(facts) = self.docblock_facts else {
+            return mago_algebra::resolve_disjunctions(formula, context_clauses);
+        };
+
+        if self.native_types_only {
+            return facts.borrow().disjunction_consequences(&condition_span).cloned().unwrap_or_default();
+        }
+
+        let consequences = mago_algebra::resolve_disjunctions(formula, context_clauses);
+        facts.borrow_mut().record_disjunction_consequences(condition_span, &consequences);
+        consequences
     }
 
     pub(crate) fn record_never_call(&self, call_span: Span) {

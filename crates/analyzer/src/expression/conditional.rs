@@ -143,11 +143,13 @@ where
     let entry_clauses = block_context.clauses.clone();
 
     if_clauses = saturate_clauses(&if_clauses, &context.settings.algebra_thresholds());
-    let mut conditional_context_clauses = if entry_clauses.is_empty() {
+    let disjunction_consequences =
+        context.resolve_disjunctions(condition.span(), &if_clauses, entry_clauses.iter().map(Rc::as_ref));
+    let mut conditional_context_clauses = if entry_clauses.is_empty() && disjunction_consequences.is_empty() {
         if_clauses.clone().into_iter().map(Rc::new).collect::<Vec<_>>()
     } else {
         saturate_shared_clauses(
-            if_clauses.iter().cloned().map(Rc::new).chain(entry_clauses),
+            if_clauses.iter().cloned().chain(disjunction_consequences).map(Rc::new).chain(entry_clauses),
             &context.settings.algebra_thresholds(),
         )
     };

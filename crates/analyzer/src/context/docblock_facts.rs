@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use foldhash::HashMap;
 use foldhash::HashSet;
 use mago_algebra::clause::Clause;
@@ -12,25 +14,29 @@ pub type FormulaKey = (Span, Span, Span);
 pub struct DocblockFacts {
     /// `None` when the condition's formula differed between analyses, as it does across loop iterations.
     formulas: HashMap<FormulaKey, Option<Vec<Clause>>>,
+    /// What the context made a condition's disjunctions imply, keyed like [`Self::formulas`] by the condition.
+    disjunction_consequences: HashMap<Span, Option<Vec<Clause>>>,
     never_calls: HashSet<Span>,
 }
 
 impl DocblockFacts {
     pub fn record_formula(&mut self, key: FormulaKey, formula: &[Clause]) {
-        self.formulas
-            .entry(key)
-            .and_modify(|recorded| {
-                if recorded.as_deref() != Some(formula) {
-                    *recorded = None;
-                }
-            })
-            .or_insert_with(|| Some(formula.to_vec()));
+        record_clauses(&mut self.formulas, key, formula);
     }
 
     /// The formula the pass on docblock types built for a condition, if it built the same one every time.
     #[must_use]
     pub fn formula(&self, key: &FormulaKey) -> Option<&Vec<Clause>> {
         self.formulas.get(key)?.as_ref()
+    }
+
+    pub fn record_disjunction_consequences(&mut self, condition_span: Span, consequences: &[Clause]) {
+        record_clauses(&mut self.disjunction_consequences, condition_span, consequences);
+    }
+
+    #[must_use]
+    pub fn disjunction_consequences(&self, condition_span: &Span) -> Option<&Vec<Clause>> {
+        self.disjunction_consequences.get(condition_span)?.as_ref()
     }
 
     pub fn record_never_call(&mut self, call_span: Span) {
@@ -41,4 +47,18 @@ impl DocblockFacts {
     pub fn is_never_call(&self, call_span: &Span) -> bool {
         self.never_calls.contains(call_span)
     }
+}
+
+fn record_clauses<K>(recorded: &mut HashMap<K, Option<Vec<Clause>>>, key: K, clauses: &[Clause])
+where
+    K: Eq + Hash,
+{
+    recorded
+        .entry(key)
+        .and_modify(|recorded| {
+            if recorded.as_deref() != Some(clauses) {
+                *recorded = None;
+            }
+        })
+        .or_insert_with(|| Some(clauses.to_vec()));
 }

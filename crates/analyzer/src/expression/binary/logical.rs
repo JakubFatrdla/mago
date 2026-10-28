@@ -202,11 +202,18 @@ where
         }
     }
 
+    let disjunction_consequences = context.resolve_disjunctions(
+        binary.lhs.span(),
+        &left_clauses,
+        left_block_context.clauses.iter().map(Rc::as_ref),
+    );
+
     let mut left_referenced_var_ids = left_block_context.conditionally_referenced_variable_ids.clone();
     let mut context_clauses = left_block_context.clauses.iter().map(|v| &**v).collect::<Vec<_>>();
     block_context.conditionally_referenced_variable_ids.extend(pre_referenced_var_ids);
     block_context.assigned_variable_ids.extend(pre_assigned_var_ids);
     context_clauses.extend(left_clauses.iter());
+    context_clauses.extend(disjunction_consequences.iter());
     if !left_block_context.reconciled_expression_clauses.is_empty() {
         let left_reconciled_clauses_hashed =
             left_block_context.reconciled_expression_clauses.iter().map(|v| &**v).collect::<HashSet<_>>();

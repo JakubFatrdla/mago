@@ -140,11 +140,21 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for If<'arena> {
         );
 
         if_clauses = saturate_clauses(if_clauses.iter(), &context.settings.algebra_thresholds());
-        let combined_clauses = if block_context.clauses.is_empty() {
+        let disjunction_consequences = context.resolve_disjunctions(
+            self.condition.span(),
+            &if_clauses,
+            block_context.clauses.iter().map(Rc::as_ref),
+        );
+        let combined_clauses = if block_context.clauses.is_empty() && disjunction_consequences.is_empty() {
             if_clauses.iter().cloned().map(Rc::new).collect()
         } else {
             mago_algebra::saturate_shared_clauses(
-                if_clauses.iter().cloned().map(Rc::new).chain(block_context.clauses.iter().cloned()),
+                if_clauses
+                    .iter()
+                    .cloned()
+                    .chain(disjunction_consequences)
+                    .map(Rc::new)
+                    .chain(block_context.clauses.iter().cloned()),
                 &context.settings.algebra_thresholds(),
             )
         };
@@ -822,10 +832,16 @@ where
     );
 
     let else_if_clauses = saturate_clauses(else_if_clauses.iter(), &context.settings.algebra_thresholds());
+    let disjunction_consequences = context.resolve_disjunctions(
+        else_if_clause.0.span(),
+        &else_if_clauses,
+        entry_clauses.iter().chain(else_if_block_context.clauses.iter()).map(Rc::as_ref),
+    );
     else_if_block_context.clauses = mago_algebra::saturate_shared_clauses(
         else_if_clauses
             .iter()
             .cloned()
+            .chain(disjunction_consequences)
             .map(Rc::new)
             .chain(entry_clauses.iter().cloned())
             .chain(else_if_block_context.clauses.iter().cloned()),

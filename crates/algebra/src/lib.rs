@@ -527,6 +527,94 @@ fn saturate_clause_handles<'clause>(
     saturate_clauses_inner(unique_clauses, thresholds.saturation_complexity.into(), thresholds.consensus_limit.into())
 }
 
+/// What one literal implies about another variable: the variable, its possibilities and the clause that says so.
+type Implication<'clause> = (Word, &'clause AssertionMap<u64, Assertion>, &'clause Clause);
+
+/// Narrows a variable by a disjunction whose every literal implies something about it.
+///
+/// Mirrors PHPStan's `augmentBooleanOrTruthyWithConditionalHolders()`: from `(A ∨ B)`, `(¬A ∨ X)` and `(¬B ∨ Y)`,
+/// where `X` and `Y` constrain the same variable, follows `(X ∨ Y)`. Only the two-variable clauses of `context` count
+/// as implications. A derived clause is `generated` and keeps the span of an implication, so no condition reports it
+/// as its own assertion.
+#[must_use]
+pub fn resolve_disjunctions<'clause>(
+    formula: &[Clause],
+    context: impl IntoIterator<Item = &'clause Clause>,
+) -> Vec<Clause> {
+    let mut implications: HashMap<(Word, u64), Vec<Implication<'clause>>> = HashMap::default();
+    for clause in context {
+        if !clause.reconcilable || clause.wedge || clause.possibilities.len() != 2 {
+            continue;
+        }
+
+        let (Some(first), Some(second)) = (clause.possibilities.get_index(0), clause.possibilities.get_index(1)) else {
+            continue;
+        };
+
+        for ((premise_id, premise), (target_id, target)) in [(first, second), (second, first)] {
+            if let (1, Some(assertion)) = (premise.len(), premise.values().next()) {
+                implications
+                    .entry((*premise_id, assertion.negated_hash()))
+                    .or_default()
+                    .push((*target_id, target, clause));
+            }
+        }
+    }
+
+    if implications.is_empty() {
+        return vec![];
+    }
+
+    let mut consequences = vec![];
+    for disjunction in formula {
+        if !disjunction.reconcilable || disjunction.wedge || disjunction.possibilities.len() < 2 {
+            continue;
+        }
+
+        let literals: Vec<(Word, u64)> = disjunction
+            .possibilities
+            .iter()
+            .flat_map(|(variable_id, assertions)| assertions.keys().map(|hash| (*variable_id, *hash)))
+            .collect();
+
+        let Some(first_implications) = literals.first().and_then(|literal| implications.get(literal)) else {
+            continue;
+        };
+
+        let mut seen_targets = WordSet::default();
+        for (target_id, _, implication) in first_implications {
+            if disjunction.possibilities.contains_key(target_id) || !seen_targets.insert(*target_id) {
+                continue;
+            }
+
+            let mut target_possibilities = AssertionMap::default();
+            let every_literal_implies_target = literals.iter().all(|literal| {
+                let Some((_, target, _)) =
+                    implications.get(literal).and_then(|implied| implied.iter().find(|(id, ..)| id == target_id))
+                else {
+                    return false;
+                };
+
+                target_possibilities.extend(target.iter().map(|(hash, assertion)| (*hash, assertion.clone())));
+                true
+            });
+
+            if every_literal_implies_target {
+                consequences.push(Clause::new(
+                    AssertionMap::from_iter([(*target_id, target_possibilities)]),
+                    implication.condition_span,
+                    implication.span,
+                    None,
+                    None,
+                    Some(true),
+                ));
+            }
+        }
+    }
+
+    consequences
+}
+
 /// Extracts simple assertions from a set of clauses and identifies which are "active".
 ///
 /// This function iterates through a set of clauses to pull out two kinds of information:
