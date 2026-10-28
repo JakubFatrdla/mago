@@ -916,8 +916,11 @@ environment = { APP_ENV = "test" }
         let configuration_file = directory.join("mago.toml");
         write_file(&configuration_file, "[extension-hosts.php]\n");
 
-        let error = Configuration::load(None, Some(&configuration_file), None, None, false, false)
-            .expect_err("enabled extension without a command should fail");
+        let error = temp_env::with_vars(
+            [("HOME", None::<&str>), ("XDG_CONFIG_HOME", None), ("MAGO_EXTENSION_WORKERS", None)],
+            || Configuration::load(None, Some(&configuration_file), None, None, false, false),
+        )
+        .expect_err("enabled extension without a command should fail");
 
         assert!(matches!(error, Error::InvalidExtensionHostConfiguration(_)));
         assert!(error.to_string().contains("extension host `php` must define a non-empty command"));
