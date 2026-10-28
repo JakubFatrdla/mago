@@ -1648,9 +1648,9 @@ where
                     parameters_are_shape_tail: false,
                 })));
             }
-            TAtomic::Mixed(_) => {
-                did_remove_type = true;
-                acceptable_types.push(atomic);
+            TAtomic::Mixed(mixed) => {
+                did_remove_type |= !mixed.excludes_empty_array();
+                acceptable_types.push(TAtomic::Mixed(mixed.with_excludes_empty_array(true)));
             }
             _ => {
                 acceptable_types.push(atomic);

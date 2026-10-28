@@ -175,6 +175,7 @@ pub fn combine(types: Vec<TAtomic>, codebase: &CodebaseMetadata, options: Combin
         return types;
     }
 
+    let mixed_excludes_empty_array = is_mixed_without_empty_array(&types);
     let mut combination = TypeCombination::new();
 
     for atomic in types {
@@ -202,17 +203,20 @@ pub fn combine(types: Vec<TAtomic>, codebase: &CodebaseMetadata, options: Combin
         || combination.flags.contains(CombinationFlags::GENERIC_MIXED)
         || is_truthy_mixed
     {
-        return vec![TAtomic::Mixed(TMixed::new().with_is_non_null(is_nonnull_mixed).with_truthiness(
-            if is_truthy_mixed && !is_falsy_mixed {
-                TMixedTruthiness::Truthy
-            } else if is_falsy_mixed && !is_truthy_mixed {
-                TMixedTruthiness::Falsy
-            } else {
-                TMixedTruthiness::Undetermined
-            },
-        ))];
+        return vec![TAtomic::Mixed(
+            TMixed::new()
+                .with_is_non_null(is_nonnull_mixed)
+                .with_truthiness(if is_truthy_mixed && !is_falsy_mixed {
+                    TMixedTruthiness::Truthy
+                } else if is_falsy_mixed && !is_truthy_mixed {
+                    TMixedTruthiness::Falsy
+                } else {
+                    TMixedTruthiness::Undetermined
+                })
+                .with_excludes_empty_array(mixed_excludes_empty_array),
+        )];
     } else if combination.flags.contains(CombinationFlags::HAS_MIXED) {
-        return vec![TAtomic::Mixed(TMixed::new())];
+        return vec![TAtomic::Mixed(TMixed::new().with_excludes_empty_array(mixed_excludes_empty_array))];
     }
 
     // `never` is the bottom type, absorbed by any other member of the union. Drop it up front so
@@ -455,6 +459,26 @@ fn finalize_sealed_arrays(arrays: &mut Vec<TArray>, codebase: &CodebaseMetadata)
     }
 
     arrays.truncate(write);
+}
+
+/// PHPStan's `mixed~array{}` stays in a union whose other members cannot be an empty array.
+fn is_mixed_without_empty_array(types: &[TAtomic]) -> bool {
+    let mut has_mixed = false;
+    for atomic in types {
+        match atomic {
+            TAtomic::Mixed(mixed) if mixed.excludes_empty_array() && !mixed.is_isset_from_loop() => has_mixed = true,
+            TAtomic::Array(array) if array.is_non_empty() => {}
+            TAtomic::Scalar(_)
+            | TAtomic::Callable(_)
+            | TAtomic::Object(_)
+            | TAtomic::Resource(_)
+            | TAtomic::Never
+            | TAtomic::Null => {}
+            _ => return false,
+        }
+    }
+
+    has_mixed
 }
 
 fn scrape_type_properties(

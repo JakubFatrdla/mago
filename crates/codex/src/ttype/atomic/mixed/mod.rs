@@ -13,6 +13,7 @@ pub struct TMixed {
     is_isset_from_loop: bool,
     is_non_null: bool,
     is_empty: bool,
+    excludes_empty_array: bool,
     truthiness: TMixedTruthiness,
 }
 
@@ -27,6 +28,7 @@ impl TMixed {
             is_isset_from_loop: false,
             is_non_null: false,
             is_empty: false,
+            excludes_empty_array: false,
             truthiness: TMixedTruthiness::Undetermined,
         }
     }
@@ -80,6 +82,13 @@ impl TMixed {
         self.is_empty
     }
 
+    /// Checks whether this `mixed` excludes the empty array, PHPStan's `mixed~array{}`. A vanilla `mixed` may carry it.
+    #[inline]
+    #[must_use]
+    pub const fn excludes_empty_array(&self) -> bool {
+        self.excludes_empty_array
+    }
+
     /// Returns the known truthiness constraint for this `mixed` type.
     #[inline]
     #[must_use]
@@ -114,6 +123,14 @@ impl TMixed {
     #[must_use]
     pub const fn with_is_non_null(mut self, is_non_null: bool) -> Self {
         self.is_non_null = is_non_null;
+        self
+    }
+
+    /// Returns a new instance with the `excludes_empty_array` flag set.
+    #[inline]
+    #[must_use]
+    pub const fn with_excludes_empty_array(mut self, excludes_empty_array: bool) -> Self {
+        self.excludes_empty_array = excludes_empty_array;
         self
     }
 

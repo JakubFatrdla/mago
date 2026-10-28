@@ -3085,6 +3085,7 @@ test_case!(disjunction_of_bool_variables_narrows_what_each_implies, {
     s.treat_docblock_types_as_certain = false;
     s
 });
+test_case!(mixed_not_identical_to_empty_array);
 test_case!(possibly_invalid_array_index);
 test_case!(mixed_access_inside_isset);
 test_case!(concat_operand_reported_at_operation_start);
