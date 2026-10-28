@@ -6,14 +6,18 @@ use mago_syntax::cst::ArrowFunction;
 use mago_syntax::cst::Assignment;
 use mago_syntax::cst::Closure;
 use mago_syntax::cst::Expression;
+use mago_syntax::cst::ForeachTarget;
 use mago_syntax::cst::MethodCall;
 use mago_syntax::cst::MethodPartialApplication;
 use mago_syntax::cst::Statement;
 use mago_syntax::cst::UnaryPostfix;
 use mago_syntax::cst::UnaryPrefix;
 use mago_syntax::cst::Unset;
+use mago_syntax::cst::Variable;
 use mago_syntax::walker::MutWalker;
 use mago_word::Word;
+use mago_word::WordSet;
+use mago_word::word;
 
 use crate::utils::expression::get_root_expression_id;
 
@@ -130,6 +134,76 @@ impl<'ast, 'arena> MutWalker<'ast, 'arena, ()> for AssignmentMapWalker {
     }
 
     // Prevent walking into closure and arrow function bodies
+    fn walk_closure(&mut self, _closure: &'ast Closure<'arena>, _context: &mut ()) {}
+    fn walk_arrow_function(&mut self, _arrow_function: &'ast ArrowFunction<'arena>, _context: &mut ()) {}
+}
+
+pub fn get_written_variables<'ast, 'arena>(
+    pre_conditions: &[&'ast Expression<'arena>],
+    post_expressions: &[&'ast Expression<'arena>],
+    statements: &'ast [Statement<'arena>],
+) -> WordSet {
+    let mut walker = WrittenVariablesWalker::default();
+
+    for expression in pre_conditions.iter().chain(post_expressions) {
+        walker.walk_expression(expression, &mut ());
+    }
+
+    for statement in statements {
+        walker.walk_statement(statement, &mut ());
+    }
+
+    walker.written_variables
+}
+
+#[derive(Debug, Default)]
+struct WrittenVariablesWalker {
+    written_variables: WordSet,
+}
+
+impl WrittenVariablesWalker {
+    fn add_target(&mut self, target: &Expression<'_>) {
+        if let Some(elements) = target.get_array_like_elements() {
+            for element in elements {
+                if let Some(value) = element.get_value() {
+                    self.add_target(value);
+                }
+            }
+        } else if let Expression::Variable(Variable::Direct(variable)) = target {
+            self.written_variables.insert(word(variable.name));
+        }
+    }
+}
+
+impl<'ast, 'arena> MutWalker<'ast, 'arena, ()> for WrittenVariablesWalker {
+    fn walk_in_assignment(&mut self, assignment: &'ast Assignment<'arena>, _context: &mut ()) {
+        self.add_target(assignment.lhs);
+    }
+
+    fn walk_in_unary_prefix(&mut self, unary_prefix: &'ast UnaryPrefix<'arena>, _context: &mut ()) {
+        if unary_prefix.operator.is_increment_or_decrement() {
+            self.add_target(unary_prefix.operand);
+        }
+    }
+
+    fn walk_in_unary_postfix(&mut self, unary_postfix: &'ast UnaryPostfix<'arena>, _context: &mut ()) {
+        self.add_target(unary_postfix.operand);
+    }
+
+    fn walk_in_unset(&mut self, unset: &'ast Unset<'arena>, _context: &mut ()) {
+        for value in &unset.values {
+            self.add_target(value);
+        }
+    }
+
+    fn walk_in_foreach_target(&mut self, foreach_target: &'ast ForeachTarget<'arena>, _context: &mut ()) {
+        if let Some(key) = foreach_target.key() {
+            self.add_target(key);
+        }
+
+        self.add_target(foreach_target.value());
+    }
+
     fn walk_closure(&mut self, _closure: &'ast Closure<'arena>, _context: &mut ()) {}
     fn walk_arrow_function(&mut self, _arrow_function: &'ast ArrowFunction<'arena>, _context: &mut ()) {}
 }

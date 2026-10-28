@@ -79,6 +79,7 @@ use crate::formula::negate_or_synthesize;
 use crate::reconciler::reconcile_keyed_types;
 use crate::statement::analyze_body_statements;
 use crate::statement::r#loop::assignment_map_visitor::get_assignment_map;
+use crate::statement::r#loop::assignment_map_visitor::get_written_variables;
 use crate::statement::r#loop::cleaner::clean_nodes;
 
 mod assignment_map_visitor;
@@ -472,6 +473,8 @@ where
         loop_context.forget_conditional_expressions(*variable_id);
     }
     let entry_conditional_expressions = loop_context.conditional_expressions.clone();
+    let mut loop_written_variables = get_written_variables(pre_conditions, &post_expressions, statements);
+    loop_written_variables.extend(loop_scope.foreach_target_variables.iter().copied());
     let assignment_depth_limit = context.settings.loop_assignment_depth_threshold as usize;
     let assignment_depth = if let Some(first_variable_id) = first_variable_id {
         get_assignment_map_depth(first_variable_id, &mut assignment_map, assignment_depth_limit)
@@ -1248,6 +1251,19 @@ where
                 loop_parent_context.locals.remove(&variable_id);
             }
         }
+    }
+
+    let loop_span = loop_scope.span;
+    loop_written_variables.extend(
+        [&continue_context, &*loop_context]
+            .into_iter()
+            .chain(inner_do_context.as_ref())
+            .flat_map(|block_context| &block_context.assigned_variable_ids)
+            .filter(|(_, offset)| loop_span.start.offset <= **offset && **offset < loop_span.end.offset)
+            .map(|(variable_id, _)| *variable_id),
+    );
+    for variable_id in loop_written_variables {
+        loop_parent_context.remove_variable_from_conflicting_clauses(context, variable_id, None);
     }
 
     if !pre_conditions.is_empty() && !pre_condition_clauses.is_empty() {

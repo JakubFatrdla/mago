@@ -874,6 +874,10 @@ where
     });
 
     let operand_id = get_block_expression_id(operand, context, block_context);
+    if let Some(operand_id) = operand_id {
+        block_context.remove_variable_from_conflicting_clauses(context, operand_id, None);
+    }
+
     let successful = assign_to_expression(
         context,
         block_context,
@@ -1124,6 +1128,10 @@ where
     });
 
     let operand_id = get_block_expression_id(operand, context, block_context);
+    if let Some(operand_id) = operand_id {
+        block_context.remove_variable_from_conflicting_clauses(context, operand_id, None);
+    }
+
     let successful = assign_to_expression(
         context,
         block_context,
