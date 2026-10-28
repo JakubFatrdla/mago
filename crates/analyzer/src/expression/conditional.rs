@@ -251,6 +251,13 @@ where
     r#else.analyze(context, &mut else_block_context, artifacts)?;
     else_block_context.flags.set_inside_general_use(was_inside_general_use);
 
+    let mut branch_overwritten_variables =
+        else_block_context.get_branch_overwritten_variables(r#else, &block_context.locals);
+    if let Some(then) = then {
+        branch_overwritten_variables
+            .extend(if_block_context.get_branch_overwritten_variables(then, &block_context.locals));
+    }
+
     let if_assigned_variables = if_block_context.assigned_variable_ids.keys().copied().collect::<WordSet>();
     let else_assigned_variables = else_block_context.assigned_variable_ids.keys().copied().collect::<WordSet>();
     let assigned_variables = if_assigned_variables.intersection(&else_assigned_variables).copied().collect::<WordSet>();
@@ -363,6 +370,10 @@ where
         block_context.locals.remove(&variable_id);
         block_context.stable_method_call_assertions.remove(&variable_id);
         block_context.clauses.retain(|clause| clause.wedge || !clause.possibilities.contains_key(&variable_id));
+    }
+
+    for variable_id in branch_overwritten_variables {
+        block_context.remove_variable_from_conflicting_clauses(context, variable_id, None);
     }
 
     block_context.variables_possibly_in_scope.extend(if_block_context.variables_possibly_in_scope);

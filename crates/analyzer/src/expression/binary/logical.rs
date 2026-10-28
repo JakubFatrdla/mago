@@ -150,6 +150,20 @@ where
         .collect()
 }
 
+fn forget_right_overwrites<'ctx, A>(
+    context: &mut Context<'ctx, '_, A>,
+    block_context: &mut BlockContext<'ctx>,
+    left_block_context: &BlockContext<'ctx>,
+    right_block_context: &BlockContext<'ctx>,
+    rhs: &Expression<'_>,
+) where
+    A: Arena,
+{
+    for variable_id in right_block_context.get_branch_overwritten_variables(rhs, &left_block_context.locals) {
+        block_context.remove_variable_from_conflicting_clauses(context, variable_id, None);
+    }
+}
+
 #[inline]
 pub fn analyze_logical_and_operation<'ctx, 'arena, A>(
     binary: &Binary<'arena>,
@@ -366,6 +380,8 @@ where
     block_context
         .conditionally_referenced_variable_ids
         .extend(right_block_context.conditionally_referenced_variable_ids.iter().copied());
+
+    forget_right_overwrites(context, block_context, &left_block_context, &right_block_context, binary.rhs);
 
     let right_assigned_var_ids = std::mem::take(&mut right_block_context.assigned_variable_ids);
     block_context
@@ -889,6 +905,8 @@ where
     } else {
         artifacts.short_circuit_assignment_types.remove(&(binary.start_offset(), binary.end_offset()));
     }
+
+    forget_right_overwrites(context, block_context, &left_block_context, &right_block_context, binary.rhs);
 
     artifacts.set_expression_type(binary, result_type);
 

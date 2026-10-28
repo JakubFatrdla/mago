@@ -130,6 +130,20 @@ where
         condition.analyze(context, &mut if_conditional_context, artifacts)?;
         if_conditional_context.flags.set_inside_conditional(was_inside_conditional);
 
+        let conditionally_overwritten_variable_ids = if_conditional_context
+            .assigned_variable_ids
+            .keys()
+            .filter(|variable_id| {
+                !first_cond_assigned_var_ids.contains_key(*variable_id)
+                    && post_if_context.locals.contains_key(*variable_id)
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        for variable_id in &conditionally_overwritten_variable_ids {
+            post_if_context.remove_variable_from_conflicting_clauses(context, *variable_id, None);
+            externally_applied_context.remove_variable_from_conflicting_clauses(context, *variable_id, None);
+        }
+
         for variable_id in if_conditional_context.assigned_variable_ids.keys() {
             if post_if_context.locals.contains_key(variable_id)
                 && let Some(variable_type) = if_conditional_context.locals.get(variable_id)
@@ -159,6 +173,10 @@ where
             ref_cell.into_inner()
         };
         if_body_context.if_body_context = tmp_if_body_context_nested;
+        for variable_id in conditionally_overwritten_variable_ids {
+            if_body_context.remove_variable_from_conflicting_clauses(context, variable_id, None);
+        }
+
         if_body_context
     } else {
         conditionally_referenced_variable_ids = first_cond_referenced_var_ids;

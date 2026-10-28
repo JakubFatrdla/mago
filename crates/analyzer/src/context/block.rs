@@ -14,7 +14,9 @@ use mago_codex::ttype::comparator::ComparisonResult;
 use mago_codex::ttype::comparator::union_comparator;
 use mago_codex::ttype::get_never;
 use mago_codex::ttype::union::TUnion;
+use mago_span::HasSpan;
 use mago_span::Span;
+use mago_syntax::cst::Expression;
 use mago_word::Word;
 use mago_word::WordMap;
 use mago_word::WordSet;
@@ -32,6 +34,7 @@ use crate::context::scope::narrowed_function_call_reads;
 use crate::context::scope::var_has_root;
 use crate::reconciler::assertion_reconciler;
 use crate::reconciler::negated_assertion_reconciler;
+use crate::statement::r#loop::assignment_map_visitor::get_written_variables;
 use mago_bytes::BytesDisplay;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -512,6 +515,28 @@ impl<'ctx> BlockContext<'ctx> {
         }
 
         clauses_to_keep
+    }
+
+    pub(crate) fn get_branch_overwritten_variables(
+        &self,
+        branch: &Expression<'_>,
+        locals_before_branch: &WordMap<Rc<TUnion>>,
+    ) -> WordSet {
+        if self.flags.has_returned() {
+            return WordSet::default();
+        }
+
+        let branch_span = branch.span();
+        let mut written_variables = get_written_variables(&[branch], &[], &[]);
+        written_variables.extend(
+            self.assigned_variable_ids
+                .iter()
+                .filter(|(_, offset)| branch_span.has_offset(**offset))
+                .map(|(variable_id, _)| *variable_id),
+        );
+        written_variables.retain(|variable_id| locals_before_branch.contains_key(variable_id));
+
+        written_variables
     }
 
     pub(crate) fn remove_variable_from_conflicting_clauses<'arena, A>(

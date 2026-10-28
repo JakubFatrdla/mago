@@ -222,6 +222,7 @@ where
     context: &'anlyz mut Context<'ctx, 'arena, A>,
     block_context: &'anlyz mut BlockContext<'ctx>,
     artifacts: &'anlyz mut AnalysisArtifacts,
+    arm_overwritten_variables: WordSet,
 }
 
 impl<'anlyz, 'ctx, 'ast, 'arena, A> MatchAnalyzer<'anlyz, 'ctx, 'ast, 'arena, A>
@@ -236,7 +237,7 @@ where
         block_context: &'anlyz mut BlockContext<'ctx>,
         artifacts: &'anlyz mut AnalysisArtifacts,
     ) -> Self {
-        Self { stmt, context, block_context, artifacts }
+        Self { stmt, context, block_context, artifacts, arm_overwritten_variables: WordSet::default() }
     }
 
     fn analyze(&mut self) -> Result<(), AnalysisError>
@@ -661,6 +662,7 @@ where
         }
 
         expression_arm.expression.analyze(self.context, &mut arm_body_context, self.artifacts)?;
+        self.record_arm_writes(expression_arm.expression, &arm_body_context);
         arm_body_types.push(
             self.artifacts
                 .get_rc_expression_type(&expression_arm.expression)
@@ -779,6 +781,7 @@ where
 
         let mut default_context = running_else_context.clone();
         default_arm.expression.analyze(self.context, &mut default_context, self.artifacts)?;
+        self.record_arm_writes(default_arm.expression, &default_context);
 
         arm_body_types.push(
             self.artifacts
@@ -804,6 +807,11 @@ where
         if always_throws {
             block_context.flags.set_has_returned(true);
         }
+    }
+
+    fn record_arm_writes(&mut self, arm_expression: &Expression<'arena>, arm_context: &BlockContext<'ctx>) {
+        self.arm_overwritten_variables
+            .extend(arm_context.get_branch_overwritten_variables(arm_expression, &self.block_context.locals));
     }
 
     fn merge_match_contexts(&mut self, arm_exit_contexts: &[BlockContext<'ctx>]) {
@@ -840,6 +848,10 @@ where
 
         for ctx in &reachable_contexts {
             self.block_context.variables_possibly_in_scope.extend(ctx.variables_possibly_in_scope.iter().copied());
+        }
+
+        for variable_id in std::mem::take(&mut self.arm_overwritten_variables) {
+            self.block_context.remove_variable_from_conflicting_clauses(self.context, variable_id, None);
         }
     }
 
