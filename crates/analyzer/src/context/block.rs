@@ -730,17 +730,20 @@ impl<'ctx> BlockContext<'ctx> {
             if !references.is_empty() {
                 self.referenced_counts.remove(&remove_var_atom);
 
-                let first_reference = references.remove(0);
+                let new_root = match self.references_in_scope.get(&remove_var_atom) {
+                    Some(target) => *target,
+                    None => references.remove(0),
+                };
                 if !references.is_empty() {
                     let reassigned_references = references.len() as u32;
-                    if let Some(existing_count) = self.referenced_counts.get_mut(&first_reference) {
+                    if let Some(existing_count) = self.referenced_counts.get_mut(&new_root) {
                         *existing_count += reassigned_references;
                     } else {
-                        self.referenced_counts.insert(first_reference, reassigned_references);
+                        self.referenced_counts.insert(new_root, reassigned_references);
                     }
 
                     for reference in references {
-                        self.references_in_scope.insert(reference, first_reference);
+                        self.references_in_scope.insert(reference, new_root);
                     }
                 }
             }
