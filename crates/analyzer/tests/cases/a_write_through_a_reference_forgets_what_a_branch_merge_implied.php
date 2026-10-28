@@ -296,6 +296,46 @@ function decrement_through_an_alias(bool $create): void
     }
 }
 
+function write_through_the_end_of_a_reference_chain(bool $create): void
+{
+    if ($create) {
+        $member = new Member();
+        $created = true;
+    } else {
+        $member = null;
+        $created = false;
+    }
+
+    $b = &$created;
+    $c = &$b;
+    $c = next_flag();
+    unset($b, $c);
+
+    if ($created) {
+        $member->delete(); // @mago-expect analysis:possible-method-access-on-null
+    }
+}
+
+function by_reference_argument_through_the_end_of_a_reference_chain(bool $create): void
+{
+    if ($create) {
+        $member = new Member();
+        $created = true;
+    } else {
+        $member = null;
+        $created = false;
+    }
+
+    $b = &$created;
+    $c = &$b;
+    set_flag($c);
+    unset($b, $c);
+
+    if ($created) {
+        $member->delete(); // @mago-expect analysis:possible-method-access-on-null
+    }
+}
+
 function null_written_through_an_alias_without_a_link(): void
 {
     $member = new Member();
