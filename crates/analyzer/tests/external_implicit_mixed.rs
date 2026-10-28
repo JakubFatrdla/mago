@@ -54,6 +54,22 @@ function builtin_bare_array_element(): void
     if (realpath_cache_get()['x']) {}
 }
 
+/** @param list<string> $a */
+function builtin_template_element(array $a): void
+{
+    if (array_udiff($a, $a, 'strcmp')[0]) {}
+}
+
+function builtin_shape_element(ZipArchive $zip): void
+{
+    if ($zip->statIndex(0)['name']) {}
+}
+
+function builtin_nested_mixed_element($context): void
+{
+    if (stream_context_get_params($context)['options']['http']) {}
+}
+
 function native_mixed(mixed $m): void
 {
     if ($m) {}
@@ -336,6 +352,7 @@ const EXPECTED: &[(&str, &str)] = &[
     ("docblock_mixed_value", "explicit-mixed"),
     ("builtin_list_element", "explicit-mixed"),
     ("builtin_bare_array_element", "implicit-mixed"),
+    ("builtin_nested_mixed_element", "explicit-mixed"),
     ("native_mixed", "explicit-mixed"),
     ("union_with_null", "implicit-mixed"),
     ("explicit_union_with_null", "explicit-mixed"),

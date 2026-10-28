@@ -120,6 +120,9 @@ function posix_getpwnam(string $username): array|false {}
  */
 function posix_getpwuid(int $user_id): array|false {}
 
+/**
+ * @return array<int|string, int|string>|false
+ */
 function posix_getrlimit(?int $resource = null): array|false {}
 
 function posix_get_last_error(): int {}

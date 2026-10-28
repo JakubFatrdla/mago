@@ -291,6 +291,9 @@ class ZipArchive implements Countable
      */
     public function statName(string $name, int $flags = null): array|false {}
 
+    /**
+     * @return array{name: string, index: int, crc: int, size: int, mtime: int, comp_size: int, comp_method: int, encryption_method: int}|false
+     */
     public function statIndex(int $index, int $flags = null): array|false {}
 
     public function locateName(string $name, int $flags = null): int|false {}

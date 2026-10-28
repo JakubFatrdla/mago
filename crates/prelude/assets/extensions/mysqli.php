@@ -940,6 +940,7 @@ class mysqli_stmt
 
     /**
      * @readonly
+     * @var list<array{errno: int, sqlstate: string, error: string}>
      */
     public array $error_list;
 
@@ -1245,7 +1246,7 @@ function mysqli_stmt_errno(mysqli_stmt $statement): int {}
 function mysqli_stmt_error(mysqli_stmt $statement): string {}
 
 /**
- * @return array<int, array>
+ * @return list<array{errno: int, sqlstate: string, error: string}>
  */
 function mysqli_stmt_error_list(mysqli_stmt $statement): array {}
 

@@ -602,4 +602,7 @@ function imagegetinterpolation(GdImage $image): int {}
 
 function imagesetinterpolation(GdImage $image, int $method = 3): bool {}
 
+/**
+ * @return array<int, int>|bool
+ */
 function imageresolution(GdImage $image, ?int $resolution_x = null, ?int $resolution_y = null): array|bool {}

@@ -16,7 +16,11 @@ function apcu_enabled(): bool {}
 /** @param array|string $key */
 function apcu_store($key, mixed $value = UNKNOWN, int $ttl = 0): array|bool {}
 
-/** @param array|string $key */
+/**
+ * @param array|string $key
+ *
+ * @return ($key is array ? array<string, int> : bool)
+ */
 function apcu_add($key, mixed $value = UNKNOWN, int $ttl = 0): array|bool {}
 
 /** @param bool $success */
@@ -36,7 +40,11 @@ function apcu_fetch($key, &$success = null): mixed {}
 /** @param array|string $key */
 function apcu_exists($key): array|bool {}
 
-/** @param APCUIterator|array|string $key */
+/**
+ * @param APCUIterator|array|string $key
+ *
+ * @return ($key is array ? list<string> : bool)
+ */
 function apcu_delete($key): array|bool {}
 
 function apcu_entry(string $key, callable $callback, int $ttl = 0): mixed {}

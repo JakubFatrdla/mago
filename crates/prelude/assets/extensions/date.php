@@ -170,7 +170,7 @@ function date_parse(string $datetime): array {}
 function date_parse_from_format(string $format, string $datetime): array {}
 
 /**
- * @return array<string, int|array>|false
+ * @return array{warning_count: int<0, max>, warnings: list<string>, error_count: int<0, max>, errors: list<string>}|false
  */
 function date_get_last_errors(): array|false {}
 
@@ -221,7 +221,7 @@ function timezone_name_from_abbr(string $abbr, int $utcOffset = -1, int $isDST =
 function timezone_offset_get(DateTimeZone $object, DateTimeInterface $datetime): int {}
 
 /**
- * @return array<int, array>|false
+ * @return list<array{ts: int, time: string, offset: int, isdst: bool, abbr: string}>|false
  */
 function timezone_transitions_get(
     DateTimeZone $object,
@@ -240,7 +240,7 @@ function timezone_location_get(DateTimeZone $object): array|false {}
 function timezone_identifiers_list(int $timezoneGroup = DateTimeZone::ALL, ?string $countryCode = null): array {}
 
 /**
- * @return array<string, array>
+ * @return array<string, list<array{dst: bool, offset: int, timezone_id: string|null}>>
  */
 function timezone_abbreviations_list(): array {}
 

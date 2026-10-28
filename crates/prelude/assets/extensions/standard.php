@@ -1085,6 +1085,8 @@ function html_entity_decode(
 function htmlspecialchars_decode(string $string, int $flags = ENT_QUOTES | ENT_SUBSTITUTE): string {}
 
 /**
+ * @return array<string, string>
+ *
  * @pure
  */
 function get_html_translation_table(
@@ -3035,7 +3037,7 @@ function stream_context_set_params($context, array $params): bool {}
 /**
  * @param resource $context
  *
- * @return array{notification: string, options: array}
+ * @return array{notification: string, options: array<mixed>}
  */
 function stream_context_get_params($context): array {}
 
@@ -3300,6 +3302,8 @@ function stream_is_local($stream): bool {}
 
 /**
  * @param null|resource $context
+ *
+ * @return ($associative is false ? list<string>|false : array<int|string, list<string>|string>|false)
  */
 function get_headers(string $url, bool $associative = false, $context = null): array|false {}
 
@@ -4082,51 +4086,121 @@ function get_debug_type(mixed $value): string {}
 function get_resource_id($resource): int {}
 
 /**
+ * @template K as array-key
+ * @template V
+ *
+ * @param array<K, V> $array
+ *
+ * @return array<K, V>
+ *
  * @no-named-arguments
  */
 function array_diff_ukey(array $array, ...$rest): array {}
 
 /**
+ * @template K as array-key
+ * @template V
+ *
+ * @param array<K, V> $array
+ *
+ * @return array<K, V>
+ *
  * @no-named-arguments
  */
 function array_udiff(array $array, ...$rest): array {}
 
 /**
+ * @template K as array-key
+ * @template V
+ *
+ * @param array<K, V> $array
+ *
+ * @return array<K, V>
+ *
  * @no-named-arguments
  */
 function array_udiff_assoc(array $array, ...$rest): array {}
 
 /**
+ * @template K as array-key
+ * @template V
+ *
+ * @param array<K, V> $array
+ *
+ * @return array<K, V>
+ *
  * @no-named-arguments
  */
 function array_diff_uassoc(array $array, ...$rest): array {}
 
 /**
+ * @template K as array-key
+ * @template V
+ *
+ * @param array<K, V> $array
+ *
+ * @return array<K, V>
+ *
  * @no-named-arguments
  */
 function array_udiff_uassoc(array $array, ...$rest): array {}
 
 /**
+ * @template K as array-key
+ * @template V
+ *
+ * @param array<K, V> $array
+ *
+ * @return array<K, V>
+ *
  * @no-named-arguments
  */
 function array_uintersect_assoc(array $array, ...$rest): array {}
 
 /**
+ * @template K as array-key
+ * @template V
+ *
+ * @param array<K, V> $array
+ *
+ * @return array<K, V>
+ *
  * @no-named-arguments
  */
 function array_intersect_uassoc(array $array, ...$rest): array {}
 
 /**
+ * @template K as array-key
+ * @template V
+ *
+ * @param array<K, V> $array
+ *
+ * @return array<K, V>
+ *
  * @no-named-arguments
  */
 function array_uintersect_uassoc(array $array, ...$rest): array {}
 
 /**
+ * @template K as array-key
+ * @template V
+ *
+ * @param array<K, V> $array
+ *
+ * @return array<K, V>
+ *
  * @no-named-arguments
  */
 function array_intersect_ukey(array $array, ...$rest): array {}
 
 /**
+ * @template K as array-key
+ * @template V
+ *
+ * @param array<K, V> $array
+ *
+ * @return array<K, V>
+ *
  * @no-named-arguments
  */
 function array_uintersect(array $array, ...$rest): array {}

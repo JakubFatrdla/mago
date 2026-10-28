@@ -207,6 +207,7 @@ namespace BcMath {
         /** @return numeric-string */
         public function __toString(): string {}
 
+        /** @return array{value: numeric-string} */
         public function __serialize(): array {}
 
         public function __unserialize(array $data): void {}

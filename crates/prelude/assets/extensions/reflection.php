@@ -616,6 +616,9 @@ class ReflectionProperty implements Reflector
     #[Mago\AvailableSince(80400)]
     public function hasHooks(): bool {}
 
+    /**
+     * @return array<string, ReflectionMethod>
+     */
     #[Mago\AvailableSince(80400)]
     public function getHooks(): array {}
 
