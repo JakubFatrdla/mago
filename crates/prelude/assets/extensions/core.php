@@ -129,6 +129,9 @@ interface Throwable extends Stringable
 
     public function getLine(): int;
 
+    /**
+     * @return list<array{function: string, line?: int, file?: string, class?: class-string, type?: '->'|'::', args?: list<mixed>, object?: object}>
+     */
     public function getTrace(): array;
 
     public function getTraceAsString(): string;
@@ -180,6 +183,7 @@ class Exception implements Throwable
 
     /**
      * @mutation-free
+     * @return list<array{function: string, line?: int, file?: string, class?: class-string, type?: '->'|'::', args?: list<mixed>, object?: object}>
      */
     final public function getTrace(): array {}
 
@@ -245,6 +249,7 @@ class Error implements Throwable
 
     /**
      * @mutation-free
+     * @return list<array{function: string, line?: int, file?: string, class?: class-string, type?: '->'|'::', args?: list<mixed>, object?: object}>
      */
     final public function getTrace(): array {}
 
@@ -731,6 +736,7 @@ function func_get_arg(int $position): mixed {}
 
 /**
  * @pure
+ * @return list<mixed>
  */
 function func_get_args(): array {}
 
@@ -928,6 +934,7 @@ function get_class_vars(string $class): array {}
  * @param object $object
  *
  * @pure
+ * @return array<mixed>
  */
 function get_object_vars(object $object): array {}
 
@@ -999,6 +1006,7 @@ function get_defined_functions(bool $exclude_disabled = true): array {}
 
 /**
  * @pure
+ * @return array<string, mixed>
  */
 function get_defined_vars(): array {}
 
@@ -1034,6 +1042,7 @@ function get_extension_funcs(string $extension): array|false {}
 
 /**
  * @pure
+ * @return ($categorize is true ? array<string, array<string, mixed>> : array<string, mixed>)
  */
 function get_defined_constants(bool $categorize = false): array {}
 

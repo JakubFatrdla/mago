@@ -415,6 +415,9 @@ function imagecolorexact(GdImage $image, int $red, int $green, int $blue): int {
 
 function imagecolorset(GdImage $image, int $color, int $red, int $green, int $blue, int $alpha = 0): ?false {}
 
+/**
+ * @return array{red: int<0, 255>, green: int<0, 255>, blue: int<0, 255>, alpha: int<0, 127>}
+ */
 function imagecolorsforindex(GdImage $image, int $color): array {}
 
 function imagegammacorrect(GdImage $image, float $input_gamma, float $output_gamma): bool {}
@@ -524,6 +527,9 @@ function imagesy(GdImage $image): int {}
 
 function imagesetclip(GdImage $image, int $x1, int $y1, int $x2, int $y2): bool {}
 
+/**
+ * @return array<int, int>
+ */
 function imagegetclip(GdImage $image): array {}
 
 function imageftbbox(
@@ -582,8 +588,14 @@ function imagescale(GdImage $image, int $width, int $height = -1, int $mode = 3)
 
 function imageaffine(GdImage $image, array $affine, ?array $clip = null): GdImage|false {}
 
+/**
+ * @return array{float, float, float, float, float, float}|false
+ */
 function imageaffinematrixget(int $type, $options): array|false {}
 
+/**
+ * @return array{float, float, float, float, float, float}|false
+ */
 function imageaffinematrixconcat(array $matrix1, array $matrix2): array|false {}
 
 function imagegetinterpolation(GdImage $image): int {}

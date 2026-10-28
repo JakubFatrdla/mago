@@ -84,8 +84,14 @@ function posix_mknod(string $filename, int $flags, int $major = 0, int $minor = 
 
 function posix_access(string $filename, int $flags = POSIX_F_OK): bool {}
 
+/**
+ * @return array{name: string, passwd: string, gid: int, members: list<string>}|false
+ */
 function posix_getgrnam(string $name): array|false {}
 
+/**
+ * @return array{name: string, passwd: string, gid: int, members: list<string>}|false
+ */
 function posix_getgrgid(int $group_id): array|false {}
 
 /**

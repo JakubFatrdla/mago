@@ -1457,6 +1457,7 @@ class ReflectionClass implements Reflector
 
     /**
      * @pure
+     * @return array<string, mixed>
      */
     public function getStaticProperties(): array {}
 
@@ -1469,6 +1470,7 @@ class ReflectionClass implements Reflector
 
     /**
      * @pure
+     * @return array<string, mixed>
      */
     public function getDefaultProperties(): array {}
 

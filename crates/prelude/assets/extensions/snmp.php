@@ -122,6 +122,9 @@ function snmpgetnext(
     int $retries = -1,
 ): mixed {}
 
+/**
+ * @return array<string, string>|false
+ */
 function snmpwalk(
     string $hostname,
     string $community,
@@ -130,6 +133,9 @@ function snmpwalk(
     int $retries = -1,
 ): array|false {}
 
+/**
+ * @return array<string, string>|false
+ */
 function snmprealwalk(
     string $hostname,
     string $community,
@@ -138,7 +144,10 @@ function snmprealwalk(
     int $retries = -1,
 ): array|false {}
 
-/** @alias snmprealwalk */
+/**
+ * @alias snmprealwalk
+ * @return array<string, string>|false
+ */
 function snmpwalkoid(
     string $hostname,
     string $community,
@@ -192,6 +201,9 @@ function snmp2_walk(
     int $retries = -1,
 ): array|false {}
 
+/**
+ * @return array<string, string>|false
+ */
 function snmp2_real_walk(
     string $hostname,
     string $community,

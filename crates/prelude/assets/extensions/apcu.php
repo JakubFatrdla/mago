@@ -2,6 +2,9 @@
 
 function apcu_clear_cache(): bool {}
 
+/**
+ * @return array<string, mixed>|false
+ */
 function apcu_cache_info(bool $limited = false): array|false {}
 
 function apcu_key_info(string $key): ?array {}

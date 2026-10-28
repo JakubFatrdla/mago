@@ -93,12 +93,18 @@ class Redis
         bool $bybit = false,
     ): Redis|int|false {}
 
+    /**
+     * @return Redis|array<mixed>|null|false
+     */
     public function blPop(
         string|array $key_or_keys,
         string|float|int $timeout_or_key,
         mixed ...$extra_args,
     ): Redis|array|null|false {}
 
+    /**
+     * @return Redis|array<mixed>|null|false
+     */
     public function brPop(
         string|array $key_or_keys,
         string|float|int $timeout_or_key,
@@ -107,8 +113,14 @@ class Redis
 
     public function brpoplpush(string $src, string $dst, int|float $timeout): Redis|string|false {}
 
+    /**
+     * @return Redis|array<mixed>|false
+     */
     public function bzPopMax(string|array $key, string|int $timeout_or_key, mixed ...$extra_args): Redis|array|false {}
 
+    /**
+     * @return Redis|array<mixed>|false
+     */
     public function bzPopMin(string|array $key, string|int $timeout_or_key, mixed ...$extra_args): Redis|array|false {}
 
     public function clearLastError(): bool {}
@@ -157,6 +169,9 @@ class Redis
 
     public function evalsha_ro(string $script_sha, array $args = [], int $num_keys = 0): mixed {}
 
+    /**
+     * @return Redis|array<mixed>|false
+     */
     public function exec(): Redis|array|false {}
 
     public function exists(mixed $key, mixed ...$other_keys): Redis|int|bool {}
@@ -205,6 +220,9 @@ class Redis
 
     public function getTimeout(): float|false {}
 
+    /**
+     * @return array<int, array{int, int}>
+     */
     public function getTransferredBytes(): array {}
 
     public function hDel(string $key, string $field, string ...$other_fields): Redis|int|false {}
@@ -213,16 +231,25 @@ class Redis
 
     public function hGet(string $key, string $field): mixed {}
 
+    /**
+     * @return Redis|array<string>|false
+     */
     public function hGetAll(string $key): Redis|array|false {}
 
     public function hIncrBy(string $key, string $field, int $value): Redis|int|false {}
 
     public function hIncrByFloat(string $key, string $field, float $value): Redis|float|false {}
 
+    /**
+     * @return Redis|array<string>|false
+     */
     public function hKeys(string $key): Redis|array|false {}
 
     public function hLen(string $key): Redis|int|false {}
 
+    /**
+     * @return Redis|array<string, mixed>|false
+     */
     public function hMGet(string $key, array $fields): Redis|array|false {}
 
     public function hMSet(string $key, array $fieldvals): Redis|bool {}
@@ -233,6 +260,9 @@ class Redis
 
     public function hStrLen(string $key, string $field): Redis|int|false {}
 
+    /**
+     * @return Redis|array<string>|false
+     */
     public function hVals(string $key): Redis|array|false {}
 
     public function incr(string $key, int $by = 1): Redis|int|false {}
@@ -241,10 +271,16 @@ class Redis
 
     public function incrByFloat(string $key, float $value): Redis|float|false {}
 
+    /**
+     * @return Redis|array<string, mixed>|false
+     */
     public function info(string ...$sections): Redis|array|false {}
 
     public function isConnected(): bool {}
 
+    /**
+     * @return Redis|array<int, string>|false
+     */
     public function keys(string $pattern): Redis|array|false {}
 
     public function lGet(string $key, int $index): mixed {}
@@ -257,14 +293,23 @@ class Redis
 
     public function lMove(string $src, string $dst, string $wherefrom, string $whereto): Redis|string|false {}
 
+    /**
+     * @return Redis|bool|string|array<mixed>
+     */
     public function lPop(string $key, int $count = 0): Redis|bool|string|array {}
 
+    /**
+     * @return Redis|null|bool|int|array<mixed>
+     */
     public function lPos(string $key, mixed $value, ?array $options = null): Redis|null|bool|int|array {}
 
     public function lPush(string $key, mixed ...$elements): Redis|int|false {}
 
     public function lPushx(string $key, mixed $value): Redis|int|false {}
 
+    /**
+     * @return Redis|array<mixed>|false
+     */
     public function lRange(string $key, int $start, int $end): Redis|array|false {}
 
     public function lRem(string $key, mixed $value, int $count = 0): Redis|int|false {}
@@ -275,6 +320,9 @@ class Redis
 
     public function lastSave(): int {}
 
+    /**
+     * @return Redis|array<string, mixed>
+     */
     public function mget(array $keys): Redis|array {}
 
     public function migrate(
@@ -358,6 +406,9 @@ class Redis
 
     public function punsubscribe(array $patterns): Redis|array|bool {}
 
+    /**
+     * @return Redis|array<string, mixed>|string|bool
+     */
     public function rPop(string $key, int $count = 0): Redis|array|string|bool {}
 
     public function rpoplpush(string $srckey, string $dstkey): Redis|string|false {}
@@ -384,16 +435,28 @@ class Redis
 
     public function sAddArray(string $key, array $values): Redis|int|false {}
 
+    /**
+     * @return Redis|list<string>|false
+     */
     public function sDiff(string $key, string ...$other_keys): Redis|array|false {}
 
     public function sDiffStore(string $dst, string $key, string ...$other_keys): Redis|int|false {}
 
+    /**
+     * @return Redis|list<string>|false
+     */
     public function sInter(array|string $key, string ...$other_keys): Redis|array|false {}
 
     public function sInterStore(array|string $dst, string ...$other_keys): Redis|int|false {}
 
+    /**
+     * @return Redis|list<string>|false
+     */
     public function sMembers(string $key): Redis|array|false {}
 
+    /**
+     * @return Redis|array<int>|false
+     */
     public function sMisMember(string $key, string $member, string ...$other_members): Redis|array|false {}
 
     public function sMove(string $src, string $dst, mixed $value): Redis|bool {}
@@ -404,6 +467,9 @@ class Redis
 
     public function sRem(string $key, mixed $value, mixed ...$other_values): Redis|int|false {}
 
+    /**
+     * @return Redis|list<string>|false
+     */
     public function sUnion(string $key, string ...$other_keys): Redis|array|false {}
 
     public function sUnionStore(string $dst, string $key, string ...$other_keys): Redis|int|false {}
@@ -412,6 +478,7 @@ class Redis
 
     /**
      * @param-out int $iterator
+     * @return array<int, string>|false
      */
     public function scan(?int &$iterator, ?string $pattern = null, int $count = 0, ?string $type = null): array|false {}
 
@@ -483,6 +550,7 @@ class Redis
 
     /**
      * @param-out int $iterator
+     * @return array<string>|false
      */
     public function sscan(string $key, ?int &$iterator, ?string $pattern = null, int $count = 0): array|false {}
 
@@ -490,6 +558,9 @@ class Redis
 
     public function subscribe(array $channels, callable $cb): bool {}
 
+    /**
+     * @return Redis|array{int, int}
+     */
     public function time(): Redis|array {}
 
     public function ttl(string $key): Redis|int|false {}
@@ -498,6 +569,9 @@ class Redis
 
     public function unlink(array|string $key, string ...$other_keys): Redis|int|false {}
 
+    /**
+     * @return Redis|array<string>|bool
+     */
     public function unsubscribe(array $channels): Redis|array|bool {}
 
     public function unwatch(): Redis|bool {}
@@ -707,6 +781,9 @@ class RedisArray
 
     public function _rehash(?callable $fn = null): bool {}
 
+    /**
+     * @return array<string, list<string>>|false
+     */
     public function keys(string $pattern): array|false {}
 
     public function save(): bool {}
@@ -719,6 +796,9 @@ class RedisArray
 
     public function select(int $index): bool {}
 
+    /**
+     * @return array<string, array<string, mixed>>|false
+     */
     public function info(): array|false {}
 
     public function ping(): bool {}
@@ -727,6 +807,9 @@ class RedisArray
 
     public function flushAll(?bool $async = null): bool {}
 
+    /**
+     * @return list<mixed>
+     */
     public function mget(array $keys): array {}
 
     public function mset(array $pairs): bool {}

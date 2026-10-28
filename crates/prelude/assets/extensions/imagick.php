@@ -756,6 +756,9 @@ class Imagick implements Iterator, Countable
 
     public function getGravity(): int {}
 
+    /**
+     * @return array{minima: float, maxima: float}
+     */
     public function getImageChannelRange(int $channel): array {}
 
     public function getImageAlphaChannel(): bool {}
@@ -802,8 +805,14 @@ class Imagick implements Iterator, Countable
 
     public function houghLineImage(int $width, int $height, float $threshold): bool {}
 
+    /**
+     * @return list<int>
+     */
     public function exportImagePixels(int $x, int $y, int $width, int $height, string $map, int $pixelstorage): array {} // e.g. "RGB" // PIXELSTORAGE
 
+    /**
+     * @return array{kurtosis: float, skewness: float}
+     */
     public function getImageChannelKurtosis(int $channel = Imagick::CHANNEL_DEFAULT): array {}
 
     public function functionImage(int $function, array $parameters, int $channel = Imagick::CHANNEL_DEFAULT): bool {}
@@ -914,6 +923,9 @@ class Imagick implements Iterator, Countable
 
     public function labelImage(string $label): bool {}
 
+    /**
+     * @return array{width: int, height: int}
+     */
     public function getImageGeometry(): array {}
 
     public function drawImage(ImagickDraw $drawing): bool {}
@@ -949,6 +961,9 @@ class Imagick implements Iterator, Countable
     ): Imagick { // e.g. "3x2+0+0" // e.g. "200x160+3+3>" // MONTAGEMODE_ // "10x10+2+2"
     }
 
+    /**
+     * @return array{imageName: string, mimetype: string, format: string, units: string, colorSpace: string, type: string, compression: string, fileSize: string, geometry: array{width: int<0, max>, height: int<0, max>}, resolution: array{x: float, y: float}, signature: string}
+     */
     public function identifyImage(bool $append_raw_output = false): array {}
 
     public function thresholdImage(float $threshold, int $channel = Imagick::CHANNEL_DEFAULT): bool {}
@@ -1058,11 +1073,20 @@ class Imagick implements Iterator, Countable
 
     public function stripImage(): bool {}
 
+    /**
+     * @return list<string>
+     */
     public static function queryFormats(string $pattern = '*'): array {}
 
+    /**
+     * @return list<string>
+     */
     public static function queryFonts(string $pattern = '*'): array {}
 
     /* TODO  $multiline == null,  means we should autodetect */
+    /**
+     * @return array{characterWidth: float, characterHeight: float, ascender: float, descender: float, textWidth: float, textHeight: float, maxHorizontalAdvance: float, boundingBox: array{x1: float, x2: float, y1: float, y2: float}, originX: float, originY: float}
+     */
     public function queryFontMetrics(ImagickDraw $settings, string $text, ?bool $multiline = null): array {}
 
     public function steganoImage(Imagick $watermark, int $offset): Imagick {}
@@ -1136,8 +1160,14 @@ class Imagick implements Iterator, Countable
         ?bool $legacy = false,
     ): bool {}
 
+    /**
+     * @return array{Imagick, float}
+     */
     public function compareImageChannels(Imagick $reference, int $channel, int $metric): array {}
 
+    /**
+     * @return array{Imagick, float}
+     */
     public function compareImages(Imagick $reference, int $metric): array {}
 
     public function contrastImage(bool $sharpen): bool {}
@@ -1202,6 +1232,9 @@ class Imagick implements Iterator, Countable
 
     public function getImageBackgroundColor(): ImagickPixel {}
 
+    /**
+     * @return array{x: float, y: float}
+     */
     public function getImageBluePrimary(): array {}
 
     public function getImageBorderColor(): ImagickPixel {}
@@ -1210,11 +1243,20 @@ class Imagick implements Iterator, Countable
 
     public function getImageChannelDistortion(Imagick $reference, int $channel, int $metric): float {}
 
-    /** @deprecated */
+    /**
+     * @deprecated
+     * @return array{minima: int<0, max>, maxima: int<0, max>}
+     */
     public function getImageChannelExtrema(int $channel): array {}
 
+    /**
+     * @return array{mean: float, standardDeviation: float}
+     */
     public function getImageChannelMean(int $channel): array {}
 
+    /**
+     * @return array{mean: float, minima: float, maxima: float, standardDeviation: float, depth: int}
+     */
     public function getImageChannelStatistics(): array {}
 
     public function getImageColormapColor(int $index): ImagickPixel {}
@@ -1229,17 +1271,26 @@ class Imagick implements Iterator, Countable
 
     public function getImageDistortion(Imagick $reference, int $metric): float {}
 
-    /** @deprecated */
+    /**
+     * @deprecated
+     * @return array{min: int<0, max>, max: int<0, max>}
+     */
     public function getImageExtrema(): array {}
 
     public function getImageDispose(): int {}
 
     public function getImageGamma(): float {}
 
+    /**
+     * @return array{x: float, y: float}
+     */
     public function getImageGreenPrimary(): array {}
 
     public function getImageHeight(): int {}
 
+    /**
+     * @return list<ImagickPixel>
+     */
     public function getImageHistogram(): array {}
 
     public function getImageInterlaceScheme(): int {}
@@ -1249,6 +1300,9 @@ class Imagick implements Iterator, Countable
     /** @deprecated */
     public function getImageMatteColor(): ImagickPixel {}
 
+    /**
+     * @return array{width: int, height: int, x: int, y: int}
+     */
     public function getImagePage(): array {}
 
     public function getImagePixelColor(int $x, int $y): ImagickPixel {}
@@ -1257,10 +1311,16 @@ class Imagick implements Iterator, Countable
 
     public function getImageProfile(string $name): string {}
 
+    /**
+     * @return array{x: float, y: float}
+     */
     public function getImageRedPrimary(): array {}
 
     public function getImageRenderingIntent(): int {}
 
+    /**
+     * @return array{x: float, y: float}
+     */
     public function getImageResolution(): array {}
 
     public function getImageScene(): int {}
@@ -1275,6 +1335,9 @@ class Imagick implements Iterator, Countable
 
     public function getImageVirtualPixelMethod(): int {}
 
+    /**
+     * @return array{x: float, y: float}
+     */
     public function getImageWhitePoint(): array {}
 
     public function getImageWidth(): int {}
@@ -1468,14 +1531,23 @@ class Imagick implements Iterator, Countable
 
     public static function getPackageName(): string {}
 
+    /**
+     * @return array{width: int, height: int, x: int, y: int}
+     */
     public function getPage(): array {}
 
     public static function getQuantum(): int {}
 
     public static function getHdriEnabled(): bool {}
 
+    /**
+     * @return array{quantumDepthLong: int<0, max>, quantumDepthString: numeric-string}
+     */
     public static function getQuantumDepth(): array {}
 
+    /**
+     * @return array{quantumRangeLong: int<0, max>, quantumRangeString: numeric-string}
+     */
     public static function getQuantumRange(): array {}
 
     public static function getReleaseDate(): string {}
@@ -1484,10 +1556,19 @@ class Imagick implements Iterator, Countable
 
     public static function getResourceLimit(int $type): float {}
 
+    /**
+     * @return list<float>
+     */
     public function getSamplingFactors(): array {}
 
+    /**
+     * @return array{columns: int<0, max>, rows: int<0, max>}
+     */
     public function getSize(): array {}
 
+    /**
+     * @return array{versionNumber: int<0, max>, versionString: non-falsy-string}
+     */
     public static function getVersion(): array {}
 
     public function setBackgroundColor(ImagickPixel|string $background_color): bool {}
@@ -1573,6 +1654,9 @@ class Imagick implements Iterator, Countable
 
     public static function getRegistry(string $key): string|false {}
 
+    /**
+     * @return array<string, string>
+     */
     public static function listRegistry(): array {}
 
     public function morphology(

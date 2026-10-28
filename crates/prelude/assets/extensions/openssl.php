@@ -353,8 +353,14 @@ function openssl_public_decrypt(
     int $padding = OPENSSL_PKCS1_PADDING,
 ): bool {}
 
+/**
+ * @return list<string>
+ */
 function openssl_get_md_methods(bool $aliases = false): array {}
 
+/**
+ * @return list<string>
+ */
 function openssl_get_cipher_methods(bool $aliases = false): array {}
 
 function openssl_dh_compute_key(string $public_key, OpenSSLAsymmetricKey $private_key): string|false {}
@@ -388,6 +394,9 @@ function openssl_error_string(): string|false {}
  */
 function openssl_get_cert_locations(): array {}
 
+/**
+ * @return list<string>|false
+ */
 function openssl_get_curve_names(): array|false {}
 
 /**

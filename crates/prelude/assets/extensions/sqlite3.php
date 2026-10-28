@@ -219,8 +219,14 @@ class SQLite3Result
 
     public function columnType(int $column): int|false {}
 
+    /**
+     * @return ($mode is 2 ? non-empty-list<mixed>|false : ($mode is 1 ? non-empty-array<string, mixed>|false : non-empty-array<int|string, mixed>|false))
+     */
     public function fetchArray(int $mode = SQLITE3_BOTH): array|false {}
 
+    /**
+     * @return ($mode is 2 ? list<non-empty-list<mixed>>|false : ($mode is 1 ? list<non-empty-array<string, mixed>>|false : list<non-empty-array<int|string, mixed>>|false))
+     */
     public function fetchAll(int $mode = SQLITE3_BOTH): array|false {}
 
     public function reset(): bool {}

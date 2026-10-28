@@ -596,6 +596,9 @@ class Transliterator
      */
     public function createInverse(): ?Transliterator {}
 
+    /**
+     * @return list<string>|false
+     */
     public static function listIDs(): array|false {}
 
     /**

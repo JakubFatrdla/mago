@@ -1114,6 +1114,7 @@ function crc32(string $string): int {}
 
 /**
  * @pure
+ * @return array<string, list<string>>|false
  */
 function iptcparse(string $iptc_block): array|false {}
 
@@ -1731,6 +1732,7 @@ function parse_str(string $string, &$result): void {}
 
 /**
  * @pure
+ * @return non-empty-list<string|null>
  */
 function str_getcsv(string $string, string $separator = ',', string $enclosure = '"', string $escape = "\\"): array {}
 
@@ -1791,6 +1793,7 @@ function sscanf(string $string, string $format, mixed &...$vars): array|int|null
 
 /**
  * @param resource $stream
+ * @return list<mixed>|int|false|null
  */
 function fscanf($stream, string $format, mixed &...$vars): array|int|false|null {}
 
@@ -2259,6 +2262,9 @@ function putenv(string $assignment): bool {}
  */
 function getopt(string $short_options, array $long_options = [], ?int &$rest_index = null): array|false {}
 
+/**
+ * @return array{float, float, float}|false
+ */
 function sys_getloadavg(): array|false {}
 
 /**
@@ -2983,6 +2989,7 @@ function getmxrr(string $hostname, &$hosts, &$weights = null): bool {}
 /**
  * @param-out array $authoritative_name_servers
  * @param-out array $additional_records
+ * @return list<array>|false
  */
 function dns_get_record(
     string $hostname,

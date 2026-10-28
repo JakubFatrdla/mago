@@ -44,6 +44,16 @@ function docblock_mixed_value(array $a): void
     if ($a['x']) {}
 }
 
+function builtin_list_element(): void
+{
+    if (func_get_args()[0]) {}
+}
+
+function builtin_bare_array_element(): void
+{
+    if (realpath_cache_get()['x']) {}
+}
+
 function native_mixed(mixed $m): void
 {
     if ($m) {}
@@ -324,6 +334,8 @@ function is_array_on_mixed(mixed $json): void
 const EXPECTED: &[(&str, &str)] = &[
     ("native_array_element", "implicit-mixed"),
     ("docblock_mixed_value", "explicit-mixed"),
+    ("builtin_list_element", "explicit-mixed"),
+    ("builtin_bare_array_element", "implicit-mixed"),
     ("native_mixed", "explicit-mixed"),
     ("union_with_null", "implicit-mixed"),
     ("explicit_union_with_null", "explicit-mixed"),
