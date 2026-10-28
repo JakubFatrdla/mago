@@ -409,6 +409,18 @@ where
             .push(vec![mago_codex::assertion::Assertion::IsNotType(mago_codex::ttype::atomic::TAtomic::Null)]);
     }
 
+    let mixed_receiver_call_id = match (this_variable, selector) {
+        (Some(receiver_id), ClassLikeMemberSelector::Identifier(method))
+            if method_resolution.encountered_mixed
+                && !has_resolved_methods
+                && !is_null_safe
+                && argument_list.arguments.is_empty() =>
+        {
+            Some(concat_word!(receiver_id, "->", method.value, "()"))
+        }
+        _ => None,
+    };
+
     if has_resolved_methods || method_resolution.undocumented_methods.is_empty() {
         analyze_invocation_targets(
             context,
@@ -428,6 +440,15 @@ where
             true,
             method_resolution.reported_non_object_receiver,
         )?;
+    }
+
+    if let Some(method_call_id) = mixed_receiver_call_id {
+        block_context.stable_method_calls.insert(method_call_id);
+        if let Some(assertions) = block_context.stable_method_call_assertions.get(&method_call_id).cloned()
+            && let Some(call_type) = artifacts.get_expression_type(&span).cloned()
+        {
+            artifacts.set_expression_type(&span, narrow_by_assertions(context, block_context, &assertions, call_type));
+        }
     }
 
     if is_null_safe
