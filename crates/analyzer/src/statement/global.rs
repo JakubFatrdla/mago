@@ -84,11 +84,7 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Global<'arena> {
             }
 
             block_context.references_to_external_scope.insert(var_id_atom);
-
-            if block_context.references_in_scope.contains_key(&var_id_atom) {
-                block_context.decrement_reference_count(var_id_atom.as_bytes());
-                block_context.references_in_scope.remove(&var_id_atom);
-            }
+            block_context.detach_reference(var_id_atom);
         }
 
         Ok(())

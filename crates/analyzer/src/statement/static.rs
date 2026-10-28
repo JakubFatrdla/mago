@@ -132,6 +132,7 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Static<'arena> {
                     .unwrap_or_else(|| Rc::new(get_mixed())),
             };
 
+            block_context.detach_reference(variable_name_atom);
             block_context.locals.insert(variable_name_atom, variable_type);
             block_context.assigned_variable_ids.insert(variable_name_atom, item.span().start.offset);
             block_context.static_locals.insert(variable_name_atom);

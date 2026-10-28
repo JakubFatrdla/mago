@@ -3084,6 +3084,7 @@ test_case!(a_nested_by_reference_write_in_a_loop_forgets_what_a_branch_merge_imp
 test_case!(a_write_through_a_reference_forgets_what_a_branch_merge_implied);
 test_case!(a_write_in_a_switch_case_forgets_what_a_branch_merge_implied);
 test_case!(a_write_in_a_branch_of_an_expression_forgets_what_a_branch_merge_implied);
+test_case!(a_static_or_global_statement_ends_a_reference_binding);
 test_case!(count_comparison_of_an_array_narrows_its_false_branch);
 test_case!(disjunction_of_bool_variables_narrows_what_each_implies, {
     let mut s = crate::framework::default_test_settings();
