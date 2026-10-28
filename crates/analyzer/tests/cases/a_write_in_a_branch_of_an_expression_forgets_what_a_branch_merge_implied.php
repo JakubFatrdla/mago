@@ -327,3 +327,24 @@ function variable_assigned_on_the_right_of_and_is_narrowed_in_the_body(int $kind
         $found->delete();
     }
 }
+
+function write_in_a_match_arm_that_always_throws(bool $create, int $kind): void
+{
+    if ($create) {
+        $member = new Member();
+        $created = true;
+    } else {
+        $member = null;
+        $created = false;
+    }
+
+    $value = match ($kind) {
+        1 => throw new RuntimeException(($created = next_flag()) ? 'a' : 'b'),
+        default => $kind,
+    };
+    echo $value;
+
+    if ($created) {
+        $member->delete();
+    }
+}
