@@ -803,9 +803,7 @@ fn analyze_reference_assignment<'ctx, 'ast, 'arena, A>(
 
     block_context.locals.entry(referenced_variable_id).or_insert_with(|| Rc::new(get_mixed()));
 
-    if block_context.references_in_scope.contains_key(&target_variable_id) {
-        block_context.decrement_reference_count(target_variable_id.as_bytes());
-    }
+    block_context.detach_reference(target_variable_id);
 
     block_context.references_possibly_from_confusing_scope.remove(&target_variable_id);
     block_context.add_conditionally_referenced_variable(target_variable_id.as_bytes());
@@ -1086,6 +1084,10 @@ pub fn analyze_assignment_to_variable<'ctx, 'arena, A>(
         artifacts.set_rc_expression_type(&variable_span, Rc::clone(&assigned_type));
     }
 
+    if !source_expression.is_some_and(Expression::is_reference) {
+        write_through_references(context, block_context, variable_id, variable_span, &assigned_type);
+    }
+
     block_context.locals.insert(variable_id, assigned_type);
     block_context.variables_possibly_in_scope.insert(variable_id);
 
@@ -1106,6 +1108,25 @@ pub fn analyze_assignment_to_variable<'ctx, 'arena, A>(
         {
             block_context.class_string_sources.insert(variable_id, source_id);
         }
+    }
+}
+
+fn write_through_references<'ctx, A>(
+    context: &mut Context<'ctx, '_, A>,
+    block_context: &mut BlockContext<'ctx>,
+    variable_id: Word,
+    variable_span: Span,
+    assigned_type: &Rc<TUnion>,
+) where
+    A: Arena,
+{
+    for partner in block_context.reference_partners(variable_id) {
+        if let Some(existing_type) = block_context.locals.get(&partner).cloned() {
+            block_context.remove_descendants(context, partner, &existing_type, Some(assigned_type));
+        }
+
+        block_context.assigned_variable_ids.insert(partner, variable_span.start.offset);
+        block_context.locals.insert(partner, Rc::clone(assigned_type));
     }
 }
 

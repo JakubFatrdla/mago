@@ -20,6 +20,7 @@ use mago_word::WordMap;
 use mago_word::WordSet;
 use mago_word::word;
 
+use crate::artifacts::is_plain_variable;
 use crate::common::global::get_super_globals;
 use crate::context::Context;
 use crate::context::block_flags::BlockContextFlags;
@@ -661,6 +662,21 @@ impl<'ctx> BlockContext<'ctx> {
 
     pub fn remove_possible_reference(&mut self, remove_var_id: &[u8]) {
         let remove_var_atom = word(remove_var_id);
+        self.detach_reference(remove_var_atom);
+
+        self.locals.remove(&remove_var_atom);
+        self.variables_possibly_in_scope.remove(&remove_var_atom);
+        self.possibly_in_scope_types.remove(&remove_var_atom);
+        self.assigned_variable_ids.remove(&remove_var_atom);
+        self.possibly_assigned_variable_ids.remove(&remove_var_atom);
+        self.conditionally_referenced_variable_ids.remove(&remove_var_atom);
+        self.derived_local_sources.remove(&remove_var_atom);
+        self.class_string_sources
+            .retain(|holder, source| *holder != remove_var_atom && !var_has_root(*source, remove_var_atom));
+        self.possibly_undefined_variable_ids.remove(&remove_var_atom);
+    }
+
+    pub(crate) fn detach_reference(&mut self, remove_var_atom: Word) {
         if let Some(reference_count) = self.referenced_counts.get(&remove_var_atom)
             && *reference_count > 0
         {
@@ -683,7 +699,7 @@ impl<'ctx> BlockContext<'ctx> {
             debug_assert!(
                 !references.is_empty(),
                 "No references found for variable {}, even though it has a reference count of {reference_count}",
-                BytesDisplay(remove_var_id)
+                BytesDisplay(remove_var_atom.as_bytes())
             );
 
             if !references.is_empty() {
@@ -706,19 +722,9 @@ impl<'ctx> BlockContext<'ctx> {
         }
 
         if self.references_in_scope.contains_key(&remove_var_atom) {
-            self.decrement_reference_count(remove_var_id);
+            self.decrement_reference_count(remove_var_atom.as_bytes());
+            self.references_in_scope.remove(&remove_var_atom);
         }
-
-        self.locals.remove(&remove_var_atom);
-        self.variables_possibly_in_scope.remove(&remove_var_atom);
-        self.possibly_in_scope_types.remove(&remove_var_atom);
-        self.assigned_variable_ids.remove(&remove_var_atom);
-        self.possibly_assigned_variable_ids.remove(&remove_var_atom);
-        self.conditionally_referenced_variable_ids.remove(&remove_var_atom);
-        self.derived_local_sources.remove(&remove_var_atom);
-        self.class_string_sources
-            .retain(|holder, source| *holder != remove_var_atom && !var_has_root(*source, remove_var_atom));
-        self.possibly_undefined_variable_ids.remove(&remove_var_atom);
     }
 
     pub fn update<A>(
@@ -821,6 +827,32 @@ impl<'ctx> BlockContext<'ctx> {
         *reference_count -= 1;
 
         true
+    }
+
+    pub(crate) fn reference_partners(&self, variable_id: Word) -> WordSet {
+        let mut partners = WordSet::default();
+        if self.references_in_scope.is_empty() {
+            return partners;
+        }
+
+        let mut pending = vec![variable_id];
+        while let Some(current) = pending.pop() {
+            for (reference, referenced) in &self.references_in_scope {
+                let partner = if *reference == current {
+                    *referenced
+                } else if *referenced == current {
+                    *reference
+                } else {
+                    continue;
+                };
+
+                if partner != variable_id && is_plain_variable(partner) && partners.insert(partner) {
+                    pending.push(partner);
+                }
+            }
+        }
+
+        partners
     }
 }
 
