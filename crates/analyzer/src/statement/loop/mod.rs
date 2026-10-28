@@ -1262,8 +1262,13 @@ where
             .filter(|(_, offset)| loop_span.start.offset <= **offset && **offset < loop_span.end.offset)
             .map(|(variable_id, _)| *variable_id),
     );
-    for variable_id in loop_written_variables {
-        loop_parent_context.remove_variable_from_conflicting_clauses(context, variable_id, None);
+    loop_written_variables.extend(loop_scope.by_reference_loop_mutations.keys().copied());
+    loop_written_variables.extend(loop_scope.nested_loop_written_variables.iter().copied());
+    for variable_id in &loop_written_variables {
+        loop_parent_context.remove_variable_from_conflicting_clauses(context, *variable_id, None);
+    }
+    if let Some(enclosing_loop_scope) = artifacts.get_loop_scope_mut() {
+        enclosing_loop_scope.nested_loop_written_variables.extend(loop_written_variables);
     }
 
     if !pre_conditions.is_empty() && !pre_condition_clauses.is_empty() {

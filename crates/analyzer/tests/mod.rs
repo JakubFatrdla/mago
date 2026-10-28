@@ -3080,6 +3080,7 @@ test_case!(logical_operand_of_implicit_mixed);
 test_case!(unset_of_a_key_some_union_members_lack);
 test_case!(conditional_expressions_after_a_branch_merge);
 test_case!(a_write_in_a_loop_or_an_increment_forgets_what_a_branch_merge_implied);
+test_case!(a_nested_by_reference_write_in_a_loop_forgets_what_a_branch_merge_implied);
 test_case!(count_comparison_of_an_array_narrows_its_false_branch);
 test_case!(disjunction_of_bool_variables_narrows_what_each_implies, {
     let mut s = crate::framework::default_test_settings();
