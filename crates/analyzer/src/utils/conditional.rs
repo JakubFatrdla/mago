@@ -125,6 +125,7 @@ where
         if_conditional_context.assigned_variable_ids = WordMap::default();
         if_conditional_context.conditionally_referenced_variable_ids.clear();
 
+        let pre_condition_conflicting_variables = if_conditional_context.parent_conflicting_clause_variables.clone();
         let was_inside_conditional = if_conditional_context.flags.inside_conditional();
         if_conditional_context.flags.set_inside_conditional(true);
         condition.analyze(context, &mut if_conditional_context, artifacts)?;
@@ -133,12 +134,17 @@ where
         let conditionally_overwritten_variable_ids = if_conditional_context
             .assigned_variable_ids
             .keys()
+            .chain(
+                if_conditional_context
+                    .parent_conflicting_clause_variables
+                    .difference(&pre_condition_conflicting_variables),
+            )
             .filter(|variable_id| {
                 !first_cond_assigned_var_ids.contains_key(*variable_id)
                     && post_if_context.locals.contains_key(*variable_id)
             })
             .copied()
-            .collect::<Vec<_>>();
+            .collect::<WordSet>();
         for variable_id in &conditionally_overwritten_variable_ids {
             post_if_context.remove_variable_from_conflicting_clauses(context, *variable_id, None);
             externally_applied_context.remove_variable_from_conflicting_clauses(context, *variable_id, None);
