@@ -94,7 +94,7 @@ class Redis
     ): Redis|int|false {}
 
     /**
-     * @return Redis|array<mixed>|null|false
+     * @return ($key_or_keys is string ? ($timeout_or_key is float ? Redis|array<mixed>|null|false : Redis|array|null|false) : Redis|array<mixed>|null|false)
      */
     public function blPop(
         string|array $key_or_keys,
@@ -103,7 +103,7 @@ class Redis
     ): Redis|array|null|false {}
 
     /**
-     * @return Redis|array<mixed>|null|false
+     * @return ($key_or_keys is string ? ($timeout_or_key is float ? Redis|array<mixed>|null|false : Redis|array|null|false) : Redis|array<mixed>|null|false)
      */
     public function brPop(
         string|array $key_or_keys,

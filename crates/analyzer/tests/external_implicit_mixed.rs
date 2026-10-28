@@ -70,6 +70,22 @@ function builtin_nested_mixed_element($context): void
     if (stream_context_get_params($context)['options']['http']) {}
 }
 
+function overloads_both_fit(Redis $redis): void
+{
+    $item = $redis->blPop('k', 1);
+    if (is_array($item)) {
+        if ($item[0]) {}
+    }
+}
+
+function overload_first_fits(Redis $redis): void
+{
+    $item = $redis->brPop(['k'], 1.5);
+    if (is_array($item)) {
+        if ($item[0]) {}
+    }
+}
+
 function native_mixed(mixed $m): void
 {
     if ($m) {}
@@ -353,6 +369,8 @@ const EXPECTED: &[(&str, &str)] = &[
     ("builtin_list_element", "explicit-mixed"),
     ("builtin_bare_array_element", "implicit-mixed"),
     ("builtin_nested_mixed_element", "explicit-mixed"),
+    ("overloads_both_fit", "implicit-mixed"),
+    ("overload_first_fits", "explicit-mixed"),
     ("native_mixed", "explicit-mixed"),
     ("union_with_null", "implicit-mixed"),
     ("explicit_union_with_null", "explicit-mixed"),
