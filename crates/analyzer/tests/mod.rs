@@ -3616,3 +3616,4 @@ test_case!(static_in_a_callable_property_type_is_the_receiver_type, {
     s.check_name_casing = true;
     s
 });
+test_case!(an_out_parameter_narrowed_in_the_condition_that_writes_it);
