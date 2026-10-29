@@ -10,7 +10,6 @@ use mago_codex::ttype::atomic::array::TArray;
 use mago_codex::ttype::atomic::array::key::ArrayKey;
 use mago_codex::ttype::atomic::array::keyed::TKeyedArray;
 use mago_codex::ttype::atomic::array::list::TList;
-use mago_codex::ttype::atomic::object::TObject;
 use mago_codex::ttype::atomic::scalar::TScalar;
 use mago_codex::ttype::get_array_parameters;
 use mago_codex::ttype::union::TUnion;
@@ -89,11 +88,19 @@ fn try_resolve_from_named_object(
     index_key_type: Option<&TUnion>,
     codebase: &CodebaseMetadata,
 ) -> Option<TUnion> {
-    let obj = element_type.get_single_named_object()?;
-    let class_like = codebase.get_class_like(obj.name.as_bytes())?;
+    let mut object_names = element_type.types.iter().map(|atomic| match atomic {
+        TAtomic::Object(object) => object.get_name(),
+        _ => None,
+    });
+    let object_name = object_names.next()??;
+    if !object_names.all(|name| name == Some(object_name)) {
+        return None;
+    }
+
+    let class_like = codebase.get_class_like(object_name.as_bytes())?;
 
     let column_type = if column_key_type.is_null() {
-        TUnion::from_atomic(TAtomic::Object(TObject::Named(obj.clone())))
+        TUnion::from_vec(element_type.types.to_vec())
     } else {
         let prop_name = column_key_type.get_single_literal_string_value()?;
         let prop_key = concat_word!(b"$", prop_name);

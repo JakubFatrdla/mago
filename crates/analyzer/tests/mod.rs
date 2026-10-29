@@ -3607,3 +3607,4 @@ test_case!(foreach_over_array_keys_knows_each_key_exists, {
     s.strict_array_index_existence = true;
     s
 });
+test_case!(array_column_of_enum_cases_reads_their_values);
