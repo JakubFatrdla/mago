@@ -2,10 +2,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use mago_allocator::Arena;
+use mago_codex::metadata::CodebaseMetadata;
+use mago_codex::ttype::add_union_type;
 use mago_codex::ttype::atomic::TAtomic;
 use mago_codex::ttype::atomic::array::TArray;
+use mago_codex::ttype::combiner::CombinerOptions;
 use mago_codex::ttype::comparator::ComparisonResult;
 use mago_codex::ttype::comparator::union_comparator;
+use mago_codex::ttype::get_array_parameters;
 use mago_codex::ttype::get_arraykey;
 use mago_codex::ttype::get_implicit_mixed;
 use mago_codex::ttype::get_mixed;
@@ -13,6 +17,8 @@ use mago_codex::ttype::union::TUnion;
 use mago_reporting::Annotation;
 use mago_reporting::Issue;
 use mago_span::HasSpan;
+use mago_syntax::cst::Argument;
+use mago_syntax::cst::Call;
 use mago_syntax::cst::Expression;
 use mago_syntax::cst::Foreach;
 use mago_syntax::cst::ForeachTarget;
@@ -199,6 +205,24 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Foreach<'arena> {
             None
         };
 
+        let array_keys_entry = if !is_by_reference
+            && is_variable_value
+            && let Some(array) = get_array_keys_argument(iterator, context)
+            && matches!(array, Expression::Variable(Variable::Direct(_)))
+            && let (Some(array_id), Some(key_id)) =
+                (get_block_expression_id(array, context, block_context), value_expression_id)
+            && let Some(array_type) = block_context.locals.get(&array_id)
+            && let Some(entry_type) = get_array_value_type(array_type, context.codebase)
+        {
+            let entry_id = concat_word!(array_id.as_bytes(), b"[", key_id.as_bytes(), b"]");
+            let entry_type = Rc::new(entry_type);
+            loop_block_context.locals.insert(entry_id, Rc::clone(&entry_type));
+
+            Some((entry_id, entry_type))
+        } else {
+            None
+        };
+
         let mut loop_scope = LoopScope::new(self.span(), block_context.locals.clone(), None);
         let is_variable_key =
             self.target.key().is_some_and(|key| matches!(key, Expression::Variable(Variable::Direct(_))));
@@ -207,6 +231,10 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Foreach<'arena> {
         if let Some((_, _, _, entry_id, entry_type)) = &foreach_entry {
             loop_scope.parent_context_variables.insert(*entry_id, Rc::clone(entry_type));
             loop_scope.tracks_assignment_targets = true;
+        }
+
+        if let Some((entry_id, entry_type)) = array_keys_entry {
+            loop_scope.parent_context_variables.insert(entry_id, entry_type);
         }
 
         if narrowed_value.is_some() {
@@ -284,6 +312,49 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for Foreach<'arena> {
 
         Ok(())
     }
+}
+
+fn get_array_keys_argument<'ast, 'arena, A>(
+    iterator: &'ast Expression<'arena>,
+    context: &Context<'_, 'arena, A>,
+) -> Option<&'ast Expression<'arena>>
+where
+    A: Arena,
+{
+    let Expression::Call(Call::Function(function_call)) = iterator else {
+        return None;
+    };
+    let Expression::Identifier(identifier) = function_call.function else {
+        return None;
+    };
+
+    if !identifier.value().eq_ignore_ascii_case(b"array_keys")
+        && !context.resolved_names.get(identifier).eq_ignore_ascii_case(b"array_keys")
+    {
+        return None;
+    }
+
+    match function_call.argument_list.arguments.first()? {
+        Argument::Positional(argument) if argument.ellipsis.is_none() => Some(argument.value),
+        _ => None,
+    }
+}
+
+fn get_array_value_type(array_type: &TUnion, codebase: &CodebaseMetadata) -> Option<TUnion> {
+    let mut value_type: Option<TUnion> = None;
+    for atomic in array_type.types.iter() {
+        let TAtomic::Array(array) = atomic else {
+            return None;
+        };
+
+        let (_, array_value_type) = get_array_parameters(array, codebase);
+        value_type = Some(match value_type {
+            Some(value_type) => add_union_type(value_type, &array_value_type, codebase, CombinerOptions::default()),
+            None => array_value_type,
+        });
+    }
+
+    value_type
 }
 
 fn assignments_only_target_current_entry(
