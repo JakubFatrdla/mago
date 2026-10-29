@@ -82,6 +82,7 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for If<'arena> {
                 || (!final_actions.is_empty() && !final_actions.contains(ControlAction::None))
         };
 
+        let inherited_conflicting_variables = std::mem::take(&mut block_context.parent_conflicting_clause_variables);
         let if_conditional_scope =
             conditional::analyze(context, block_context, artifacts, &mut if_scope, self.condition, true)?;
 
@@ -501,6 +502,8 @@ impl<'ast, 'arena> Analyzable<'ast, 'arena> for If<'arena> {
         if let Some(property_ids) = if_scope.definitely_uninitialized_property_ids.take() {
             block_context.definitely_uninitialized_property_ids = property_ids;
         }
+
+        block_context.parent_conflicting_clause_variables.extend(inherited_conflicting_variables);
 
         Ok(())
     }
