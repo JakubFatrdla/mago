@@ -81,8 +81,6 @@ impl FunctionReturnTypeProvider for ArrayMapProvider {
         let array_arg = invocation.get_argument(1, &[b"array"])?;
         let callback_metadata = context.get_callable_metadata(callback_arg);
 
-        // Fall back to the inferred return type when none is declared, e.g. for
-        // an untyped arrow function.
         let declared_return_type =
             callback_metadata.and_then(|metadata| metadata.return_type_metadata.as_ref()).map(|r| &r.type_union);
         let inferred_return_type = if callback_type.is_single()
@@ -92,7 +90,7 @@ impl FunctionReturnTypeProvider for ArrayMapProvider {
         } else {
             None
         };
-        let raw_return_type = declared_return_type.or(inferred_return_type)?.clone();
+        let raw_return_type = inferred_return_type.or(declared_return_type)?.clone();
 
         let array_type = context.get_expression_type(array_arg)?;
         let array = array_type.get_single_array()?;

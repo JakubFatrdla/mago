@@ -3608,3 +3608,4 @@ test_case!(foreach_over_array_keys_knows_each_key_exists, {
     s
 });
 test_case!(array_column_of_enum_cases_reads_their_values);
+test_case!(array_map_of_a_literal_list_keeps_the_inferred_return_of_a_typed_arrow_function);
