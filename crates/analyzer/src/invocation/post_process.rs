@@ -200,7 +200,15 @@ where
             exceptions.sort();
             CallThrowPoint::Classes(exceptions)
         }
-        None => get_call_throw_point(context, invoication, identifier, metadata, template_result, parameters),
+        None => {
+            let call_throw_point =
+                get_call_throw_point(context, invoication, identifier, metadata, template_result, parameters);
+            if matches!(&call_throw_point, CallThrowPoint::Classes(classes) if !classes.is_empty()) {
+                artifacts.record_call_declaring_throws(invoication.span);
+            }
+
+            call_throw_point
+        }
     };
     artifacts.record_call_throw_point(invoication.span, call_throw_point);
 

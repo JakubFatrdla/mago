@@ -75,14 +75,20 @@ impl DeadCatchCheck {
     where
         A: Arena,
     {
-        let mut collector =
-            ThrowPointCollector { throw_points: vec![], context, artifacts, throw_operand: None, filter_caught: false };
+        let mut collector = ThrowPointCollector {
+            throw_points: vec![],
+            calls_declaring_throws: false,
+            context,
+            artifacts,
+            throw_operand: None,
+            filter_caught: false,
+        };
         for statement in statements {
             ThrowPointWalker.walk_statement(statement, &mut collector);
         }
 
-        let try_can_throw_any_throwable =
-            collector.throw_points.iter().any(|throw_point| matches!(throw_point, CallThrowPoint::AnyThrowable));
+        let try_can_throw_any_throwable = collector.calls_declaring_throws
+            || collector.throw_points.iter().any(|throw_point| matches!(throw_point, CallThrowPoint::AnyThrowable));
 
         Self { throw_points: collector.throw_points, try_can_throw_any_throwable, caught_above: vec![] }
     }
@@ -131,8 +137,14 @@ pub(crate) fn collect_uncaught_throw_points<'arena, A>(
 where
     A: Arena,
 {
-    let mut collector =
-        ThrowPointCollector { throw_points: vec![], context, artifacts, throw_operand: None, filter_caught: true };
+    let mut collector = ThrowPointCollector {
+        throw_points: vec![],
+        calls_declaring_throws: false,
+        context,
+        artifacts,
+        throw_operand: None,
+        filter_caught: true,
+    };
     for statement in statements {
         ThrowPointWalker.walk_statement(statement, &mut collector);
     }
@@ -242,6 +254,7 @@ where
     A: Arena,
 {
     throw_points: Vec<CallThrowPoint>,
+    calls_declaring_throws: bool,
     context: &'analysis Context<'ctx, 'arena, A>,
     artifacts: &'analysis AnalysisArtifacts,
     throw_operand: Option<(u32, u32)>,
@@ -268,6 +281,7 @@ where
     }
 
     fn add_call(&mut self, call: &impl HasSpan, receiver: Option<&Expression<'_>>) {
+        self.calls_declaring_throws |= self.artifacts.call_declares_throws(call);
         let receiver_is_unresolved = receiver.is_some_and(|receiver| self.get_object_classes(receiver).is_none());
         let throw_point = match self.artifacts.get_call_throw_point(call) {
             Some(throw_point) if !receiver_is_unresolved => throw_point.clone(),

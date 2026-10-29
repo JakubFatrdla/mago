@@ -119,6 +119,7 @@ pub struct AnalysisArtifacts {
     pub closure_bind_scope: Option<ClosureBindScope>,
     pub resolved_method_calls: Vec<ResolvedMethodCall>,
     pub(crate) call_throw_points: HashMap<(u32, u32), CallThrowPoint>,
+    pub(crate) calls_declaring_throws: HashSet<(u32, u32)>,
     pub(crate) condition_function_calls: Vec<(u32, Word)>,
     pub suppressed_issues: Vec<Issue>,
     pub(crate) editor: Option<EditorArtifacts>,
@@ -169,6 +170,7 @@ impl AnalysisArtifacts {
             closure_bind_scope: None,
             resolved_method_calls: Vec::new(),
             call_throw_points: HashMap::default(),
+            calls_declaring_throws: HashSet::default(),
             condition_function_calls: Vec::new(),
             suppressed_issues: Vec::new(),
             editor: None,
@@ -332,6 +334,17 @@ impl AnalysisArtifacts {
                 vacant.insert(throw_point);
             }
         }
+    }
+
+    pub(crate) fn record_call_declaring_throws(&mut self, span: Span) {
+        self.calls_declaring_throws.insert((span.start.offset, span.end.offset));
+    }
+
+    pub(crate) fn call_declares_throws<T>(&self, call: &T) -> bool
+    where
+        T: HasSpan,
+    {
+        self.calls_declaring_throws.contains(&get_expression_range(call))
     }
 
     pub(crate) fn get_call_throw_point<T>(&self, call: &T) -> Option<&CallThrowPoint>

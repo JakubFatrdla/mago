@@ -241,3 +241,25 @@ function inside_loop(array $values): void
         }
     }
 }
+
+function throwable_after_declared_exception(Gateway $gateway): void
+{
+    try {
+        $gateway->charge();
+    } catch (PaymentException $e) {
+        echo $e->getMessage();
+    } catch (Throwable $e) {
+        echo $e->getMessage();
+    }
+}
+
+function throwable_after_thrown_exception(): void
+{
+    try {
+        throw new PaymentException('declined');
+    } catch (PaymentException $e) {
+        echo $e->getMessage();
+    } catch (Throwable $e) { // @mago-expect analysis:dead-catch
+        echo $e->getMessage();
+    }
+}
