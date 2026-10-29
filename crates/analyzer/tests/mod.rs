@@ -3066,6 +3066,7 @@ test_case!(loose_null_equality_narrowing_drops_falsy_strings);
 test_case!(in_array_possible_and_required_values);
 test_case!(negated_isset_nullable_array_keys);
 test_case!(nested_isset_array_shapes);
+test_case!(isset_of_an_offset_keeps_its_key_when_its_container_is_known_to_be_set);
 test_case!(foreach_empty_array);
 test_case!(foreach_empty_array_analyze_dead_code, {
     let mut settings = default_test_settings();

@@ -993,6 +993,7 @@ fn add_nested_assertions(
 
     let new_types = new_types.to_mut();
     let mut keys_to_remove = vec![];
+    let mut keys_given_offset_assertions = WordSet::default();
 
     'outer: for (nk, only_isset_assertions) in nested_assertions {
         let nk_str = nk.as_bytes();
@@ -1051,6 +1052,7 @@ fn add_nested_assertions(
                 new_base_key.extend_from_slice(array_key);
                 new_base_key.push(b']');
                 let base_key_atom = word(&base_key);
+                keys_given_offset_assertions.insert(base_key_atom);
                 let entry = new_types.entry(base_key_atom).or_default();
 
                 let new_key = if let Some(resolved_key) = resolve_literal_array_key(array_key) {
@@ -1138,7 +1140,7 @@ fn add_nested_assertions(
         }
     }
 
-    new_types.retain(|k, _| !keys_to_remove.contains(k));
+    new_types.retain(|k, _| !keys_to_remove.contains(k) || keys_given_offset_assertions.contains(k));
 }
 
 fn is_offset_of_mixed_or_call(block_context: &BlockContext<'_>, key: &[u8]) -> bool {
