@@ -124,3 +124,13 @@ namespace App\Usage {
         return new foobar();
     }
 }
+
+namespace App\StaticTypes {
+    class Form
+    {
+        /**
+         * @var list<callable(static): void>
+         */
+        public array $handlers = [];
+    }
+}

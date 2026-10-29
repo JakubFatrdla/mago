@@ -1810,8 +1810,9 @@ where
     type_metadata.type_union.any_child_node(|type_ref| {
         let name = match type_ref {
             TypeRef::Atomic(TAtomic::Reference(TReference::Symbol { name, .. })) => name,
-            TypeRef::Atomic(TAtomic::Object(TObject::Named(TNamedObject { name, .. }) | TObject::Enum(TEnum { name, .. })))
-                if !matches!(name.as_bytes(), b"self" | b"static" | b"parent" | b"$this") =>
+            TypeRef::Atomic(TAtomic::Object(
+                TObject::Named(TNamedObject { name, is_static: false, .. }) | TObject::Enum(TEnum { name, .. }),
+            )) if !matches!(name.as_bytes(), b"self" | b"static" | b"parent" | b"$this") =>
             {
                 if context.codebase.get_class_like_by_name(*name).is_some() {
                     if type_metadata.from_docblock {
