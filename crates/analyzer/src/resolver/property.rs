@@ -1383,6 +1383,7 @@ where
             &TypeExpansionOptions {
                 self_class: Some(declaring_class_id),
                 static_class_type: StaticClassType::Object(object.clone()),
+                function_is_final: !matches!(object, TObject::Named(named_object) if named_object.is_static),
                 ..Default::default()
             },
         );
